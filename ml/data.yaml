@@ -1,0 +1,14 @@
+path: ./dataset
+train: images/train
+val: images/val
+test: images/test
+
+nc: 6
+names:
+
+  - composite_packaging
+  - plastic_rigid
+  - plastic_film
+  - metal
+  - glass
+  - styrofoam

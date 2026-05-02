@@ -1,0 +1,50 @@
+name: TrashVision
+description: "A Trash Monitoring and Reporting App."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  flutter_secure_storage: ^10.0.0
+  flutter_dotenv: ^6.0.0
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  lucide_icons: ^0.257.0
+  connectivity_plus: ^7.1.1
+  dio: ^5.9.2
+  image_picker: ^1.0.7
+  path_provider: ^2.1.2
+  permission_handler: ^12.0.1
+  camera: ^0.12.0+1
+  geolocator: ^14.0.2
+  flutter_map: ^8.3.0
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
+
+# Launcher Icon Configuration
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/TrashVisionLogo.png"
+
+# Native Splash Configuration
+flutter_native_splash:
+  color: "#ffffff"
+  image: "assets/images/TrashVisionLogo.png" 
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, areas, reports
+from routes import auth, areas, reports, flights
 from dependency import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
@@ -27,7 +27,7 @@ app.include_router(reports.router, prefix="/reports", tags=["Reports"])
 # app.include_router(heatmap.router, prefix="/heatmap", tags=["Heatmap"])
 # app.include_router(logs.router, prefix="/logs", tags=["Logs"])
 app.include_router(areas.router, prefix="/areas", tags=["Areas"])
-# app.include_router(flights.router, prefix="/flights", tags=["Flights"])
+app.include_router(flights.router, prefix="/flights", tags=["Flights"])
 
 @app.get("/")
 def root():

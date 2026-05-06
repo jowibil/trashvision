@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 processing_status_enum = Enum('pending', 'processing', 'done', 'failed', name='processing_status')
 
@@ -14,7 +14,7 @@ class Image(Base):
     image_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     file_url = Column(String, nullable=False)
     filename = Column(String, nullable=False)
-    captured_at = Column(DateTime, default=datetime.utcnow)
+    captured_at = Column(DateTime, default=datetime.now(timezone.utc))
     
     latitude = Column(Float)
     longitude = Column(Float)

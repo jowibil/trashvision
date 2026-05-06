@@ -96,7 +96,7 @@ export default function AuthReport() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 max-w-7xl mx-auto">
+    <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="text-left">
           <h3 className="text-3xl font-black text-[#005D90]">

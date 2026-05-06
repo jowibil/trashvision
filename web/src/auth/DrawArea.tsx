@@ -66,9 +66,11 @@ export default function AreaDrawer() {
 
       const handleCreate = (val: any) => {
         setGeoJson(val.layer.toGeoJSON());
+        
       };
 
       map.on("pm:create", handleCreate);
+      
 
       return () => {
         map.off("pm:create", handleCreate);
@@ -125,7 +127,7 @@ export default function AreaDrawer() {
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <MapResizer />
           <MapController targetPos={targetCoords} />
-          <GeomanControls setGeoJson={setGeoJson} />
+          < GeomanControls setGeoJson={setGeoJson} />
 
           {activeArea && (
             <GeoJSON

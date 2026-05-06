@@ -21,21 +21,24 @@ def extract_gps(image_path: str):
         lat_ref = gps.get(piexif.GPSIFD.GPSLatitudeRef)
         lon_ref = gps.get(piexif.GPSIFD.GPSLongitudeRef)
         lat_val = gps.get(piexif.GPSIFD.GPSLatitude)
-        lon_val = gps.get(piexif.GPSIFD.GPSLongitude)
+        lng_val = gps.get(piexif.GPSIFD.GPSLongitude)
 
-        if not all([lat_ref, lon_ref, lat_val, lon_val]):
+        if not all([lat_ref, lon_ref, lat_val, lng_val]):
             return None, None
 
         lat = convert_to_degrees(lat_val)
-        lon = convert_to_degrees(lon_val)
+        lng = convert_to_degrees(lng_val)
 
         if lat_ref == b'S':
             lat = -lat
         if lon_ref == b'W':
-            lon = -lon
+            lng = -lng
 
-        return round(lat, 6), round(lon, 6)
+        return round(lat, 6), round(lng, 6)
 
     except Exception as e:
         print(f"GPS extraction failed for {image_path}: {e}")
         return None, None
+    
+    
+    

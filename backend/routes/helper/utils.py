@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, Dict, Any, List
 import uuid
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date
 
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1)
@@ -54,3 +54,11 @@ class ReportPublic(BaseModel):
         
 class BulkDeleteRequest(BaseModel):
     report_ids: List[UUID]
+
+
+class FlightCreate(BaseModel):
+    flight_date: date
+    pilot_name: str
+    area_covered: Optional[str] = None
+    notes: Optional[str] = None
+    area_id: Optional[str] = None

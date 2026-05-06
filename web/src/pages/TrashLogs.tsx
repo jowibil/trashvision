@@ -65,7 +65,7 @@ const HistoricalTrashLogs: React.FC = () => {
   }, [logs]);
 
   return (
-    <div className="min-h-screen p-8 font-sans text-slate-700 bg-slate-50/30">
+    <div className="min-h-screen p-8 font-sans text-slate-700">
       <header className="flex justify-between items-end mb-8">
         <div>
           <h3 className="text-3xl font-black text-[#004a7c] tracking-tight">Historical Trash Logs</h3>

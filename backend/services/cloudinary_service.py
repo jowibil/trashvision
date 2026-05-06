@@ -27,6 +27,18 @@ async def upload_image(file: UploadFile) -> str:
     except Exception as e:
         print(f"Cloudinary upload failed: {e}")
         return ""
+    
+async def upload_drone_image(file_path: str, flight_id: str) -> str:
+    try:
+        result = cloudinary.uploader.upload(
+            file_path,
+            folder=f"trashvision/flights/{flight_id}",
+            resource_type="auto"
+        )
+        return result.get("secure_url", "")
+    except Exception as e:
+        print(f"Cloudinary upload failed: {e}")
+        return ""
 
 def upload_file_path(file_path: str) -> str:
     try:

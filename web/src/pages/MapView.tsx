@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { MapContainer, TileLayer, GeoJSON, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  GeoJSON,
+  useMap,
+  CircleMarker,
+  useMapEvents,
+} from "react-leaflet";
 import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
 import { useAreas } from "../services/hooks/useAreas";
+import { useAreaCollection } from "../services/hooks/useAreasCollection";
 import { useReports } from "../services/hooks/useReports";
 import { generateMockDroneData } from "../types/mockWasteData";
 import { useMapControl } from "../services/hooks/useMapControl";
-import { Calendar, X } from "lucide-react";
+import { Calendar, X, RefreshCw } from "lucide-react";
 import { useHexbinData } from "../services/hooks/useHexbins";
 import { SectorDrawer } from "../components/ui/aside";
 import { MapOverlays } from "../components/ui/mapOverlays";
@@ -14,6 +22,12 @@ import L from "leaflet";
 
 const mockData = generateMockDroneData();
 
+function ZoomHandler({ onZoomChange }: { onZoomChange: (z: number) => void }) {
+  useMapEvents({
+    zoomend: (e) => onZoomChange(e.target.getZoom()),
+  });
+  return null;
+}
 function MapResizer({ isDrawerOpen }: { isDrawerOpen: boolean }) {
   const map = useMap();
   useEffect(() => {
@@ -46,28 +60,42 @@ const getDensityColor = (count: number) => {
   if (count > 2) return "#eab308";
   return "#22c55e";
 };
-
+function ZoomTracker({ setZoom }: { setZoom: (z: number) => void }) {
+  const map = useMapEvents({
+    zoomend: () => {
+      setZoom(map.getZoom());
+    },
+  });
+  return null;
+}
 export default function Maps() {
+  const { areas } = useAreas();
   const [week, setWeek] = useState(4);
+  const searchRef = useRef<HTMLDivElement>(null);
   const { reportGeoJSON } = useReports("verified");
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentArea, setCurrentArea] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedSector, setSelectedSector] = useState<any>(null);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [targetCoords, setTargetCoords] = useState<[number, number] | null>(
     null,
   );
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const { areas } = useAreas();
-  const [isOpen, setIsOpen] = useState(false);
-  const [currentArea, setCurrentArea] = useState<any>(null);
+  const [zoom, setZoom] = useState(15);
+  const {
+    collection: droneCollection,
+    loading,
+    refetch,
+  } = useAreaCollection(currentArea?.area_id);
   const [threshold, setThreshold] = useState(() => {
     const saved = localStorage.getItem("mapThreshold");
     return saved ? parseInt(saved) : 2;
   });
-  const searchRef = useRef<HTMLDivElement>(null);
   const hexbins = useHexbinData(
-    mockData,
+    droneCollection,
     selectedDate,
     week,
     threshold,
@@ -83,7 +111,9 @@ export default function Maps() {
       click: (e: any) => {
         setSelectedSector(feature);
         setDrawerOpen(true);
-        const center = turf.center(feature);
+        if (currentArea) setSelectedAreaId(currentArea.area_id);
+
+        const center = turf.center(feature);  
         const [lng, lat] = center.geometry.coordinates;
         e.target._map.setView([lat, lng], 18);
       },
@@ -136,13 +166,15 @@ export default function Maps() {
           type: feature.properties.type,
           image: feature.properties.image,
           description: feature.properties.description,
-          reporter: feature.properties.reporter
+          reporter: feature.properties.reporter,
+          detections: [],
         });
         const { lat, lng } = e.latlng;
         e.target._map.setView([lat, lng], 19);
       },
     });
   };
+
   return (
     <div className="h-screen w-full max-w-7xl flex flex-col overflow-hidden bg-white">
       <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-8 sticky top-0 mt-5 bg-white">
@@ -177,12 +209,14 @@ export default function Maps() {
         >
           <MapContainer
             center={[7.288, 125.693]}
-            zoom={15}
+            zoom={14}
             className="h-full w-full z-0"
           >
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <ZoomTracker setZoom={setZoom} />
             <MapController targetCoords={targetCoords} />
             <MapResizer isDrawerOpen={drawerOpen} />
+            <ZoomHandler onZoomChange={setZoom} />
             {currentArea && (
               <GeoJSON
                 key={`boundary-${currentArea.area_id}`}
@@ -202,9 +236,9 @@ export default function Maps() {
                 }}
               />
             )}
-            {hexbins && (
+            {zoom < 18 && hexbins && (
               <GeoJSON
-                key={`drone-hex-${week}-${threshold}-${currentArea?.area_id}`}
+                key={`drone-hex-${week}-${threshold}-${currentArea?.area_id}-${droneCollection.length}`}
                 data={hexbins as any}
                 onEachFeature={onEachHex}
                 pathOptions={{ pane: "tilePane" }}
@@ -220,6 +254,36 @@ export default function Maps() {
                 }}
               />
             )}
+            {zoom > 17 &&
+              droneCollection.map((img) => (
+                <CircleMarker
+                  key={img.image_id}
+                  center={[img.latitude, img.longitude]}
+                  radius={8}
+                  pathOptions={{
+                    fillColor: img.file_url ? "#ef4444" : "#94a3b8",
+                    color: "#fff",
+                    weight: 2,
+                    fillOpacity: 1,
+                  }}
+                  eventHandlers={{
+                    click: (e) => {
+                      setSelectedItem({
+                        id: img.image_id,
+                        type: "Drone Detection",
+                        image: img.file_url,
+                        description: `Captured during flight on ${img.flight_date || "N/A"}`,
+                        reporter: "Autonomous Drone",
+                        detections: [
+                          { label: "Plastic Bottle", confidence: 0.94 },
+                          { label: "Paper Waste", confidence: 0.82 },
+                        ],
+                      });
+                      L.DomEvent.stopPropagation(e);
+                    },
+                  }}
+                />
+              ))}
             {reportGeoJSON && (
               <GeoJSON
                 key={`reports-${reportGeoJSON.features.length}`}
@@ -238,7 +302,21 @@ export default function Maps() {
               />
             )}
           </MapContainer>
-
+          <div className="absolute top-4 left-20 z-1000">
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
+            >
+              {loading ? (
+                <div className="animate-spin h-3 w-3 border-2 border-[#005D90] border-t-transparent rounded-full" />
+              ) : (
+                <RefreshCw size={14} className="text-[#005D90]" />
+              )}
+              <span className="text-[10px] font-black text-[#005D90] uppercase tracking-widest">
+                Refresh Area
+              </span>
+            </button>
+          </div>
           <MapOverlays
             week={week}
             setWeek={setWeek}
@@ -353,32 +431,95 @@ export default function Maps() {
       {/* DETAIL MODAL */}
       {selectedItem && (
         <div className="fixed inset-0 z-3000 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl">
-            <div className="h-56 relative bg-slate-200">
-              <img
-                src={selectedItem.image}
-                className="w-full h-full object-cover"
-                alt="waste"
-              />
+          <div className="bg-white rounded-4xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100">
+            {/* Image Section */}
+            <div className="relative h-64 bg-slate-100 group">
+              {selectedItem?.image ? (
+                <a href={selectedItem.image} target="_blank" rel="noreferrer">
+                  <img
+                    src={selectedItem.image}
+                    className="w-full h-full object-cover cursor-zoom-in transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white font-bold text-xs bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md">
+                      Click to expand
+                    </span>
+                  </div>
+                </a>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin h-6 w-6 border-2 border-[#005D90] border-t-transparent rounded-full mb-2" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Processing Image
+                  </span>
+                </div>
+              )}
               <button
                 onClick={() => setSelectedItem(null)}
-                className="absolute top-4 right-4 bg-white/20 p-2 rounded-full backdrop-blur-md text-white hover:bg-white/40"
+                className="absolute top-4 right-4 bg-white p-2 rounded-full shadow-lg text-slate-800 hover:bg-slate-50 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
-            <div className="p-6 text-left">
-              <h3 className="text-xl font-black text-slate-800 uppercase pb-2">
-                {selectedItem.type}
-              </h3>
-              <p className="text-xs text-slate-500 font-bold pb-2">
-                Reported by: <span className="text-slate-800">{selectedItem.reporter || "Anonymous"}</span>
-              </p>
+
+            {/* Info Section */}
+            <div className="p-8 text-left">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-2xl font-black text-[#005D90] uppercase tracking-tight leading-none">
+                    {selectedItem.type}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">
+                    Source: {selectedItem.reporter}
+                  </p>
+                </div>
+                {selectedItem.detections?.length > 0 && (
+                  <div className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-[10px] font-black border border-red-100">
+                    AI VERIFIED
+                  </div>
+                )}
+              </div>
+
+              {/* AI Detections List */}
+              {selectedItem.detections?.length > 0 ? (
+                <div className="space-y-2 mb-6">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                    Detected Objects
+                  </p>
+                  {selectedItem.detections.map((det: any, index: number) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100"
+                    >
+                      <span className="text-sm font-bold text-slate-700">
+                        {det.label}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500"
+                            style={{ width: `${det.confidence * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 w-8">
+                          {Math.round(det.confidence * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                  {selectedItem.description ||
+                    "No further details provided for this detection point."}
+                </p>
+              )}
+
               <button
                 onClick={() => setSelectedItem(null)}
-                className="w-full py-3 bg-[#005D90] text-white rounded-xl font-black uppercase text-xs"
+                className="w-full py-4 bg-[#005D90] text-white rounded-2xl font-black uppercase text-sm shadow-lg shadow-blue-900/20 hover:bg-[#004a73] transition-all active:scale-[0.98]"
               >
-                Dismiss
+                Close Details
               </button>
             </div>
           </div>

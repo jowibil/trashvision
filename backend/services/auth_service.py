@@ -127,7 +127,7 @@ def create_password_reset_code(db: Session, email: str):
     
     raw_code = f"{secrets.randbelow(900000)+100000}"
     hashed_code = pwd_context.hash(raw_code)
-    expires = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expires = datetime.now(timezone.utc) + timedelta(minutes=3)
     
     reset_entry = PasswordReset(
         email=email, 

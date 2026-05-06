@@ -1,34 +1,56 @@
 import { useMemo } from "react";
 import * as turf from "@turf/turf";
 
-export function useHexbinData(mockData: any[], selectedDate: Date, week: number, threshold: number, boundary: any) {
+export function useHexbinData(
+  data: any[],
+  selectedDate: Date,
+  week: number,
+  threshold: number,
+  boundary: any,
+) {
   return useMemo(() => {
-    const timeFiltered = mockData.filter((p) => {
+    if (!data || data.length === 0) return null;
+
+    const filtered = data.filter((p) => {
+      if (!p.date) return true;
       const d = new Date(p.date);
-      return (
-        d.getMonth() === selectedDate.getMonth() &&
-        d.getFullYear() === selectedDate.getFullYear() &&
-        d.getDate() <= week * 7
-      );
+      return d.getMonth() === selectedDate.getMonth();
     });
 
-    if (timeFiltered.length === 0) return null;
+    if (filtered.length === 0) return null;
 
     const points = turf.featureCollection(
-      timeFiltered.map((p) => turf.point([p.lng, p.lat], { ...p }))
+      data.map((p) => turf.point([p.longitude, p.latitude], { ...p })),
     );
 
-    const bbox = turf.bbox(points);
-    const grid = turf.hexGrid(bbox, 0.025, { units: "kilometers" });
+    const bbox = boundary
+      ? turf.bbox(turf.polygon(boundary.coordinates))
+      : turf.bbox(points);
 
-    if(boundary) {
-      grid.features = grid.features.filter((hex)=> {
-        return !turf.booleanDisjoint(hex, boundary);
-      })
+    const [minX, minY, maxX, maxY] = bbox;
+    const widthKm = turf.distance([minX, minY], [maxX, minY], {
+      units: "kilometers",
+    });
+    const heightKm = turf.distance([minX, minY], [minX, maxY], {
+      units: "kilometers",
+    });
+
+    const cellSize = Math.min(widthKm, heightKm) / 10;
+
+    console.log(
+      `bbox: ${widthKm.toFixed(3)}km x ${heightKm.toFixed(3)}km, cellSize: ${cellSize.toFixed(4)}km`,
+    );
+
+    const grid = turf.hexGrid(bbox, cellSize, { units: "kilometers" });
+
+    if (boundary) {
+      grid.features = grid.features.filter(
+        (hex) => !turf.booleanDisjoint(hex, boundary),
+      );
     }
 
     let processedGrid = turf.collect(grid, points, "id", "pointIds");
-    processedGrid = turf.collect(processedGrid, points, "imageUrl", "images");
+    processedGrid = turf.collect(processedGrid, points, "file_url", "images");
     processedGrid = turf.collect(processedGrid, points, "type", "types");
 
     processedGrid.features = processedGrid.features.filter((f) => {
@@ -37,5 +59,5 @@ export function useHexbinData(mockData: any[], selectedDate: Date, week: number,
     });
 
     return processedGrid;
-  }, [week, threshold, selectedDate, mockData, boundary]);
+  }, [week, threshold, selectedDate, data, boundary]);
 }

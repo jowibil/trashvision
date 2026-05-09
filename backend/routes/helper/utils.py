@@ -62,3 +62,14 @@ class FlightCreate(BaseModel):
     area_covered: Optional[str] = None
     notes: Optional[str] = None
     area_id: Optional[str] = None
+    
+class FlightResponse(BaseModel):
+    flight_id: uuid.UUID
+    flight_date: date
+    pilot_name: str
+    area_covered: Optional[str] = None
+    notes: Optional[str] = None
+    area_id: Optional[uuid.UUID] = None
+    
+    class Config:
+        form_attributes = True

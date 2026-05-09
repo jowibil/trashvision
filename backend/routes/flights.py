@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db, SessionLocal
 from models.drone_flight_log import DroneFlightLog
 from models.image import Image as ImageModel
-from routes.helper.utils import FlightCreate
+from routes.helper.utils import FlightCreate, FlightResponse
 from services.gps_service import extract_gps
 from services.cloudinary_service import upload_drone_image
 from pydantic import BaseModel
@@ -31,7 +31,7 @@ def create_flight(data: FlightCreate, db: Session = Depends(get_db)):
     db.refresh(flight)
     return flight
 
-@router.get("/")
+@router.get("/", response_model=list[FlightResponse])
 def get_all_flights(db: Session = Depends(get_db)):
     return db.query(DroneFlightLog).order_by(
         DroneFlightLog.flight_date.desc()
@@ -99,6 +99,7 @@ async def upload_flight_batch(
     background_tasks: BackgroundTasks,
     flight_date: date = Form(...),
     pilot_name: str = Form(...),
+    notes: str = Form(...),
     area_id: Optional[str] = Form(None),
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db)
@@ -106,6 +107,7 @@ async def upload_flight_batch(
     flight = DroneFlightLog(
         flight_date=flight_date,
         pilot_name=pilot_name,
+        notes = notes,
         area_id=uuid.UUID(area_id) if area_id else None
     )
     db.add(flight)

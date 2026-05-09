@@ -11,7 +11,7 @@ import {
   ChevronRight,
   CheckCircle2,
 } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast"; // Added Toast
+import toast, { Toaster } from "react-hot-toast"; 
 import { useAreas } from "../services/hooks/useAreas";
 import api from "../api/axios";
 
@@ -32,7 +32,6 @@ export default function DroneUploadUI() {
     pilot: "Admin",
   });
 
-  // 1. FETCH RECENT FLIGHTS FOR STATUS LOGS
   const fetchFlights = async () => {
     try {
       const response = await api.get("/flights/");
@@ -80,13 +79,12 @@ export default function DroneUploadUI() {
             (progressEvent.loaded * 100) / (progressEvent.total || 1),
           );
           setUploadProgress(percent);
+          console.log("notes being sent:", uploadMetadata.name); 
         },
       });
 
-      // --- SUCCESS ACTIONS ---
       toast.success("Flight analysis queued successfully!");
 
-      // 2. EMPTY STATE RESET
       setSelectedFiles([]);
       setUploadMetadata({
         name: "",
@@ -94,8 +92,7 @@ export default function DroneUploadUI() {
         date: new Date().toISOString().split("T")[0],
         pilot: "Admin",
       });
-
-      // 3. REFRESH LOGS
+      await new Promise(resolve => setTimeout(resolve, 500));
       fetchFlights();
     } catch (err) {
       toast.error("Upload failed. Check connection.");
@@ -179,7 +176,7 @@ export default function DroneUploadUI() {
                       <input
                         type="text"
                         placeholder="e.g. Shoreline_North_01"
-                        className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold focus:border-[#005D90] outline-none"
+                        className="w-full bg-white border text-slate-900 border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold focus:border-[#005D90] outline-none"
                         value={uploadMetadata.name}
                         onChange={(e) =>
                           setUploadMetadata({
@@ -228,7 +225,7 @@ export default function DroneUploadUI() {
                       </label>
                       <input
                         type="date"
-                        className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold outline-none"
+                        className="w-full bg-white border text-slate-900 border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold outline-none"
                         value={uploadMetadata.date}
                         onChange={(e) =>
                           setUploadMetadata({

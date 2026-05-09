@@ -32,31 +32,40 @@ export default function AuthReport() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("pending");
 
-  useEffect(() => {
-    setPage(1);
-    fetchReports(true);
-  }, [filter]);
+useEffect(() => {
+  const controller = new AbortController();
 
-  const fetchReports = async (isNewFilter = false) => {
-    setLoading(isNewFilter);
+  const fetchReports = async () => {
+    setLoading(true);
     try {
       const limit = 10;
-      const offset = isNewFilter ? 0 : (page - 1) * limit;
+      const offset = (page - 1) * limit;
       const response = await api.get(
         `/reports/?status=${filter}&limit=${limit}&offset=${offset}`,
+        { signal: controller.signal }
       );
-      if (isNewFilter) {
-        setReports(response.data);
-      } else {
-        setReports((prev) => [...prev, ...response.data]);
-      }
+
+      setReports(prev => page === 1 ? response.data : [...prev, ...response.data]);
       setHasMore(response.data.length === limit);
     } catch (error) {
-      toast.error("Failed to load reports");
+    toast.error("Failed to load reports");
     } finally {
       setLoading(false);
     }
   };
+
+  fetchReports();
+
+  return () => controller.abort(); 
+
+}, [filter, page]);
+
+const handleTabChange = (newFilter: string) => {
+  if (newFilter === filter) return; 
+  setFilter(newFilter);
+  setPage(1);
+  setReports([]);
+};
 
   const handleUpdateStatus = async (
     report_id: string,
@@ -112,10 +121,7 @@ export default function AuthReport() {
           {["pending", "verified", "rejected"].map((s) => (
             <button
               key={s}
-              onClick={() => {
-                setFilter(s);
-                setSelectedReports([]);
-              }}
+              onClick={() => {handleTabChange(s)}}
               className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
                 filter === s
                   ? "bg-[#005D90] text-white"

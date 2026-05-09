@@ -52,6 +52,11 @@ export const SectorDrawer = ({ isOpen, onClose, selectedSector, areaStatus, onIt
                     id,
                     type: wasteType,
                     image: imgUrl,
+                    reporter: "Autonomous Drone",
+                    detections: [
+                      { label: "Plastic Bottle", confidence: 0.92 },
+                      { label: "Paper Waste", confidence: 0.85 }
+                    ]
                   })}
                   className="group cursor-pointer bg-slate-100 rounded-2xl overflow-hidden hover:border-blue-400 border border-transparent transition-all text-left"
                 >

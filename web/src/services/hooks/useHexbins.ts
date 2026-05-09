@@ -49,9 +49,10 @@ export function useHexbinData(
       );
     }
 
-    let processedGrid = turf.collect(grid, points, "id", "pointIds");
+    let processedGrid = turf.collect(grid, points, "image_id", "pointIds");
     processedGrid = turf.collect(processedGrid, points, "file_url", "images");
     processedGrid = turf.collect(processedGrid, points, "type", "types");
+    processedGrid = turf.collect(processedGrid, points, "detections", "allDetections");
 
     processedGrid.features = processedGrid.features.filter((f) => {
       const count = f.properties?.pointIds?.length || 0;

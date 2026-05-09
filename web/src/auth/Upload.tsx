@@ -62,7 +62,7 @@ export default function DroneUploadUI() {
     const formData = new FormData();
     formData.append("flight_date", uploadMetadata.date);
     formData.append("pilot_name", uploadMetadata.pilot);
-    formData.append("notes", uploadMetadata.name); // Using identifier as notes
+    formData.append("notes", uploadMetadata.name);
 
     if (uploadMetadata.location && uploadMetadata.location !== "auto") {
       formData.append("area_id", uploadMetadata.location);

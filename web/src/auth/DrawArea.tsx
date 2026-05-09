@@ -6,7 +6,6 @@ import {
   Trash,
   Edit3,
   MapPin,
-  X,
   ChevronDown,
   Layers,
 } from "lucide-react";
@@ -28,7 +27,6 @@ function MapController({ targetPos }: { targetPos: [number, number] | null }) {
 }
 
 export default function AreaDrawer() {
-  const [map, setMap] = useState<L.Map | null>(null);
   const [activeArea, setActiveArea] = useState<any>(null);
   const [showListDropdown, setShowListDropdown] = useState(false);
   const [geoJson, setGeoJson] = useState<any>(null);
@@ -110,7 +108,7 @@ export default function AreaDrawer() {
   }
 
   return (
-    <div className="flex flex-col h-[700px] w-full">
+    <div className="flex flex-col h-175 w-full">
       <div className="text-left mb-6 mt-6">
         <h3 className="text-3xl font-black text-[#005D90]">Area Boundary</h3>
         <p className="text-slate-500 text-sm font-medium">

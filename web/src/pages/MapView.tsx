@@ -70,6 +70,7 @@ function ZoomTracker({ setZoom }: { setZoom: (z: number) => void }) {
 }
 export default function Maps() {
   const { areas } = useAreas();
+  const [map, setMap] = useState<L.Map | null>(null);
   const [week, setWeek] = useState(4);
   const searchRef = useRef<HTMLDivElement>(null);
   const { reportGeoJSON } = useReports("verified");
@@ -81,6 +82,7 @@ export default function Maps() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedSector, setSelectedSector] = useState<any>(null);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const [activePin, setActivePin] = useState<string[] | null>(null);
   const [targetCoords, setTargetCoords] = useState<[number, number] | null>(
     null,
   );
@@ -111,9 +113,13 @@ export default function Maps() {
       click: (e: any) => {
         setSelectedSector(feature);
         setDrawerOpen(true);
+
+        const pinsInHex = feature.properties.pointIds || [];
+        setActivePin(pinsInHex.length > 0 ? pinsInHex : null);
+
         if (currentArea) setSelectedAreaId(currentArea.area_id);
 
-        const center = turf.center(feature);  
+        const center = turf.center(feature);
         const [lng, lat] = center.geometry.coordinates;
         e.target._map.setView([lat, lng], 18);
       },
@@ -175,6 +181,11 @@ export default function Maps() {
     });
   };
 
+  const visiblePins = useMemo(() => {
+  if (!activePin) return [];
+  return droneCollection.filter(img => activePin.includes(img.image_id));
+}, [droneCollection, activePin]);
+
   return (
     <div className="h-screen w-full max-w-7xl flex flex-col overflow-hidden bg-white">
       <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-8 sticky top-0 mt-5 bg-white">
@@ -208,6 +219,7 @@ export default function Maps() {
           className={`relative flex-1 m-4 rounded-3xl overflow-hidden border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
         >
           <MapContainer
+            ref={setMap}
             center={[7.288, 125.693]}
             zoom={14}
             className="h-full w-full z-0"
@@ -254,36 +266,35 @@ export default function Maps() {
                 }}
               />
             )}
-            {zoom > 17 &&
-              droneCollection.map((img) => (
-                <CircleMarker
-                  key={img.image_id}
-                  center={[img.latitude, img.longitude]}
-                  radius={8}
-                  pathOptions={{
-                    fillColor: img.file_url ? "#ef4444" : "#94a3b8",
-                    color: "#fff",
-                    weight: 2,
-                    fillOpacity: 1,
-                  }}
-                  eventHandlers={{
-                    click: (e) => {
-                      setSelectedItem({
-                        id: img.image_id,
-                        type: "Drone Detection",
-                        image: img.file_url,
-                        description: `Captured during flight on ${img.flight_date || "N/A"}`,
-                        reporter: "Autonomous Drone",
-                        detections: [
-                          { label: "Plastic Bottle", confidence: 0.94 },
-                          { label: "Paper Waste", confidence: 0.82 },
-                        ],
-                      });
-                      L.DomEvent.stopPropagation(e);
-                    },
-                  }}
-                />
-              ))}
+            {zoom > 17 && visiblePins.map((img) => (
+                  <CircleMarker
+                    key={img.image_id}
+                    center={[img.latitude, img.longitude]}
+                    radius={8}
+                    pathOptions={{
+                      fillColor: img.file_url ? "#ef4444" : "#94a3b8",
+                      color: "#fff",
+                      weight: 2,
+                      fillOpacity: 1,
+                    }}
+                    eventHandlers={{
+                      click: (e) => {
+                        setSelectedItem({
+                          id: img.image_id,
+                          type: "Drone Detection",
+                          image: img.file_url,
+                          description: `Captured during flight on ${img.flight_date || "N/A"}`,
+                          reporter: "Autonomous Drone",
+                          detections: [
+                            { label: "Plastic Bottle", confidence: 0.94 },
+                            { label: "Paper Waste", confidence: 0.82 },
+                          ],
+                        });
+                        L.DomEvent.stopPropagation(e);
+                      },
+                    }}
+                  />
+                ))}
             {reportGeoJSON && (
               <GeoJSON
                 key={`reports-${reportGeoJSON.features.length}`}
@@ -330,7 +341,20 @@ export default function Maps() {
 
         <SectorDrawer
           isOpen={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
+          onClose={() => {
+            setDrawerOpen(false);
+            setActivePin(null); 
+            if (map && currentArea) {
+              map.setView(
+                [currentArea.center_latitude, currentArea.center_longitude],
+                16,
+                {
+                  animate: true,
+                  duration: 1,
+                },
+              );
+            }
+          }}
           selectedSector={selectedSector}
           areaStatus={areaStatus}
           onItemSelect={setSelectedItem}
@@ -509,7 +533,7 @@ export default function Maps() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                <p className="text-sm text-slate-600 leading-relaxed mb-6 pb-6">
                   {selectedItem.description ||
                     "No further details provided for this detection point."}
                 </p>

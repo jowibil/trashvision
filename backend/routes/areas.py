@@ -52,7 +52,6 @@ def get_all_areas(db: Session = Depends(get_db)):
         } 
         for a in areas
     ]
-import uuid
 
 @router.delete("/{area_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_area(area_id: uuid.UUID, db: Session = Depends(get_db)):

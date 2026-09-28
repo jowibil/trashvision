@@ -1,19 +1,31 @@
-import React, { useState, useRef, useEffect } from "react";
-import {
-  Folder,
-  Clock,
-  Lightbulb,
-  MapPin,
-  X,
-  Upload,
-  FileText,
-  Activity,
-  ChevronRight,
-  CheckCircle2,
-} from "lucide-react";
-import toast, { Toaster } from "react-hot-toast"; 
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
+import { Folder } from "lucide-react";
+import { Clock } from "lucide-react";
+import { Lightbulb } from "lucide-react";
+import { MapPin } from "lucide-react";
+import { X } from "lucide-react";
+import { UploadIcon } from "lucide-react";
+import { FileText } from "lucide-react";
+import { Activity } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 import { useAreas } from "../services/hooks/useAreas";
 import api from "../api/axios";
+
+// Hoisted: static content, doesn't depend on component state.
+const PRE_FLIGHT_CHECKLIST = [
+  { t: "RTK Positioning", d: "Ensure Real-Time Kinematic is active for <2cm accuracy." },
+  { t: "Nadir Angle", d: "Camera must be at exactly 90° for waste area calculation." },
+  { t: "GSD Targets", d: "Ground Sample Distance should be below 1.5cm/pixel." },
+] as const;
+
+interface FlightLog {
+  flight_id: string;
+  notes?: string;
+  pilot_name: string;
+  flight_date: string;
+}
 
 export default function DroneUploadUI() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -21,9 +33,8 @@ export default function DroneUploadUI() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic Flight Logs State
-  const [flightLogs, setFlightLogs] = useState<any[]>([]);
-  const { areas, loading: areasLoading } = useAreas();
+  const [flightLogs, setFlightLogs] = useState<FlightLog[]>([]);
+  const { areas } = useAreas();
 
   const [uploadMetadata, setUploadMetadata] = useState({
     name: "",
@@ -46,7 +57,7 @@ export default function DroneUploadUI() {
     fetchFlights();
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setSelectedFiles(Array.from(e.target.files));
     }
@@ -75,11 +86,8 @@ export default function DroneUploadUI() {
       await api.post("/flights/upload-batch", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent) => {
-          const percent = Math.round(
-            (progressEvent.loaded * 100) / (progressEvent.total || 1),
-          );
+          const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
           setUploadProgress(percent);
-          console.log("notes being sent:", uploadMetadata.name); 
         },
       });
 
@@ -92,7 +100,7 @@ export default function DroneUploadUI() {
         date: new Date().toISOString().split("T")[0],
         pilot: "Admin",
       });
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       fetchFlights();
     } catch (err) {
       toast.error("Upload failed. Check connection.");
@@ -103,22 +111,18 @@ export default function DroneUploadUI() {
   };
 
   return (
-    <div className="space-y-6 min-h-screen max-w-7xl mx-auto p-4 lg:p-8 font-sans">
-      <Toaster position="top-right" /> {/* Toast Container */}
+    <div className="space-y-6 min-h-[100dvh] max-w-7xl mx-auto p-4 lg:p-8 font-sans">
+      <Toaster position="top-right" />
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="text-left">
-          <h3 className="text-3xl font-black text-[#005D90] tracking-tight uppercase">
-            Drone Pictures Upload
-          </h3>
-          <p className="text-slate-500 font-medium text-sm">
-            Upload flight logs for YOLOv8 waste analysis
-          </p>
+          <h3 className="text-3xl font-black text-[#005D90] tracking-tight uppercase">Drone Pictures Upload</h3>
+          <p className="text-slate-500 font-medium text-sm">Upload flight logs for YOLOv8 waste analysis</p>
         </div>
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           {/* UPLOAD ZONE */}
-          <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-2">
+          <div className="bg-[#fcfcfc] rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-2">
             {!selectedFiles.length ? (
               <div
                 className="p-16 flex flex-col items-center text-center border-4 border-dashed border-slate-100 rounded-4xl hover:bg-blue-50/30 hover:border-[#005D90]/20 transition-all cursor-pointer group"
@@ -127,46 +131,34 @@ export default function DroneUploadUI() {
                 <div className="bg-blue-50 p-6 rounded-3xl mb-4 text-[#005D90] group-hover:scale-110 transition-transform">
                   <Folder size={48} />
                 </div>
-                <h3 className="text-xl font-bold text-slate-700">
-                  Drop Flight Folder Here
-                </h3>
+                <h3 className="text-xl font-bold text-slate-700">Drop Flight Folder Here</h3>
                 <p className="text-sm text-slate-400 mt-2 max-w-xs">
                   Upload survey batch to extract GPS and begin AI analysis.
                 </p>
-                <input
-                  type="file"
-                  multiple
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" />
               </div>
             ) : (
               <div className="p-8 animate-in fade-in zoom-in-95 duration-300">
-                {/* File Preview Header */}
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-4">
                     <div className="p-4 bg-[#005D90] text-white rounded-2xl shadow-lg">
                       <FileText size={28} />
                     </div>
                     <div className="text-left">
-                      <h4 className="text-xl font-black text-slate-800">
-                        {selectedFiles.length} Images Selected
-                      </h4>
-                      <p className="text-sm font-bold text-blue-500 uppercase tracking-tighter">
-                        Ready for Batch Processing
-                      </p>
+                      <h4 className="text-xl font-black text-slate-800">{selectedFiles.length} Images Selected</h4>
+                      <p className="text-sm font-bold text-blue-500 uppercase tracking-tighter">Ready for Batch Processing</p>
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setSelectedFiles([])}
                     className="p-2 hover:bg-red-50 text-red-400 rounded-full"
+                    aria-label="Clear selected files"
                   >
                     <X size={24} />
                   </button>
                 </div>
 
-                {/* Form Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                   <div className="space-y-4">
                     <div className="text-left">
@@ -178,105 +170,72 @@ export default function DroneUploadUI() {
                         placeholder="e.g. Shoreline_North_01"
                         className="w-full bg-white border text-slate-900 border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold focus:border-[#005D90] outline-none"
                         value={uploadMetadata.name}
-                        onChange={(e) =>
-                          setUploadMetadata({
-                            ...uploadMetadata,
-                            name: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setUploadMetadata({ ...uploadMetadata, name: e.target.value })}
                       />
                     </div>
                     <div className="text-left">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
-                        Spatial Assignment
-                      </label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Spatial Assignment</label>
                       <div className="relative">
                         <select
                           className="w-full appearance-none bg-white border border-slate-200 rounded-xl px-10 py-3 text-sm font-bold text-slate-800 outline-none"
                           value={uploadMetadata.location}
-                          onChange={(e) =>
-                            setUploadMetadata({
-                              ...uploadMetadata,
-                              location: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setUploadMetadata({ ...uploadMetadata, location: e.target.value })}
                         >
-                          <option value="auto">
-                            Auto-Detect via GPS (Recommended)
-                          </option>
+                          <option value="auto">Auto-Detect via GPS (Recommended)</option>
                           {areas.map((area) => (
                             <option key={area.area_id} value={area.area_id}>
                               {area.area_name}
                             </option>
                           ))}
                         </select>
-                        <MapPin
-                          size={16}
-                          className="absolute left-4 top-1/2 -translate-y-1/2 text-[#005D90]"
-                        />
+                        <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#005D90]" />
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div className="text-left">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
-                        Flight Date
-                      </label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Flight Date</label>
                       <input
                         type="date"
                         className="w-full bg-white border text-slate-900 border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold outline-none"
                         value={uploadMetadata.date}
-                        onChange={(e) =>
-                          setUploadMetadata({
-                            ...uploadMetadata,
-                            date: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setUploadMetadata({ ...uploadMetadata, date: e.target.value })}
                       />
                     </div>
                     <button
+                      type="button"
                       onClick={handleUploadSubmit}
                       disabled={isUploading || !uploadMetadata.name}
                       className="w-full h-13 mt-6 bg-[#005D90] text-white font-black rounded-2xl shadow-xl hover:bg-[#004a7c] transition-all flex items-center justify-center gap-3"
                     >
-                      {isUploading ? (
-                        <Clock className="animate-spin" />
-                      ) : (
-                        <Upload size={20} />
-                      )}
+                      {isUploading ? <Clock className="animate-spin" /> : <UploadIcon size={20} />}
                       {isUploading ? "UPLOADING..." : "EXECUTE ANALYSIS"}
                     </button>
                   </div>
                 </div>
 
-                {/* Progress Bar */}
-                {isUploading && (
+                {isUploading ? (
                   <div className="mt-8 space-y-2">
                     <div className="flex justify-between text-xs font-black text-[#005D90]">
                       <span>STRIPING METADATA & UPLOADING</span>
                       <span>{uploadProgress}%</span>
                     </div>
                     <div className="w-full h-3 bg-blue-50 rounded-full overflow-hidden border border-blue-100">
-                      <div
-                        className="h-full bg-[#005D90] transition-all"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
+                      <div className="h-full bg-[#005D90] transition-all" style={{ width: `${uploadProgress}%` }} />
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>
 
           {/* DYNAMIC STATUS LOGS */}
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
+          <div className="bg-[#fcfcfc] rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <Activity size={18} className="text-[#005D90]" />
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">
-                  Processing Pipeline
-                </h3>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Processing Pipeline</h3>
               </div>
               <div className="px-3 py-1 bg-blue-50 text-[#005D90] rounded-full text-[10px] font-black uppercase">
                 {flightLogs.length} RECENT LOGS
@@ -285,9 +244,7 @@ export default function DroneUploadUI() {
 
             <div className="space-y-4">
               {flightLogs.length === 0 ? (
-                <p className="text-xs text-slate-400 font-bold py-4">
-                  No recent flights found.
-                </p>
+                <p className="text-xs text-slate-400 font-bold py-4">No recent flights found.</p>
               ) : (
                 flightLogs.map((item) => (
                   <div
@@ -299,23 +256,16 @@ export default function DroneUploadUI() {
                         <CheckCircle2 size={20} />
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-slate-800 leading-none mb-1">
-                          {item.notes || "Unnamed Flight"}
-                        </p>
+                        <p className="font-bold text-slate-800 leading-none mb-1">{item.notes || "Unnamed Flight"}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase">
-                          PILOT: {item.pilot_name} •{" "}
-                          {new Date(item.flight_date).toLocaleDateString()}
+                          PILOT: {item.pilot_name} • {new Date(item.flight_date).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right hidden md:block">
-                        <p className="text-[10px] font-black text-slate-500 leading-none">
-                          STATUS
-                        </p>
-                        <p className="text-xs font-black text-green-500">
-                          COMPLETED
-                        </p>
+                        <p className="text-[10px] font-black text-slate-500 leading-none">STATUS</p>
+                        <p className="text-xs font-black text-green-500">COMPLETED</p>
                       </div>
                       <ChevronRight size={16} className="text-slate-300" />
                     </div>
@@ -326,35 +276,28 @@ export default function DroneUploadUI() {
           </div>
         </div>
 
-        {/* GUIDELINES (Right Sidebar) remains the same as your code */}
+        {/* GUIDELINES (Right Sidebar) */}
         <div className="space-y-6">
-          <div className="bg-gray-900/20 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
+          {/* Was bg-gray-900/20 with text-black — a barely-tinted dark
+              overlay with near-black text is close to unreadable. Switched
+              to a solid dark surface with light text for real contrast. */}
+          <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-3 bg-blue-500 rounded-2xl">
                   <Lightbulb size={24} />
                 </div>
 
-                <h3 className="text-xl font-black text-black">
-                  Pre-Flight Checklist
-                </h3>
+                <h3 className="text-xl font-black text-white">Pre-Flight Checklist</h3>
               </div>
 
-              <div className="space-y-8 text-left text-black">
-                {[
-                  {t: "RTK Positioning", d: "Ensure Real-Time Kinematic is active for <2cm accuracy."},
-                  {t: "Nadir Angle", d: "Camera must be at exactly 90° for waste area calculation."},
-                  {t: "GSD Targets", d: "Ground Sample Distance should be below 1.5cm/pixel."},
-                ].map((tip, i) => (
-                  <div key={i} className="flex gap-4">
-                    <div className="text-blue-500 font-black text-xl">
-                      0{i + 1}
-                    </div>
+              <div className="space-y-8 text-left">
+                {PRE_FLIGHT_CHECKLIST.map((tip, i) => (
+                  <div key={tip.t} className="flex gap-4">
+                    <div className="text-blue-400 font-black text-xl">0{i + 1}</div>
                     <div>
-                      <p className="font-bold text-sm mb-1">{tip.t}</p>
-                      <p className="text-xs text-slate-700 leading-relaxed">
-                        {tip.d}
-                      </p>
+                      <p className="font-bold text-sm mb-1 text-white">{tip.t}</p>
+                      <p className="text-xs text-slate-300 leading-relaxed">{tip.d}</p>
                     </div>
                   </div>
                 ))}

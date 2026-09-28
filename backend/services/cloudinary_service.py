@@ -28,7 +28,7 @@ async def upload_image(file: UploadFile) -> str:
         print(f"Cloudinary upload failed: {e}")
         return ""
     
-async def upload_drone_image(file_path: str, flight_id: str) -> str:
+def upload_drone_image(file_path: str, flight_id: str) -> str:
     try:
         result = cloudinary.uploader.upload(
             file_path,

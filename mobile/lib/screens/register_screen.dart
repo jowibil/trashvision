@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:TrashVision/screens/login_screen.dart';
+import '../services/api_client.dart' show userMessage;
 import '../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -72,9 +73,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
     } catch (e) {
+      // FIX (Step 6): previously displayed e.toString() verbatim — confusing
+      // for unexpected errors and a minor information leak (could expose the
+      // API host). userMessage() returns known-safe text; the backend's
+      // 4xx `detail` (e.g. duplicate email) still comes through as-is.
+      debugPrint("Register error: $e");
       if (!mounted) return;
       setState(() {
-        errorMessage = e.toString().replaceAll("Exception:", "").trim();
+        errorMessage = userMessage(e);
       });
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -120,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),

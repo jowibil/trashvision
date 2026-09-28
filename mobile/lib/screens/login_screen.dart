@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/api_client.dart' show userMessage;
+import '../services/auth_service.dart'; // also exports ApiException
 import 'register_screen.dart';
 import 'home_screen.dart';
 import 'password_reset_screen.dart';
@@ -56,9 +57,9 @@ class _LoginScreenState extends State<LoginScreen> {
           const SnackBar(content: Text("Login successful")),
         );
 
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context)=> const HomeScreen()),
+          MaterialPageRoute(builder: (context)=> const HomeScreen()), (route) => false,
         );
       } else {
         setState(() {
@@ -66,20 +67,18 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } catch (e) {
+      // FIX (Step 6): both catch arms collapsed into userMessage(). Login
+      // previously string-matched exception text to categorize errors, and
+      // a wrong-password 401 from the backend carries no body message we
+      // want to surface verbatim — map it explicitly here, everything else
+      // goes through the shared known-safe mapping.
+      debugPrint("Login error: $e");
       if (!mounted) return;
-      String msg = e.toString();
-
-      if (msg.contains("401")) {
-        msg = "Incorrect email or password.";
-      } else if (msg.contains("SocketException") ||
-          msg.contains("Failed host lookup")) {
-        msg = "No internet connection.";
-      } else if (msg.contains("500")) {
-        msg = "Server error. Please try again later.";
-      }
-
       setState(() {
-        errorMessage = msg.replaceAll("Exception:", "").trim();
+        errorMessage =
+            (e is ApiException && e.statusCode == 401)
+                ? "Incorrect email or password."
+                : userMessage(e);
       });
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -128,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),

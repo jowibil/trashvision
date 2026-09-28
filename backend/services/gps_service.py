@@ -1,6 +1,20 @@
 from PIL import Image
 import piexif
 
+
+def extract_dimensions(image_path: str):
+    """
+    Original-frame pixel dimensions (width, height). Captured at upload time
+    so clients can scale bounding boxes without decoding the full-res image.
+    Returns (None, None) on any failure — dimensions are optional metadata.
+    """
+    try:
+        with Image.open(image_path) as img:
+            return img.width, img.height
+    except Exception as e:
+        print(f"Dimension extraction failed for {image_path}: {e}")
+        return None, None
+
 def extract_gps(image_path: str):
     try:
         img = Image.open(image_path)

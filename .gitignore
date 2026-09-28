@@ -9,6 +9,7 @@ Thumbs.db
 *.local
 *.env
 *.env.*
+!*.env.example
 !.vscode/extensions.json
 .vscode/*
 .idea

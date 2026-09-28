@@ -15,4 +15,5 @@ class DroneFlightLog(Base):
     area_id = Column(UUID(as_uuid=True), ForeignKey("areas.area_id"))
 
     area = relationship("Area", back_populates="flights")
-    images = relationship("Image", back_populates="flight")
+    detections = relationship("Detection", back_populates="flight", cascade="all, delete-orphan")
+    images = relationship("Image", back_populates="flight", cascade="all, delete-orphan")

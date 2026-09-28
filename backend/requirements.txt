@@ -11,3 +11,4 @@ pillow
 piexif
 ultralytics
 cloudinary
+google-genai

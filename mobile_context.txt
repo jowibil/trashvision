@@ -1,0 +1,4586 @@
+# CODEBASE CONTEXT
+
+## File Structure Summary
+- mobile\lib\main.dart
+- mobile\lib\config\app_config.dart
+- mobile\lib\helper\database_helper.dart
+- mobile\lib\helper\gps_helper.dart
+- mobile\lib\models\area_model.dart
+- mobile\lib\models\detection_model.dart
+- mobile\lib\models\report_model.dart
+- mobile\lib\screens\camera_page.dart
+- mobile\lib\screens\home_screen.dart
+- mobile\lib\screens\login_screen.dart
+- mobile\lib\screens\mapview.dart
+- mobile\lib\screens\password_reset_screen.dart
+- mobile\lib\screens\register_screen.dart
+- mobile\lib\screens\report_screen.dart
+- mobile\lib\screens\user_profile_screen.dart
+- mobile\lib\services\api_service.dart
+- mobile\lib\services\auth_service.dart
+- mobile\lib\services\sync_services.dart
+- mobile\lib\widgets\bottom_nav.dart
+
+==================================================
+
+## Source Code Contents
+
+### File: mobile\lib\main.dart
+```dart
+import 'package:TrashVision/services/sync_services.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+// NOTE: not yet in pubspec.yaml — run `flutter pub add jwt_decoder`
+// FIX (audit #18 - "No token expiry handling"): the app used to only check
+// whether a token was *present*, never whether it had expired. An expired
+// token was then attached to every API call by api_service.dart, silently
+// failing with 401s instead of returning the user to login.
+import 'package:jwt_decoder/jwt_decoder.dart';
+
+import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/report_screen.dart';
+import 'screens/mapview.dart';
+import 'screens/user_profile_screen.dart';
+
+void main() async {
+
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+  const storage = FlutterSecureStorage();
+  final token = await storage.read(key: "token");
+
+  // FIX (audit #18): validate expiry, not just presence.
+  bool isLoggedIn = false;
+  bool sessionExpired = false;
+  if (token != null) {
+    bool expired;
+    try {
+      expired = JwtDecoder.isExpired(token);
+    } catch (_) {
+      // Malformed/undecodable token — treat the same as expired.
+      expired = true;
+    }
+    if (expired) {
+      sessionExpired = true;
+      await storage.deleteAll();
+    } else {
+      isLoggedIn = true;
+    }
+  }
+
+  runApp(MyApp(isLoggedIn: isLoggedIn, sessionExpired: sessionExpired));
+}
+
+class MyApp extends StatefulWidget {
+  final bool isLoggedIn;
+  final bool sessionExpired;
+  const MyApp({super.key, required this.isLoggedIn, this.sessionExpired = false});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  // FIX (audit #18): shows the "session expired" message via a global
+  // ScaffoldMessenger key rather than passing a flag into LoginScreen, so
+  // LoginScreen itself doesn't need to change.
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  @override
+void initState() {
+  super.initState();
+  
+  SyncService().syncOutbox();
+  Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+    if (results.isNotEmpty && !results.contains(ConnectivityResult.none)) {
+      print("Connection restored: Triggering Sync...");
+      SyncService().syncOutbox();
+    }
+  });
+
+  if (widget.sessionExpired) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text("Your session expired. Please sign in again.")),
+      );
+    });
+  }
+}
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TrashVision',
+      debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        useMaterial3: true,
+      ),
+      initialRoute: widget.isLoggedIn ? '/home' : '/login',
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/map': (context) => const MapView(),
+        '/report': (context) => const ReportScreen(),
+        '/profile': (context) => const UserProfileScreen(),
+      },
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\config\app_config.dart
+```dart
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+class AppConfig {
+  AppConfig._();
+
+  static const String _fallbackApiBaseUrl =
+      'https://shopper-agent-mustard.ngrok-free.dev';
+
+  /// Root API host, no trailing slash.
+  static String get apiBaseUrl {
+    var url = dotenv.env['API_BASE_URL'];
+    if (url == null || url.trim().isEmpty) {
+      return _fallbackApiBaseUrl;
+    }
+    url = url.trim();
+
+    // FIX: a bare host/IP in .env (e.g. "192.168.254.104", written without
+    // a scheme for local LAN testing) has no scheme for Uri.parse to find a
+    // host in, so "$apiBaseUrl/auth/login" parses as a relative path instead
+    // of an absolute URL — surfacing as "Invalid argument(s): No host
+    // specified in URI ...". Assume http:// for a bare host (LAN/dev is
+    // virtually never https); leave it alone if a scheme is already present.
+    if (!url.contains('://')) {
+      url = 'http://$url';
+    }
+
+    // Guard against a trailing slash in .env causing double slashes below.
+    return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  }
+
+  static String get reportsBaseUrl => '$apiBaseUrl/reports';
+  static String get authBaseUrl => '$apiBaseUrl/auth';
+  static String get usersBaseUrl => '$apiBaseUrl/users';
+  static String get mobileMapBaseUrl => '$apiBaseUrl/mobile/map';
+  static String get logsBaseUrl => '$apiBaseUrl/logs';
+
+  /// Mapbox token, previously read ad hoc via `dotenv.env['MAP_API']`
+  /// directly inside mapview.dart.
+  static String get mapboxToken => dotenv.env['MAP_API'] ?? '';
+}
+```
+
+------------------------------
+
+### File: mobile\lib\helper\database_helper.dart
+```dart
+import 'package:TrashVision/models/report_model.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('reports.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    // FIX (audit #9 - "Offline profile ledger"): bumped to version 3 to add
+    // report_ledger, a separate table for reports that have already synced
+    // to the server. Previously, a synced report was just deleted from
+    // report_outbox with no other record kept on-device, so an offline user
+    // opening Profile saw only whatever was still pending upload — anything
+    // that had ever successfully synced simply vanished from their history
+    // until they reconnected.
+    return await openDatabase(path, version: 3, onCreate: _createDB, onUpgrade: _upgradeDB);
+  }
+
+  static const String _ledgerTableSql = '''CREATE TABLE report_ledger (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      waste_type TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      user_id TEXT NOT NULL,
+      area_id TEXT,
+      local_photo_path TEXT,
+      description TEXT,
+      created_at TIMESTAMP,
+      synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );''';
+
+  Future _createDB(Database db, int version) async {
+    await db.execute('''CREATE TABLE report_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      waste_type TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      user_id TEXT NOT NULL,
+      area_id TEXT,
+      local_photo_path TEXT,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );''');
+    await db.execute(_ledgerTableSql);
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE report_outbox ADD COLUMN is_critical INTEGER NOT NULL DEFAULT 0;');
+    }
+    if (oldVersion < 3) {
+      await db.execute(_ledgerTableSql);
+    }
+  }
+
+  Future<int> insertReport(Report report) async {
+    final db = await instance.database;
+    return await db.insert(
+      'report_outbox',
+      report.toSqlMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Report>> getReports() async {
+    final db = await instance.database;
+    final result = await db.query('report_outbox', orderBy: 'created_at DESC');
+    return result.map((json) => Report.fromSql(json)).toList();
+  }
+
+  /// MISSING METHOD: Query filtered offline caches to feed user_profile.dart UI
+  Future<List<Report>> getReportsByUserId(String userId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'report_outbox',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at DESC',
+    );
+    return result.map((json) => Report.fromSql(json)).toList();
+  }
+
+  Future<void> deleteReport(int id) async {
+    final db = await instance.database;
+    await db.delete('report_outbox', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// FIX (audit #9): archives a successfully-synced report into
+  /// report_ledger and removes it from report_outbox, in one transaction so
+  /// a crash mid-move can't duplicate or drop the record. Called from
+  /// sync_services.dart right after a successful upload.
+  Future<void> moveReportToLedger(Report report) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      await txn.insert(
+        'report_ledger',
+        report.toSqlMap()..remove('id'), // ledger has its own autoincrement id
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      if (report.id != null) {
+        await txn.delete('report_outbox', where: 'id = ?', whereArgs: [report.id]);
+      }
+    });
+  }
+
+  /// FIX (audit #9): lets Profile show synced history even while offline,
+  /// since those reports no longer live in report_outbox once synced.
+  Future<List<Report>> getLedgerReportsByUserId(String userId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'report_ledger',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'synced_at DESC',
+    );
+    return result.map((json) => Report.fromSql(json)).toList();
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\helper\gps_helper.dart
+```dart
+import 'package:geolocator/geolocator.dart';
+
+Future<void> checkLocationServices() async {
+  bool serviceEnabled;
+  LocationPermission permission;
+
+  // Check if GPS is actually turned on
+  serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    // This opens the system settings for the user to turn on GPS
+    await Geolocator.openLocationSettings();
+    return; 
+  }
+
+  // Check Permission Status
+  permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      return Future.error('Location permissions are denied');
+    }
+  }
+  
+  if (permission == LocationPermission.deniedForever) {
+    await Geolocator.openAppSettings();
+    return Future.error('Location permissions are permanently denied.');
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\models\area_model.dart
+```dart
+class Area {
+  final String id;
+  final String name;
+  final String? description;
+  final String? boundaryCoordinates;
+  final double? centerLat;
+  final double? centerLng;
+
+  Area({
+    required this.id,
+    required this.name,
+    this.description,
+    this.boundaryCoordinates,
+    this.centerLat,
+    this.centerLng,
+  });
+
+  factory Area.fromJson(Map<String, dynamic> json) {
+    return Area(
+      id: json['area_id'],
+      name: json['area_name'],
+      description: json['description'],
+      boundaryCoordinates: json['boundary_coordinates'],
+      centerLat: json['center_latitude']?.toDouble(),
+      centerLng: json['center_longitude']?.toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'area_id': id,
+    'area_name': name,
+    'description': description,
+    'boundary_coordinates': boundaryCoordinates,
+    'center_latitude': centerLat,
+    'center_longitude': centerLng,
+  };
+}
+```
+
+------------------------------
+
+### File: mobile\lib\models\detection_model.dart
+```dart
+class Detection {
+  final String id;
+  final String wasteType;
+  final double confidence;
+  final double lat;
+  final double lng;
+  final bool isManual;
+  final String? imageUrl;
+
+  Detection({
+    required this.id,
+    required this.wasteType,
+    required this.confidence,
+    required this.lat,
+    required this.lng,
+    required this.isManual,
+    this.imageUrl,
+  });
+
+  factory Detection.fromJson(Map<String, dynamic> json) {
+    return Detection(
+      id: json['detection_id'],
+      wasteType: json['waste_type'],
+      confidence: json['confidence_score'].toDouble(),
+      lat: json['latitude'].toDouble(),
+      lng: json['longitude'].toDouble(),
+      isManual: json['is_manual'] ?? false,
+      imageUrl: json['file_url'],
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\models\report_model.dart
+```dart
+class Report {
+  final int? id;
+  final String? reportId; 
+  final String wasteType;
+  final double latitude;
+  final double longitude;
+  final String userId;
+  final String? areaId;
+  final String? localPhotoPath;
+  final String? photoUrl;
+  final String description;
+  final DateTime? createdAt;
+  final String? status;
+
+  Report({
+    this.id,
+    this.reportId,
+    required this.wasteType,
+    required this.latitude,
+    required this.longitude,
+    required this.userId,
+    this.areaId,
+    this.localPhotoPath,
+    this.photoUrl,
+    required this.description,
+    this.createdAt,
+    this.status,
+  });
+
+  /// --- EXISTING SQL CODES ---
+  Map<String, dynamic> toSqlMap() {
+    return {
+      if (id != null) 'id': id,
+      'waste_type': wasteType,
+      'latitude': latitude,
+      'longitude': longitude,
+      'user_id': userId,
+      'area_id': areaId,
+      'local_photo_path': localPhotoPath,
+      'description': description,
+    };
+  }
+
+  factory Report.fromSql(Map<String, dynamic> map) {
+    return Report(
+      id: map['id'] as int?,
+      wasteType: map['waste_type'] as String,
+      latitude: map['latitude'] as double,
+      longitude: map['longitude'] as double,
+      userId: map['user_id'] as String,
+      areaId: map['area_id'] as String?,
+      localPhotoPath: map['local_photo_path'] as String?,
+      description: map['description'] as String? ?? '',
+      createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'] as String) : null,
+    );
+  }
+
+  factory Report.fromJson(Map<String, dynamic> json) {
+    return Report(
+      reportId: json['report_id'] as String?, 
+      wasteType: json['waste_type'] as String? ?? 'UNKNOWN',
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      userId: json['user_id'] as String? ?? '',
+      areaId: json['area_id'] as String?,
+      photoUrl: json['photo_url'] as String?, 
+      localPhotoPath: json['local_photo_path'] as String?, 
+      description: json['description'] as String? ?? '',
+      status: json['status'] as String? ?? 'pending',
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'report_id': reportId,
+      'waste_type': wasteType,
+      'latitude': latitude,
+      'longitude': longitude,
+      'user_id': userId,
+      'area_id': areaId,
+      'photo_url': photoUrl,
+      'description': description,
+      'status': status,
+    };
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\camera_page.dart
+```dart
+import 'dart:io';
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart'; // already a dependency (used in report_screen.dart)
+// NOTE: not yet in pubspec.yaml — run `flutter pub add flutter_image_compress`
+// FIX (audit #16 - "Camera captures high-res, no compression"): raw captures
+// at ResolutionPreset.high were routinely 8-12MB, which on a spotty mobile
+// connection meant slow, failure-prone uploads through api_service.dart's
+// multipart request.
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+
+class CameraPage extends StatefulWidget {
+  final CameraDescription camera;
+  const CameraPage({super.key, required this.camera});
+
+  @override
+  State<CameraPage> createState() => _CameraPageState();
+}
+
+class _CameraPageState extends State<CameraPage> {
+  late CameraController _controller;
+  late Future<void> _initFuture;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CameraController(
+      widget.camera,
+      ResolutionPreset.high,
+    );
+    _initFuture = _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _takePicture() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      await _initFuture;
+      final image = await _controller.takePicture();
+
+      // FIX (audit #16): compress to a bounded JPEG before handing the path
+      // back to ReportScreen. Falls back to the original path if compression
+      // fails for any reason, so a report is never blocked on this step.
+      final compressedPath = await _compressImage(image.path);
+
+      if (!mounted) return;
+      Navigator.pop(context, compressedPath ?? image.path);
+    } catch (e) {
+      debugPrint("Camera capture error: $e");
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<String?> _compressImage(String originalPath) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final targetPath =
+          '${dir.path}/tv_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final result = await FlutterImageCompress.compressAndGetFile(
+        originalPath,
+        targetPath,
+        quality: 70,
+        minWidth: 1920,
+        minHeight: 1920,
+        format: CompressFormat.jpeg,
+      );
+
+      if (result == null) return null;
+
+      final originalSize = await File(originalPath).length();
+      final compressedSize = await File(result.path).length();
+      debugPrint(
+          "Photo compressed: ${(originalSize / 1024).round()}KB -> ${(compressedSize / 1024).round()}KB");
+
+      return result.path;
+    } catch (e) {
+      debugPrint("Image compression error (falling back to original): $e");
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: FutureBuilder<void>(
+        future: _initFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return Stack(
+              children: [
+                CameraPreview(_controller),
+                Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: _takePicture,
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white70,
+                            width: 4,
+                          ),
+                        ),
+                        child: _isProcessing
+                            ? const Padding(
+                                padding: EdgeInsets.all(20),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 50,
+                  left: 16,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ],
+            );
+          } else {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            );
+          }
+        },
+      ),
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\home_screen.dart
+```dart
+import 'package:TrashVision/widgets/bottom_nav.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:image_picker/image_picker.dart';
+// import 'report_screen.dart';
+import '../helper/gps_helper.dart';
+import '../services/api_service.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final ImagePicker _picker = ImagePicker();
+  final storage = const FlutterSecureStorage();
+
+  String? name;
+  String? role;
+
+  // FIX (audit #10 - "Mock analytics on Home"): "1,248 kg" / "94.2%" / the
+  // bar chart used to be hardcoded literals. These now come from
+  // GET /logs/summary via ApiService.getLogsSummary().
+  bool _analyticsLoading = true;
+  int? _totalDetections;
+  int? _hotspotZones;
+  List<int> _weeklyTrends = [];
+
+  // App-wide unified style tokens matching user_profile specs
+  static const Color primaryColor = Color(0xFF005D90);
+  static const Color slateCardBorder = Color(0xFFF1F5F9);
+  static const Color textMutedColor = Color(0xFF94A3B8);
+  static const Color textDarkColor = Color(0xFF475569);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _loadAnalytics();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForLostCameraData();
+    });
+    checkLocationServices();
+  }
+
+  Future<void> _checkForLostCameraData() async {
+    final LostDataResponse response = await _picker.retrieveLostData();
+    if (response.isEmpty) return;
+
+    if (response.file != null) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context, 
+        '/report', 
+        arguments: response.file!.path
+      );
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    // FIX: auth_service.dart used to write the display name under key
+    // "name"; it now writes "user_name" (matching user_profile_screen.dart),
+    // so this read needs to match or the header always shows the fallback.
+    final storedName = await storage.read(key: "user_name");
+    final storedRole = await storage.read(key: "role");
+
+    if (mounted) {
+      setState(() {
+        name = storedName;
+        role = storedRole;
+      });
+    }
+  }
+
+  /// FIX (audit #10): replaces the hardcoded dashboard numbers with a real
+  /// fetch. Response shape confirmed against backend/routes/logs.py's
+  /// get_dashboard_summary(): total_detections (int), weekly_trends
+  /// (flat List<int>, 7 entries Mon->Sun), hotspot_zones (List of
+  /// {id, name, date, severity}).
+  Future<void> _loadAnalytics() async {
+    if (mounted) setState(() => _analyticsLoading = true);
+    try {
+      final summary = await ApiService().getLogsSummary();
+      if (summary == null) {
+        if (mounted) setState(() => _analyticsLoading = false);
+        return;
+      }
+
+      // FIX: previously expected weekly_trends as [{day/label, count/value}]
+      // and discarded every entry since the backend actually returns a flat
+      // list of ints (one count per weekday) — the chart silently stayed
+      // empty even with real data.
+      final rawTrends = summary['weekly_trends'];
+      final trends = <int>[];
+      if (rawTrends is List) {
+        for (final entry in rawTrends) {
+          trends.add(entry is num ? entry.round() : 0);
+        }
+      }
+
+      final rawHotspots = summary['hotspot_zones'];
+      final hotspotCount = rawHotspots is List ? rawHotspots.length : null;
+
+      if (mounted) {
+        setState(() {
+          _totalDetections = summary['total_detections'] is int ? summary['total_detections'] as int : null;
+          _hotspotZones = hotspotCount;
+          _weeklyTrends = trends;
+          _analyticsLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Analytics load error: $e");
+      if (mounted) setState(() => _analyticsLoading = false);
+    }
+  }
+
+  void handleLogout() async {
+    await storage.deleteAll();
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50], // Consistent with user_profile_screen backplate
+      appBar: AppBar(
+        backgroundColor: primaryColor,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          "TrashVision",
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: handleLogout,
+            icon: const Icon(Icons.logout, color: Colors.white, size: 22),
+            tooltip: "Secure Sign Out",
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWelcomeHeader(),
+            const SizedBox(height: 24),
+            _buildQuickActionGrid(),
+            const SizedBox(height: 28),
+            _buildAnalyticsSection(),
+          ],
+        ),
+      ),
+      bottomNavigationBar: const BottomNavBar(currentIndex: 0),
+    );
+  }
+
+  Widget _buildWelcomeHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Welcome back,",
+          style: TextStyle(fontSize: 15, color: Colors.grey[600], fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          name ?? "Community Citizen",
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: primaryColor,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            (role ?? "community").toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              color: primaryColor,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionGrid() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "OPERATIONAL SHORTCUTS",
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: textMutedColor, letterSpacing: 0.8),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.report_problem,
+                title: "File Report",
+                color: Colors.amber[700]!,
+                onTap: () => Navigator.pushReplacementNamed(context, '/report'),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.map,
+                title: "View Map",
+                color: primaryColor,
+                onTap: () => Navigator.pushReplacementNamed(context, '/map'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: slateCardBorder),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: color.withOpacity(0.1),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: primaryColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "REGIONAL MATRIX DASHBOARD",
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: textMutedColor, letterSpacing: 0.8),
+        ),
+        const SizedBox(height: 12),
+
+        // FIX (audit #10): metric tiles now reflect the real /logs/summary
+        // response instead of the hardcoded "1,248 kg" / "94.2%" literals.
+        // total_detections and hotspot_zones are the two fields the audit
+        // confirms the backend already returns; adjust here if the schema
+        // differs once verified against the live route.
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricsGridTile(
+                title: _analyticsLoading
+                    ? "—"
+                    : (_totalDetections?.toString() ?? "N/A"),
+                label: "Total Detections",
+                icon: Icons.delete_outline,
+                trendColor: Colors.green,
+                trendText: _analyticsLoading ? "..." : "Live",
+                loading: _analyticsLoading,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricsGridTile(
+                title: _analyticsLoading
+                    ? "—"
+                    : (_hotspotZones?.toString() ?? "N/A"),
+                label: "Hotspot Zones",
+                icon: Icons.warning_amber_outlined,
+                trendColor: primaryColor,
+                trendText: _analyticsLoading ? "..." : "Live",
+                loading: _analyticsLoading,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: slateCardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Weekly Sightings Trend",
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: primaryColor),
+                  ),
+                  if (!_analyticsLoading && _weeklyTrends.isNotEmpty)
+                    Text(
+                      "TOTAL: ${_weeklyTrendTotal()} INCIDENTS",
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.blue[700]),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              if (_analyticsLoading)
+                const SizedBox(
+                  height: 108,
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
+                )
+              else if (_weeklyTrends.isEmpty)
+                const SizedBox(
+                  height: 108,
+                  child: Center(
+                    child: Text(
+                      "No detection data yet this week.",
+                      style: TextStyle(fontSize: 12, color: textMutedColor),
+                    ),
+                  ),
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: _buildRealBars(),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Normalizes each day's count against the week's max so bars scale 0..1.
+  /// Labels are positional (index 0 = Monday ... 6 = Sunday) since the
+  /// backend returns a flat count array in that fixed order, not labeled days.
+  List<Widget> _buildRealBars() {
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final maxCount = _weeklyTrends.isEmpty
+        ? 1
+        : _weeklyTrends.reduce((a, b) => a > b ? a : b);
+    final safeMax = maxCount == 0 ? 1 : maxCount;
+
+    return List.generate(_weeklyTrends.length, (i) {
+      final count = _weeklyTrends[i];
+      final label = i < dayLabels.length ? dayLabels[i] : '';
+      final fill = count / safeMax;
+      final isHighlight = count == safeMax && safeMax > 0;
+      return _buildSimulatedBar(label, fill.clamp(0.0, 1.0), isHighlight: isHighlight);
+    });
+  }
+
+  int _weeklyTrendTotal() {
+    return _weeklyTrends.fold<int>(0, (sum, count) => sum + count);
+  }
+
+  Widget _buildMetricsGridTile({
+    required String title,
+    required String label,
+    required IconData icon,
+    required Color trendColor,
+    required String trendText,
+    bool loading = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: slateCardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: primaryColor, size: 22),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: trendColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  trendText,
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: trendColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: primaryColor, height: 1.1),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textMutedColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimulatedBar(String label, double fillPercentage, {bool isHighlight = false}) {
+    return Column(
+      children: [
+        Container(
+          height: 100,
+          width: 14,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          // FIXED: Using Align to anchor the inner container to the bottom flawlessly
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              height: 100 * fillPercentage,
+              decoration: BoxDecoration(
+                color: isHighlight ? Colors.amber[600] : primaryColor.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textDarkColor.withOpacity(0.8)),
+        ),
+      ],
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\login_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import '../services/auth_service.dart'; // also exports ApiException
+import 'register_screen.dart';
+import 'home_screen.dart';
+import 'password_reset_screen.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final auth = AuthService();
+
+  bool isLoading = false;
+  bool obscurePassword = true;
+
+  String? errorMessage;
+
+  void handleLogin() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        isLoading = false;
+        errorMessage = "Email and password are required.";
+      });
+      return;
+    }
+
+    if (!email.contains("@")) {
+      setState(() {
+        isLoading = false;
+        errorMessage = "Please enter a valid email address.";
+      });
+      return;
+    }
+
+    try {
+      final token = await auth.login(email, password);
+
+      if (!mounted) return;
+
+      if (token != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login successful")),
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context)=> const HomeScreen()), (route) => false,
+        );
+      } else {
+        setState(() {
+          errorMessage = "Invalid email or password.";
+        });
+      }
+    } on ApiException catch (e) {
+      // FIX (audit #17): auth_service.dart now throws ApiException with a
+      // real statusCode instead of a plain Exception. The old code guessed
+      // the category by searching e.toString() for "401"/"500", which never
+      // matched because toString() only contained the backend's message
+      // text, not the numeric code — so every server error fell through to
+      // the generic message. Branch on statusCode directly instead.
+      if (!mounted) return;
+      setState(() {
+        if (e.statusCode == 401) {
+          errorMessage = "Incorrect email or password.";
+        } else if (e.statusCode >= 500) {
+          errorMessage = "Server error. Please try again later.";
+        } else {
+          errorMessage = e.message;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // FIX: this used to show e.toString() directly (minus an "Exception:"
+      // prefix strip), so any unrecognized error — a URI parse failure, a
+      // null check, a type error, anything — was displayed to the user
+      // verbatim. That's both confusing ("No host specified in URI...")
+      // and a minor information leak (it can expose internal config like
+      // the API host). Log the real error for debugging, but only ever
+      // show the user one of a small set of known-safe, friendly messages.
+      debugPrint("Login error: $e");
+      final raw = e.toString();
+
+      String msg = "Something went wrong. Please try again.";
+      if (raw.contains("SocketException") || raw.contains("Failed host lookup")) {
+        msg = "No internet connection.";
+      } else if (raw.contains("TimeoutException")) {
+        msg = "The request timed out. Please try again.";
+      } else if (raw.contains("FormatException")) {
+        msg = "Unexpected response from the server. Please try again later.";
+      }
+
+      setState(() {
+        errorMessage = msg;
+      });
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF005D90);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
+
+                Text(
+                  "TrashVision",
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  "Welcome back",
+                  style: TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+
+                const SizedBox(height: 40),
+
+                // ----------------------------
+                // LOGIN CARD
+                // ----------------------------
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // EMAIL
+                      TextField(
+                        controller: emailController,
+                        decoration: InputDecoration(
+                          labelText: "Email",
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // PASSWORD
+                      TextField(
+                        controller: passwordController,
+                        obscureText: obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: "Password",
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                obscurePassword = !obscurePassword;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // FORGOT PASSWORD
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const ForgotPasswordScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "Forgot Password?",
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ),
+
+                      // ----------------------------
+                      // ERROR MESSAGE
+                      // ----------------------------
+                      if (errorMessage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          margin: const EdgeInsets.only(top: 5, bottom: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            errorMessage!,
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 10),
+
+                      // LOGIN BUTTON
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: isLoading ? null : handleLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  "Login",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // REGISTER
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Don't have an account?"),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text("Register"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\mapview.dart
+```dart
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
+// NOTE: not yet in pubspec.yaml — run `flutter pub add cached_network_image`
+// (audit #6: drawer thumbnails were decoding full-res drone imagery in 100px
+// cells via Image.network, with no cache sizing / LRU bound -> OOM crashes).
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/bottom_nav.dart';
+import '../config/app_config.dart';
+
+// ─── Constants & Dynamic Environment Accessors ────────────────────────────────
+// FIX (audit #4): was a hardcoded ngrok URL. Now sourced from .env via AppConfig.
+String get baseUrl => AppConfig.mobileMapBaseUrl;
+const Color primaryBlue = Color(0xFF005D90);
+
+// FIX (audit #4): reuse the same AppConfig accessor instead of reading
+// dotenv directly here — keeps the Mapbox token in one place.
+String get mapApi => AppConfig.mapboxToken;
+String get urlTemplate =>
+    'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=$mapApi';
+
+// ─── Cloudinary Thumbnail Helper ──────────────────────────────────────────────
+/// FIX (audit #2.4 - "Lazy Image Loading & OOM Prevention", biggest single
+/// win per the audit): backend/services/cloudinary_service.py uploads via
+/// `cloudinary.uploader.upload(...)` and returns the raw `secure_url` with no
+/// transform applied, so the drawer was downloading the full original drone
+/// frame (often several MB / 4K) just to show a 100px thumbnail. Cloudinary
+/// renders any transform on-demand by inserting params into the URL path
+/// after `/upload/` — this needs NO backend change, since Cloudinary derives
+/// the thumbnail from the original upload at request time.
+///
+/// Falls back to the untouched URL if it doesn't look like a Cloudinary
+/// `/upload/` URL (e.g. local/dev fixtures), so this never breaks non-prod data.
+String cloudinaryThumbUrl(String url) {
+  const marker = '/upload/';
+  final idx = url.indexOf(marker);
+  if (idx == -1) return url;
+  final insertAt = idx + marker.length;
+  return '${url.substring(0, insertAt)}w_320,h_240,c_fill,q_auto,f_auto/${url.substring(insertAt)}';
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+class AreaModel {
+  final String areaId;
+  final String areaName;
+  final double centerLatitude;
+  final double centerLongitude;
+  final Map<String, dynamic>? boundary;
+
+  AreaModel({
+    required this.areaId,
+    required this.areaName,
+    required this.centerLatitude,
+    required this.centerLongitude,
+    this.boundary,
+  });
+
+  factory AreaModel.fromJson(Map<String, dynamic> json) => AreaModel(
+    areaId: json['area_id'],
+    areaName: json['area_name'],
+    centerLatitude: (json['center_latitude'] as num).toDouble(),
+    centerLongitude: (json['center_longitude'] as num).toDouble(),
+    boundary: json['boundary'],
+  );
+}
+
+class ImageDetection {
+  final String label;
+  final double confidence;
+  final List<double> box2d; // Expects absolute database coordinates: [x1, y1, x2, y2]
+
+  ImageDetection({
+    required this.label,
+    required this.confidence,
+    required this.box2d,
+  });
+
+  factory ImageDetection.fromJson(Map<String, dynamic> json) => ImageDetection(
+    label: json['label'] ?? 'Trash',
+    confidence: (json['confidence'] as num).toDouble(),
+    box2d: List<double>.from((json['box_2d'] as List<dynamic>).map((e) => (e as num).toDouble())),
+  );
+}
+
+class DroneImage {
+  final String imageId;
+  final String fileUrl;
+  final double latitude;
+  final double longitude;
+  final String? capturedAt;
+  final String? flightDate;
+  final String? type;
+  final List<ImageDetection> detections; // FIXED: Added missing relation map array
+
+  DroneImage({
+    required this.imageId,
+    required this.fileUrl,
+    required this.latitude,
+    required this.longitude,
+    this.capturedAt,
+    this.flightDate,
+    this.type,
+    required this.detections,
+  });
+
+  factory DroneImage.fromJson(Map<String, dynamic> json) => DroneImage(
+    imageId: json['image_id'],
+    fileUrl: json['file_url'],
+    latitude: (json['latitude'] as num).toDouble(),
+    longitude: (json['longitude'] as num).toDouble(),
+    capturedAt: json['captured_at'],
+    flightDate: json['flight_date'],
+    type: json['type'],
+    detections: json['detections'] != null
+        ? (json['detections'] as List).map((e) => ImageDetection.fromJson(e)).toList()
+        : [], // FIXED: Properly parsing inner elements now
+  );
+}
+
+class HexBin {
+  final List<LatLng> polygon;
+  final List<String> imageIds;
+  final int count;
+  late final LatLng center;
+
+  HexBin({
+    required this.polygon,
+    required this.imageIds,
+    required this.count,
+  }) {
+    double sumLat = 0;
+    double sumLng = 0;
+    for (var point in polygon) {
+      sumLat += point.latitude;
+      sumLng += point.longitude;
+    }
+    center = LatLng(sumLat / polygon.length, sumLng / polygon.length);
+  }
+
+  factory HexBin.fromJson(Map<String, dynamic> json) {
+    var rawCoords = json['polygon'] as List<dynamic>;
+    List<LatLng> points = rawCoords.map((coord) {
+      return LatLng(
+        (coord[1] as num).toDouble(),
+        (coord[0] as num).toDouble(),
+      );
+    }).toList();
+
+    return HexBin(
+      polygon: points,
+      imageIds: List<String>.from(json['image_ids']),
+      count: json['count'] as int,
+    );
+  }
+}
+
+// ─── API Service Layer ───────────────────────────────────────────────────────
+class MobileMapService {
+  static Future<List<AreaModel>> getAreas() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/areas'));
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        return data.map((e) => AreaModel.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('getAreas error: $e');
+    }
+    return [];
+  }
+
+  static Future<List<HexBin>> getHexBins({
+    required String areaId,
+    required DateTime selectedDate,
+    required int week,
+    required int threshold,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/areas/$areaId/tiles').replace(
+        queryParameters: {
+          'month': selectedDate.month.toString(),
+          'year': selectedDate.year.toString(),
+          'week': week.toString(),
+          'threshold': threshold.toString(),
+        },
+      );
+      final res = await http.get(uri);
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        return data.map((e) => HexBin.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('getHexBins error: $e');
+    }
+    return [];
+  }
+
+  static Future<List<DroneImage>> getBatchImages(List<String> imageIds) async {
+    if (imageIds.isEmpty) return [];
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/images/batch'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'image_ids': imageIds}),
+      );
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        return data.map((e) => DroneImage.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('getBatchImages error: $e');
+    }
+    return [];
+  }
+}
+
+// ─── Bounding Box Custom Canvas Painter ──────────────────────────────────────
+class BoundingBoxPainter extends CustomPainter {
+  final List<ImageDetection> detections;
+  final int naturalWidth;
+  final int naturalHeight;
+
+  BoundingBoxPainter({
+    required this.detections,
+    required this.naturalWidth,
+    required this.naturalHeight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (naturalWidth == 0 || naturalHeight == 0) return;
+
+    // Scale aspect logic identically aligned with your web scaling matrix
+    final double scaleX = size.width / naturalWidth;
+    final double scaleY = size.height / naturalHeight;
+
+    for (var det in detections) {
+      if (det.box2d.length < 4) continue;
+
+      final double x1 = det.box2d[0];
+      final double y1 = det.box2d[1];
+      final double x2 = det.box2d[2];
+      final double y2 = det.box2d[3];
+
+      final rect = Rect.fromLTRB(
+        x1 * scaleX,
+        y1 * scaleY,
+        x2 * scaleX,
+        y2 * scaleY,
+      );
+
+      // Draw outer box border
+      final paint = Paint()
+        ..color = const Color(0xFFEF4444)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawRect(rect, paint);
+
+      // Draw inner target shaded layout tint region
+      final fillPaint = Paint()
+        ..color = const Color(0xFFEF4444).withOpacity(0.1)
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(rect, fillPaint);
+
+      // Build target floating text layout overlay label strings
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: '${det.label.toUpperCase().replaceAll('_', ' ')} ${(det.confidence * 100).toStringAsFixed(0)}%',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      
+      textPainter.layout();
+      textPainter.paint(
+        canvas, 
+        Offset(rect.left, rect.top - 12 >= 0 ? rect.top - 12 : rect.top),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant BoundingBoxPainter oldDelegate) =>
+      oldDelegate.detections != detections || 
+      oldDelegate.naturalWidth != naturalWidth || 
+      oldDelegate.naturalHeight != naturalHeight;
+}
+
+// ─── Design Theme Utilities ──────────────────────────────────────────────────
+Color getDensityColor(int count) {
+  if (count > 10) return const Color(0xFFb91c1c);
+  if (count > 5) return const Color(0xFFea580c);
+  if (count > 2) return const Color(0xFFeab308);
+  return const Color(0xFF22c55e);
+}
+
+String getDensityLabel(int count) {
+  if (count > 10) return 'CRITICAL';
+  if (count > 5) return 'HIGH';
+  if (count > 2) return 'MID';
+  return 'LOW';
+}
+
+// ─── Map View Widget ─────────────────────────────────────────────────────────
+class MapView extends StatefulWidget {
+  const MapView({super.key});
+
+  @override
+  State<MapView> createState() => _MapViewState();
+}
+
+class _MapViewState extends State<MapView> {
+  final MapController _mapController = MapController();
+  List<AreaModel> areas = [];
+  AreaModel? currentArea;
+  
+  List<HexBin> hexbins = [];
+  List<DroneImage> drawerImages = [];
+  bool drawerOpen = false;
+  HexBin? selectedSector;
+  DateTime selectedDate = DateTime.now();
+  int week = 4;
+  int threshold = 2;
+  // FIX (audit #14 - "Manual zoom tracking rebuilds the entire widget tree"):
+  // this used to be a plain `double zoom` mutated via setState() inside
+  // onMapEvent, so every pan/zoom frame rebuilt the whole screen (map tiles,
+  // controls, drawer — everything), not just the 3 zoom-gated map layers
+  // below. A ValueNotifier + ValueListenableBuilder scopes the rebuild to
+  // just those layers.
+  final ValueNotifier<double> _zoomNotifier = ValueNotifier<double>(15);
+  String searchQuery = '';
+  bool searchOpen = false;
+  bool loading = false;
+
+  // FIX (audit #6 remediation - "Cap the drawer list (page size 20, load
+  // more)"): a sector's image_ids can number in the hundreds; fetching /
+  // rendering all of them at once was the other half of the OOM risk
+  // alongside the undersized thumbnail decode (already fixed above).
+  static const int _imagePageSize = 20;
+  List<String> _pendingImageIds = [];
+  bool _loadingMoreImages = false;
+
+  // FIX: the threshold slider used to call _onFilterChanged() directly inside
+  // onChanged, firing a full hex-tile API request per pixel of drag. Debounce
+  // it so only the settled value triggers a fetch.
+  Timer? _filterDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAreas();
+  }
+
+  @override
+  void dispose() {
+    _filterDebounce?.cancel();
+    _zoomNotifier.dispose();
+    super.dispose();
+  }
+
+  void _onFilterChangedDebounced() {
+    _filterDebounce?.cancel();
+    _filterDebounce = Timer(const Duration(milliseconds: 400), _onFilterChanged);
+  }
+
+  Future<void> _loadAreas() async {
+    final data = await MobileMapService.getAreas();
+    if (!mounted) return;
+    setState(() {
+      areas = data;
+      if (data.isNotEmpty) currentArea = data.first;
+    });
+    if (data.isNotEmpty) await _fetchMapData(data.first.areaId);
+  }
+
+  Future<void> _fetchMapData(String areaId) async {
+    setState(() => loading = true);
+    final bins = await MobileMapService.getHexBins(
+      areaId: areaId,
+      selectedDate: selectedDate,
+      week: week,
+      threshold: threshold,
+    );
+    if (!mounted) return;
+    setState(() {
+      hexbins = bins;
+      loading = false;
+    });
+  }
+
+  void _selectArea(AreaModel area) {
+    setState(() {
+      currentArea = area;
+      searchOpen = false;
+      searchQuery = '';
+      drawerOpen = false;
+      selectedSector = null;
+      drawerImages.clear();
+      _pendingImageIds.clear();
+    });
+    _mapController.move(LatLng(area.centerLatitude, area.centerLongitude), 15);
+    _fetchMapData(area.areaId);
+  }
+
+  void _onFilterChanged() {
+    if (currentArea != null) {
+      _fetchMapData(currentArea!.areaId);
+    }
+  }
+
+  void _onHexTap(HexBin hex) async {
+    final center = LatLng(
+      hex.polygon.map((p) => p.latitude).reduce((a, b) => a + b) / hex.polygon.length,
+      hex.polygon.map((p) => p.longitude).reduce((a, b) => a + b) / hex.polygon.length,
+    );
+
+    // FIX (audit #6 remediation): only fetch/render the first page of image
+    // ids up front; the rest stay pending until "load more" is tapped.
+    final firstPage = hex.imageIds.take(_imagePageSize).toList();
+    final remaining = hex.imageIds.skip(_imagePageSize).toList();
+
+    setState(() {
+      selectedSector = hex;
+      drawerOpen = true;
+      loading = true;
+      _pendingImageIds = remaining;
+    });
+    _mapController.move(center, 18);
+
+    final images = await MobileMapService.getBatchImages(firstPage);
+    if (!mounted) return;
+    setState(() {
+      drawerImages = images; // FIXED: Explicitly maps response array directly to UI loop state
+      loading = false;
+    });
+  }
+
+  Future<void> _loadMoreImages() async {
+    if (_pendingImageIds.isEmpty || _loadingMoreImages) return;
+    setState(() => _loadingMoreImages = true);
+
+    final nextPage = _pendingImageIds.take(_imagePageSize).toList();
+    final remaining = _pendingImageIds.skip(_imagePageSize).toList();
+
+    final images = await MobileMapService.getBatchImages(nextPage);
+    if (!mounted) return;
+    setState(() {
+      drawerImages = [...drawerImages, ...images];
+      _pendingImageIds = remaining;
+      _loadingMoreImages = false;
+    });
+  }
+
+  void _showImageDetails(DroneImage img) {
+    // FIX (audit #13): the old implementation called
+    // networkImage.image.resolve(...).addListener(...) inside the
+    // StatefulBuilder's builder, which reruns on every setModalState call —
+    // stacking a new listener each time and never removing any of them
+    // (memory churn, and a setState-after-dispose risk if the dialog closes
+    // mid-resolve). _ImageDetailDialog below adds exactly one listener in
+    // initState and removes it in dispose.
+    showDialog(
+      context: context,
+      builder: (context) => ScaffoldMessenger(
+        child: _ImageDetailDialog(img: img),
+      ),
+    );
+  }
+
+  String _shortMonth(int m) => [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ][m - 1];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFf8fafc),
+      // FIX: this screen used to hand-roll its own BottomNavigationBar with
+      // pushNamed (keeps the stack), while every other screen uses the shared
+      // BottomNavBar with pushNamedAndRemoveUntil (clears the stack). That
+      // divergence let the back stack grow unpredictably depending on which
+      // tab you came from. Reuse the shared widget everywhere.
+      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => searchOpen = !searchOpen),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFf1f5f9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 14, color: primaryBlue),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                currentArea?.areaName ?? 'Select Area',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: primaryBlue),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Icon(searchOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 16, color: primaryBlue),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: loading ? const CircularProgressIndicator(strokeWidth: 2, color: primaryBlue) : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (searchOpen)
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    autofocus: true,
+                    onChanged: (v) => setState(() => searchQuery = v),
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search areas...',
+                      prefixIcon: const Icon(Icons.search, size: 16, color: Colors.grey),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      filled: true,
+                      fillColor: const Color(0xFFf1f5f9),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: areas
+                            .where((a) => a.areaName.toLowerCase().contains(searchQuery.toLowerCase()))
+                            .map((a) => ListTile(
+                                  dense: true,
+                                  leading: const Icon(Icons.place, size: 16, color: primaryBlue),
+                                  title: Text(a.areaName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                  onTap: () => _selectArea(a),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          Expanded(
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: LatLng(
+                      currentArea?.centerLatitude ?? 7.2928,
+                      currentArea?.centerLongitude ?? 125.6966,
+                    ),
+                    initialZoom: _zoomNotifier.value,
+                    onMapEvent: (e) {
+                      // FIX (audit #14): was `setState(() => zoom = ...)`,
+                      // which rebuilt the entire _MapViewState (map tiles,
+                      // controls, drawer, everything) on every pan/zoom
+                      // frame. Updating the ValueNotifier directly notifies
+                      // only the ValueListenableBuilders below.
+                      if (e is MapEventMove) {
+                        _zoomNotifier.value = _mapController.camera.zoom;
+                      }
+                    },
+                    onTap: (_, __) {
+                      if (drawerOpen) {
+                        setState(() {
+                          drawerOpen = false;
+                          selectedSector = null;
+                          drawerImages.clear();
+                          _pendingImageIds.clear();
+                        });
+                      }
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: urlTemplate,
+                      tileSize: 512,
+                      zoomOffset: -1,
+                      userAgentPackageName: 'com.example.mobile',
+                    ),
+
+                    RepaintBoundary(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _zoomNotifier,
+                        builder: (context, zoom, _) {
+                          if (zoom >= 18 || hexbins.isEmpty) return const SizedBox.shrink();
+                          return PolygonLayer(
+                            polygons: hexbins
+                                .map((hex) => Polygon(
+                                      points: hex.polygon,
+                                      color: getDensityColor(hex.count).withOpacity(0.45),
+                                      borderColor: Colors.white.withOpacity(0.7),
+                                      borderStrokeWidth: 1,
+                                    ))
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ),
+
+                    RepaintBoundary(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _zoomNotifier,
+                        builder: (context, zoom, _) {
+                          if (zoom >= 18 || hexbins.isEmpty) return const SizedBox.shrink();
+                          return MarkerLayer(
+                            markers: hexbins.map((hex) {
+                              return Marker(
+                                point: hex.center,
+                                width: 34,
+                                height: 34,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => _onHexTap(hex),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.4),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 1.5),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${hex.count}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ),
+
+                    RepaintBoundary(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _zoomNotifier,
+                        builder: (context, zoom, _) {
+                          if (zoom < 18 || drawerImages.isEmpty) return const SizedBox.shrink();
+                          return CircleLayer(
+                            circles: drawerImages
+                                .map((img) => CircleMarker(
+                                      point: LatLng(img.latitude, img.longitude),
+                                      radius: 7,
+                                      color: primaryBlue.withOpacity(0.9),
+                                      borderColor: Colors.white,
+                                      borderStrokeWidth: 2,
+                                    ))
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (!drawerOpen && !searchOpen) _buildControls(),
+                if (drawerOpen && selectedSector != null) _buildDrawer(),
+
+                if (!loading && hexbins.isEmpty && !drawerOpen)
+                  Positioned(
+                    bottom: 16,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'No detections for selected period',
+                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControls() {
+    return Positioned(
+      top: 12,
+      right: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            width: 190,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'MIN/CELL',
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF94a3b8), letterSpacing: 0.8),
+                    ),
+                    Text('$threshold', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: primaryBlue)),
+                  ],
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                  ),
+                  child: Slider(
+                    value: threshold.toDouble(),
+                    min: 1,
+                    max: 15,
+                    activeColor: primaryBlue,
+                    inactiveColor: const Color(0xFFe2e8f0),
+                    onChanged: (v) {
+                      setState(() => threshold = v.round());
+                      // FIX: debounced instead of firing a request per pixel dragged.
+                      _onFilterChangedDebounced();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 190,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0f172a).withOpacity(0.92),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setState(() => selectedDate = picked);
+                      _onFilterChanged();
+                    }
+                  },
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: Color(0xFF60a5fa), size: 11),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_shortMonth(selectedDate.month)} ${selectedDate.year}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'up to ${week == 4 ? "end" : "${_shortMonth(selectedDate.month)} ${week * 7}"}',
+                        style: const TextStyle(fontSize: 9, color: Color(0xFF60a5fa)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: List.generate(4, (i) {
+                    final w = i + 1;
+                    final isActive = week == w;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() => week = w);
+                          _onFilterChanged();
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 120),
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isActive ? const Color(0xFF3b82f6) : const Color(0xFF1e293b),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'W$w',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isActive ? Colors.white : const Color(0xFF64748b)),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 6)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _legendDot(const Color(0xFF22c55e), 'Low'),
+                _legendDot(const Color(0xFFeab308), 'Mid'),
+                _legendDot(const Color(0xFFea580c), 'High'),
+                _legendDot(const Color(0xFFb91c1c), 'Crit'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 3),
+            Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF64748b))),
+          ],
+        ),
+      );
+
+  Widget _buildDrawer() {
+    final hex = selectedSector!;
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 16)],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: getDensityColor(hex.count).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: getDensityColor(hex.count), shape: BoxShape.circle)),
+                        const SizedBox(width: 5),
+                        Text(
+                          '${getDensityLabel(hex.count)}  ·  ${hex.count} image${hex.count != 1 ? 's' : ''}',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: getDensityColor(hex.count)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      drawerOpen = false;
+                      selectedSector = null;
+                      drawerImages.clear();
+                      _pendingImageIds.clear();
+                    }),
+                    child: const Icon(Icons.close, size: 18, color: Color(0xFF94a3b8)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // FIX (audit #15): EdgeInsetsPadding was a one-line wrapper
+            // used exactly once — inlined as a plain SizedBox.
+            SizedBox(
+              height: 110,
+              child: loading
+                  ? const Center(child: CircularProgressIndicator(color: primaryBlue, strokeWidth: 2))
+                  : drawerImages.isEmpty
+                      ? const Center(child: Text('No images found in this sector.', style: TextStyle(fontSize: 12, color: Colors.grey)))
+                      : ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          itemCount: drawerImages.length + (_pendingImageIds.isNotEmpty ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            // FIX (audit #6 remediation): trailing tile fetches the next
+                            // page of image_ids instead of rendering all of them up front.
+                            if (index == drawerImages.length) {
+                              return GestureDetector(
+                                onTap: _loadMoreImages,
+                                child: Container(
+                                  width: 80,
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: const Color(0xFFf1f5f9),
+                                    border: Border.all(color: const Color(0xFFe2e8f0)),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: _loadingMoreImages
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: primaryBlue),
+                                        )
+                                      : Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.add_photo_alternate_outlined, color: primaryBlue, size: 20),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '+${_pendingImageIds.length}',
+                                              style: const TextStyle(fontSize: 10, color: primaryBlue, fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              );
+                            }
+
+                            final img = drawerImages[index];
+                            return GestureDetector(
+                              onTap: () => _showImageDetails(img), // FIXED: Wrapped item to accept click events
+                              child: Container(
+                                width: 100,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFf1f5f9)),
+                                clipBehavior: Clip.antiAlias,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    // FIX (audit #6): Image.network decoded the full-res
+                                    // drone frame (often several MB / 4K) into memory for a
+                                    // 100px cell, with no cache bound — a common source of
+                                    // OOM crashes on mid-range Android devices, plus repeated
+                                    // multi-MB re-downloads on every scroll/hex tap.
+                                    // CachedNetworkImage disk/mem-caches the bytes and
+                                    // memCacheWidth caps the *decoded* bitmap size.
+                                    // FIX (audit #6 + #2.4): now requests the
+                                    // Cloudinary-transformed thumbnail (see
+                                    // cloudinaryThumbUrl above) instead of the
+                                    // full original file — cuts network bytes,
+                                    // not just decoded memory. memCacheWidth
+                                    // stays as a second safety net.
+                                    CachedNetworkImage(
+                                      imageUrl: cloudinaryThumbUrl(img.fileUrl),
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 200, // ~2x the 100px cell for retina
+                                      maxWidthDiskCache: 400,
+                                      placeholder: (_, __) => const Center(
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: primaryBlue),
+                                        ),
+                                      ),
+                                      errorWidget: (_, __, ___) => const Center(
+                                        child: Icon(Icons.broken_image, color: Color(0xFFcbd5e1), size: 24),
+                                      ),
+                                    ),
+                                    if (img.type != null)
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                          color: Colors.black.withOpacity(0.5),
+                                          child: Text(
+                                            img.type!,
+                                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// FIX (audit #13): extracted from the old inline StatefulBuilder so the
+/// ImageStream listener is added exactly once (initState) and always
+/// removed (dispose), instead of being re-added on every rebuild and never
+/// cleaned up.
+class _ImageDetailDialog extends StatefulWidget {
+  final DroneImage img;
+  const _ImageDetailDialog({required this.img});
+
+  @override
+  State<_ImageDetailDialog> createState() => _ImageDetailDialogState();
+}
+
+class _ImageDetailDialogState extends State<_ImageDetailDialog> {
+  late final Image _networkImage;
+  ImageStream? _stream;
+  late final ImageStreamListener _listener;
+  int _naturalWidth = 0;
+  int _naturalHeight = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // NOTE: deliberately NOT using cloudinaryThumbUrl/a transform here.
+    // BoundingBoxPainter scales widget.img.detections[].box2d (absolute
+    // original-image pixel coordinates, per ImageDetection's doc comment)
+    // against whatever width/height this Image actually decodes to. If this
+    // loaded a downscaled Cloudinary variant instead, the decoded
+    // naturalWidth/naturalHeight would shrink but box2d would still be in
+    // full-res coordinates, silently misplacing every bounding box. Fixing
+    // this properly would need the backend to also return the original
+    // image's width/height so the painter can scale independently of what's
+    // decoded — flagging as a backend follow-up rather than guessing here.
+    _networkImage = Image.network(widget.img.fileUrl, fit: BoxFit.contain);
+    _listener = ImageStreamListener((ImageInfo info, bool _) {
+      if (!mounted) return;
+      setState(() {
+        _naturalWidth = info.image.width;
+        _naturalHeight = info.image.height;
+      });
+    });
+    _stream = _networkImage.image.resolve(const ImageConfiguration());
+    _stream!.addListener(_listener);
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF0F172A),
+      contentPadding: EdgeInsets.zero,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: Text(
+              '${widget.img.detections.length} Detection(s) Found',
+              style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Flexible(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              child: _naturalWidth == 0
+                  ? const SizedBox(
+                      height: 250,
+                      child: Center(child: CircularProgressIndicator(color: primaryBlue)),
+                    )
+                  : AspectRatio(
+                      aspectRatio: _naturalWidth / _naturalHeight,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          _networkImage,
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: BoundingBoxPainter(
+                                detections: widget.img.detections,
+                                naturalWidth: _naturalWidth,
+                                naturalHeight: _naturalHeight,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\password_reset_screen.dart
+```dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:TrashVision/services/auth_service.dart';
+
+class ForgotPasswordScreen extends StatefulWidget {
+  const ForgotPasswordScreen({super.key});
+
+  @override
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+}
+
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  // Controllers
+  final _emailController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
+
+  // State
+  bool _isLoading = false;
+  bool _codeSent = false;
+  int _resendCountdown = 0;
+  Timer? _timer;
+
+  // Theme
+  final Color brandBlue = const Color(0xFF005D90);
+  final Color successGreen = const Color(0xFF2E7D32);
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _emailController.dispose();
+    _codeController.dispose();
+    _newPasswordController.dispose();
+    super.dispose();
+  }
+
+  // Helper: Start Resend Timer
+  void _startTimer() {
+    setState(() => _resendCountdown = 60);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_resendCountdown == 0) {
+        timer.cancel();
+      } else {
+        setState(() => _resendCountdown--);
+      }
+    });
+  }
+
+  // Helper: Show Formatted Error
+  void _showStatus(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : successGreen,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // Logic: Request Code
+  void _handleRequestCode() async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      _showStatus("Please enter your email.");
+      return;
+    }
+
+    final bool isValidEmail = RegExp(
+      r'^[^@]+@[^@]+\.[^@]+$',
+    ).hasMatch(email);
+
+    if (!isValidEmail) {
+      _showStatus("Please enter a valid email format.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.requestPasswordReset(email);
+      if (!mounted) return;
+
+      setState(() => _codeSent = true);
+      _startTimer();
+      _showStatus("Verification code sent!", isError: false);
+    } catch (e) {
+      if (!mounted) return;
+      _showStatus(e.toString().replaceAll("Exception: ", ""));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Verify & Update
+  void _handleReset() async {
+    final code = _codeController.text.trim();
+    final newPass = _newPasswordController.text;
+
+    if (code.length < 6) {
+      _showStatus("Enter the 6-digit code.");
+      return;
+    }
+    if (newPass.length < 8) {
+      _showStatus("Password must be at least 8 characters.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.resetPassword(
+        _emailController.text.trim(),
+        code,
+        newPass,
+      );
+      if (!mounted) return;
+
+      _showStatus("Password updated! Please login.", isError: false);
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      _showStatus(e.toString().replaceAll("Exception: ", ""));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: brandBlue, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              Text(
+                _codeSent ? "Verify Code" : "Forgot Password",
+                style: TextStyle(
+                  color: brandBlue,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _codeSent
+                    ? "Enter the 6-digit code and your new password."
+                    : "Enter your email address to receive a 6-digit reset code.",
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 16,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 40),
+
+              _buildLabel("Email Address"),
+              TextField(
+                controller: _emailController,
+                enabled: !_codeSent,
+                keyboardType: TextInputType.emailAddress,
+                decoration: _inputStyle(Icons.email_outlined),
+              ),
+
+              if (_codeSent) ...[
+                const SizedBox(height: 24),
+                _buildLabel("6-Digit Code"),
+                TextField(
+                  controller: _codeController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: _inputStyle(Icons.lock_clock_outlined),
+                ),
+                const SizedBox(height: 8),
+                _buildLabel("New Password"),
+                TextField(
+                  controller: _newPasswordController,
+                  obscureText: true,
+                  decoration: _inputStyle(Icons.lock_outline),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: TextButton(
+                    onPressed: _resendCountdown == 0
+                        ? _handleRequestCode
+                        : null,
+                    child: Text(
+                      _resendCountdown > 0
+                          ? "Resend code in ${_resendCountdown}s"
+                          : "Resend Code",
+                      style: TextStyle(
+                        color: _resendCountdown > 0 ? Colors.grey : brandBlue,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : (_codeSent ? _handleReset : _handleRequestCode),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: brandBlue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          _codeSent ? "Update Password" : "Send Reset Code",
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+
+              if (_codeSent)
+                Center(
+                  child: TextButton(
+                    onPressed: () => setState(() {
+                      _codeSent = false;
+                      _timer?.cancel();
+                      _resendCountdown = 0;
+                    }),
+                    child: Text(
+                      "Try a different email",
+                      style: TextStyle(color: brandBlue.withOpacity(0.7)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputStyle(IconData icon) {
+    return InputDecoration(
+      prefixIcon: Icon(icon, color: brandBlue, size: 22),
+      filled: true,
+      fillColor: Colors.grey[50],
+      counterText: "", // Hides the maxLength counter
+      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[200]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: brandBlue, width: 2),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[100]!),
+      ),
+    );
+  }
+}
+
+```
+
+------------------------------
+
+### File: mobile\lib\screens\register_screen.dart
+```dart
+import 'package:flutter/material.dart';
+import 'package:TrashVision/screens/login_screen.dart';
+import '../services/auth_service.dart';
+
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  final auth = AuthService();
+
+  bool isLoading = false;
+  bool obscurePassword = true;
+
+  String? errorMessage;
+
+  void handleRegister() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    // Basic validation (frontend safety layer)
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      setState(() {
+        isLoading = false;
+        errorMessage = "All fields are required.";
+      });
+      return;
+    }
+
+    if (!email.contains("@")) {
+      setState(() {
+        isLoading = false;
+        errorMessage = "Please enter a valid email.";
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() {
+        isLoading = false;
+        errorMessage = "Password must be at least 6 characters.";
+      });
+      return;
+    }
+
+    try {
+      final success = await auth.register(name, email, password);
+
+      if (!mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Registration successful")),
+        );
+        Navigator.pop(context);
+      } else {
+        setState(() {
+          errorMessage = "Registration failed. Try again.";
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        errorMessage = e.toString().replaceAll("Exception:", "").trim();
+      });
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF005D90);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const SizedBox(height: 30),
+
+                Text(
+                  "TrashVision",
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  "Create your account",
+                  style: TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+
+                const SizedBox(height: 30),
+
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Name
+                      TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          labelText: "Name",
+                          prefixIcon: const Icon(Icons.person_outline),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Email
+                      TextField(
+                        controller: emailController,
+                        decoration: InputDecoration(
+                          labelText: "Email",
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Password
+                      TextField(
+                        controller: passwordController,
+                        obscureText: obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: "Password",
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                obscurePassword = !obscurePassword;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Error message
+                      if (errorMessage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          margin: const EdgeInsets.only(top: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            errorMessage!,
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 20),
+
+                      // Register button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: isLoading ? null : handleRegister,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  "Register",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Already have an account?"),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text("Login"),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\report_screen.dart
+```dart
+import 'dart:io';
+import 'package:TrashVision/helper/database_helper.dart';
+import 'package:TrashVision/services/api_service.dart';
+import 'package:TrashVision/widgets/bottom_nav.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import '../models/report_model.dart';
+import 'package:image_picker/image_picker.dart';
+// import 'package:path_provider/path_provider.dart';
+import 'package:camera/camera.dart';
+import 'camera_page.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
+class ReportScreen extends StatefulWidget {
+  final String? initialImagePath;
+  const ReportScreen({super.key, this.initialImagePath});
+
+  @override
+  State<ReportScreen> createState() => _ReportScreenState();
+}
+
+class _ReportScreenState extends State<ReportScreen> {
+  List<CameraDescription> _cameras = [];
+  LatLng? _selectedLocation;
+  bool _loadingLocation = true;
+  final storage = const FlutterSecureStorage();
+  final ImagePicker _picker = ImagePicker();
+
+  String? userId;
+  String? _capturedImagePath;
+
+  String selectedWasteType = 'plastic';
+
+  final TextEditingController _descController = TextEditingController();
+
+  final List<String> wasteTypes = [
+    'plastic',
+    'metal',
+    'glass',
+    'styrofoam',
+    'composite_packaging',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _capturedImagePath = widget.initialImagePath;
+    _loadUserData();
+    _getCurrentLocation();
+    _initCameras();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _retrieveLostData();
+    });
+  }
+  Future<void> _initCameras() async {
+    try {
+      final cameras = await availableCameras();
+      if (mounted) {
+        setState(() {
+          _cameras = cameras;
+        });
+      }
+    } catch (e) {
+      debugPrint("Camera prefetch error: $e");
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final currentUser = await storage.read(key: "user_id");
+    if (mounted) {
+      setState(() {
+        userId = currentUser;
+      });
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          setState(() => _loadingLocation = false);
+        }
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            setState(() => _loadingLocation = false);
+          }
+          return;
+        }
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          _selectedLocation = LatLng(position.latitude, position.longitude);
+          _loadingLocation = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Location error: $e");
+      setState(() => _loadingLocation = false);
+    }
+  }
+
+  Future<void> _retrieveLostData() async {
+    final LostDataResponse response = await _picker.retrieveLostData();
+
+    if (response.isEmpty) return;
+
+    if (response.file != null) {
+      if (mounted) {
+        setState(() {
+          _capturedImagePath = response.file!.path;
+        });
+      }
+    } else {
+      debugPrint("LostData Error: ${response.exception?.code}");
+    }
+  }
+
+  // Dual photo pipeline: opens a bottom choice selection panel sheet framework 
+Future<void> _pickImage() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(LucideIcons.camera, color: Color(0xFF005D90)),
+                title: const Text('Use Hardware Scanner (Camera)', style: TextStyle(fontWeight: FontWeight.bold)),
+                onTap: () async {
+                  // Dismiss sheet first
+                  Navigator.of(context).pop();
+
+                  // If cameras weren't fetched yet, try fetching once more
+                  if (_cameras.isEmpty) {
+                    _cameras = await availableCameras();
+                  }
+
+                  if (!mounted) return;
+
+                  if (_cameras.isNotEmpty) {
+                    // Small micro-delay ensures sheet popping animation settles completely
+                    await Future.delayed(const Duration(milliseconds: 150));
+                    if (!mounted) return;
+
+                    final result = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CameraPage(camera: _cameras.first),
+                      ),
+                    );
+
+                    if (result != null && mounted) {
+                      setState(() {
+                        _capturedImagePath = result;
+                      });
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("No functional camera hardware detected.")),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.image, color: Color(0xFF005D90)),
+                title: const Text('Upload from Storage Library (Gallery)', style: TextStyle(fontWeight: FontWeight.bold)),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  try {
+                    final XFile? pickedFile = await _picker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 85,
+                    );
+                    if (pickedFile != null && mounted) {
+                      setState(() {
+                        _capturedImagePath = pickedFile.path;
+                      });
+                    }
+                  } catch (e) {
+                    debugPrint("Gallery Selection Error: $e");
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_selectedLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not get location. Enable GPS.")),
+      );
+      return;
+    }
+
+    if (_capturedImagePath == null ||
+        !File(_capturedImagePath!).existsSync() ||
+        File(_capturedImagePath!).lengthSync() == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please capture or select an image first")),
+      );
+      return;
+    }
+
+    if (userId == null) {
+      await _loadUserData();
+      if (userId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Error: User ID not found. Please log in again."),
+          ),
+        );
+        return;
+      }
+    }
+
+    final newReport = Report(
+      wasteType: selectedWasteType,
+      latitude: _selectedLocation!.latitude,
+      longitude: _selectedLocation!.longitude,
+      userId: userId!,
+      description: _descController.text,
+      localPhotoPath: _capturedImagePath,
+
+    );
+
+    try {
+      var connectivityResult = await Connectivity().checkConnectivity();
+
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        await DatabaseHelper.instance.insertReport(newReport);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Offline: Report saved to outbox")),
+        );
+      } else {
+        await ApiService().uploadReport(newReport);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Report submitted successfully!")),
+        );
+      }
+
+      if (!mounted) return;
+      // FIX: this screen is a root tab route (reached via
+      // pushNamedAndRemoveUntil from BottomNavBar), so it usually has nothing
+      // beneath it on the stack. Calling pop() here could black-screen the
+      // app or exit it entirely instead of just returning to Home.
+      Navigator.pushReplacementNamed(context, '/home');
+    } catch (e) {
+      debugPrint("Submit Error: $e");
+
+      await DatabaseHelper.instance.insertReport(newReport);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Server unreachable. Saved to outbox.")),
+      );
+
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white, // Kept completely white
+      bottomNavigationBar: const BottomNavBar(currentIndex: 2),
+      appBar: AppBar(
+        title: const Text(
+          "Submit Report",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: const Color(0xFF005D90),
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildPhotoCard(),
+            const SizedBox(height: 25),
+            const Text(
+              "Select Waste Classification Type",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: selectedWasteType,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.grey[100],
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: wasteTypes.map((String type) {
+                return DropdownMenuItem<String>(
+                  value: type,
+                  child: Text(
+                    type.replaceAll('_', ' ').toUpperCase(),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    selectedWasteType = newValue;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 25),
+            _buildLocationCard(),
+            const SizedBox(height: 25),
+            const Text(
+              "Description",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: "Add more details about the trash...",
+                fillColor: Colors.grey[50],
+                filled: true,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide(color: Colors.grey[200]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: const BorderSide(color: Color(0xFF005D90), width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 40),
+            _buildSubmitButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoCard() {
+    final file = _capturedImagePath != null ? File(_capturedImagePath!) : null;
+    final hasValidImage = file != null && file.existsSync() && file.lengthSync() > 0;
+
+    return GestureDetector(
+      onTap: _pickImage,
+      child: Container(
+        width: double.infinity,
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.blue.withOpacity(0.1)),
+        ),
+        child: hasValidImage
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.file(file, fit: BoxFit.cover),
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(LucideIcons.camera, size: 40, color: Colors.blue[300]),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Tap to take photo or select image",
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildLocationCard() {
+    if (_loadingLocation) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 10),
+              Text("Getting your location..."),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_selectedLocation == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.red),
+            SizedBox(width: 12),
+            Text(
+              "Could not get location.\nPlease enable GPS.",
+              style: TextStyle(color: Colors.red),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Location",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          "Tap the map to adjust the pin if needed",
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: SizedBox(
+            height: 200,
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: _selectedLocation!,
+                initialZoom: 16,
+                onTap: (tapPosition, point) {
+                  setState(() {
+                    _selectedLocation = point;
+                  });
+                },
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.trashvision.app',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _selectedLocation!,
+                      width: 40,
+                      height: 40,
+                      child: const Icon(
+                        Icons.location_pin,
+                        color: Colors.red,
+                        size: 40,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.my_location, size: 16, color: Colors.blue),
+              const SizedBox(width: 8),
+              Text(
+                "Lat: ${_selectedLocation!.latitude.toStringAsFixed(5)}, "
+                "Lng: ${_selectedLocation!.longitude.toStringAsFixed(5)}",
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        onPressed: _submit,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF005D90),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          elevation: 5,
+          shadowColor: Colors.blueAccent.withOpacity(0.3),
+        ),
+        child: const Text(
+          "Submit Report",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\screens\user_profile_screen.dart
+```dart
+// lib/screens/user_profile_screen.dart
+
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../helper/database_helper.dart';
+import '../services/api_service.dart';
+import '../models/report_model.dart';
+import '../widgets/bottom_nav.dart';
+
+class UserProfileScreen extends StatefulWidget {
+  const UserProfileScreen({super.key});
+
+  @override
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
+}
+
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  final storage = const FlutterSecureStorage();
+
+  String? _userId;
+  String? _userName;
+  String? _userEmail;
+  
+  List<Report> _submittedReports = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileAndReports();
+  }
+
+  Future<void> _loadProfileAndReports() async {
+    setState(() => _isLoading = true);
+    try {
+      final cachedId = await storage.read(key: "user_id");
+      String? currentName = await storage.read(key: "user_name");
+      String? currentEmail = await storage.read(key: "user_email");
+
+      setState(() {
+        _userId = cachedId;
+        _userName = currentName ?? "Community Citizen";
+        _userEmail = currentEmail ?? "citizen@trashvision.org";
+      });
+
+      if (_userId != null) {
+        var connectivityResult = await Connectivity().checkConnectivity();
+        
+        if (!connectivityResult.contains(ConnectivityResult.none)) {
+          try {
+            final profileData = await ApiService().getUserProfile(_userId!);
+            if (profileData != null) {
+              currentName = profileData['name'];
+              currentEmail = profileData['email'];
+
+              await storage.write(key: "user_name", value: currentName);
+              await storage.write(key: "user_email", value: currentEmail);
+            }
+          } catch (apiError) {
+            debugPrint("Failed to sync profile metrics: $apiError");
+          }
+        }
+
+        setState(() {
+          _userName = currentName ?? "Community Citizen";
+          _userEmail = currentEmail ?? "citizen@trashvision.org";
+        });
+
+        await _fetchUserLogs();
+      }
+    } catch (e) {
+      debugPrint("Profile state error: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _fetchUserLogs() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    List<Report> logs = [];
+
+    // FIX (audit #9 - "Offline profile ledger shows nothing"): a synced
+    // report is removed from report_outbox (see moveReportToLedger), so
+    // reading only getReportsByUserId here would show pending reports but
+    // silently drop everything that had ever successfully synced while
+    // offline. Merge outbox (pending) + ledger (already synced).
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      final pending = await DatabaseHelper.instance.getReportsByUserId(_userId!);
+      final synced = await DatabaseHelper.instance.getLedgerReportsByUserId(_userId!);
+      logs = [...pending, ...synced];
+      logs.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    } else {
+      try {
+        logs = await ApiService().getUserReports(_userId!);
+      } catch (e) {
+        final pending = await DatabaseHelper.instance.getReportsByUserId(_userId!);
+        final synced = await DatabaseHelper.instance.getLedgerReportsByUserId(_userId!);
+        logs = [...pending, ...synced];
+        logs.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _submittedReports = logs;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          "My Clean-Up Profile", 
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Colors.white)
+        ),
+        backgroundColor: const Color(0xFF005D90),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.refreshCw, size: 20),
+            color: Colors.white,
+            onPressed: _loadProfileAndReports,
+            tooltip: "Force-sync network graph data",
+          )
+        ],
+      ),
+      body: _isLoading 
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF005D90)),
+              ),
+            )
+          : Column(
+              children: [
+                _buildHeroProfileHeader(),
+                Expanded(
+                  child: _buildHistoryPane(),
+                ),
+              ],
+            ),
+      bottomNavigationBar: const BottomNavBar(currentIndex: 3),
+    );
+  }
+
+  Widget _buildHeroProfileHeader() {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Color(0xFF005D90),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.blue[100]!, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    )
+                  ],
+                ),
+                child: const Icon(LucideIcons.user, size: 36, color: Color(0xFF005D90)),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName ?? "Community Citizen",
+                      style: const TextStyle(
+                        fontSize: 22, 
+                        fontWeight: FontWeight.w900, 
+                        color: Colors.white,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _userEmail ?? "citizen@trashvision.org",
+                      style: TextStyle(
+                        fontSize: 13, 
+                        color: Colors.blue[100], 
+                        fontWeight: FontWeight.w500
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildMetricTile(
+            count: _submittedReports.length.toString(),
+            label: "Total Submissions",
+            icon: LucideIcons.fileText,
+            color: Colors.white24,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTile({
+    required String count, 
+    required String label, 
+    required IconData icon, 
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.15)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                count,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[100],
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryPane() {
+    if (_submittedReports.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(LucideIcons.folderOpen, size: 48, color: Colors.grey[300]),
+              const SizedBox(height: 12),
+              const Text(
+                "Your reporting ledger is clean.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      itemCount: _submittedReports.length,
+      itemBuilder: (context, index) {
+        return _buildReportCardNode(_submittedReports[index]);
+      },
+    );
+  }
+
+  Widget _buildReportCardNode(Report report) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 110,
+              color: const Color(0xFFF1F5F9),
+              child: Builder(
+                builder: (context) {
+                  final hasValidLocalFile = report.localPhotoPath != null && 
+                      File(report.localPhotoPath!).existsSync();
+                  final hasValidRemoteUrl = report.photoUrl != null && 
+                      report.photoUrl!.isNotEmpty;
+
+                  if (hasValidLocalFile) {
+                    return Image.file(
+                      File(report.localPhotoPath!),
+                      fit: BoxFit.cover,
+                    );
+                  } else if (hasValidRemoteUrl) {
+                    return Image.network(
+                      report.photoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(LucideIcons.image, color: Color(0xFF94A3B8), size: 24),
+                      ),
+                    );
+                  } else {
+                    return const Center(
+                      child: Icon(LucideIcons.image, color: Color(0xFF94A3B8), size: 24),
+                    );
+                  }
+                },
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      report.wasteType.replaceAll('_', ' ').toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 12, 
+                        fontWeight: FontWeight.w900, 
+                        color: Color(0xFF005D90),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      report.description.isNotEmpty 
+                          ? report.description 
+                          : "No programmatic context summary submitted.",
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.3),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(LucideIcons.mapPin, size: 12, color: Colors.blue[700]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            "Lat: ${report.latitude.toStringAsFixed(4)}, Lng: ${report.longitude.toStringAsFixed(4)}",
+                            style: const TextStyle(
+                              fontSize: 11, 
+                              fontFamily: 'monospace', 
+                              color: Color(0xFF94A3B8),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\services\api_service.dart
+```dart
+import 'dart:convert';
+import 'package:TrashVision/models/report_model.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../config/app_config.dart';
+
+class ApiService {
+  // FIX (audit #4): was a hardcoded ngrok URL duplicated across 3 files.
+  // Now sourced from .env via AppConfig (see app_config.dart).
+  String get baseUrl => AppConfig.reportsBaseUrl;
+
+  // FIX: the backend enforces OAuth2PasswordBearer, but no mobile request ever
+  // attached the JWT, so the token sitting in secure storage was decorative and
+  // any client could spoof user_id / hit these endpoints unauthenticated.
+  static const _storage = FlutterSecureStorage();
+  static const _timeout = Duration(seconds: 15);
+
+  Future<String?> _authToken() => _storage.read(key: "token");
+
+  Future<Map<String, String>> _authHeaders({Map<String, String>? extra}) async {
+    final token = await _authToken();
+    return {
+      if (extra != null) ...extra,
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  Future<bool> uploadReport(Report report) async {
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/'));
+
+      final token = await _authToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      request.fields['waste_type'] = report.wasteType;
+      request.fields['latitude'] = report.latitude.toString();
+      request.fields['longitude'] = report.longitude.toString();
+      request.fields['user_id'] = report.userId;
+      request.fields['description'] = report.description;
+
+      // Add the photo
+      if (report.localPhotoPath != null) {
+        request.files.add(await http.MultipartFile.fromPath('photo', report.localPhotoPath!));
+      }
+
+      // FIX: no timeout previously — a stalled connection (e.g. dead ngrok
+      // tunnel) would hang the submit flow indefinitely.
+      var response = await request.send().timeout(_timeout);
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print("Sync Upload Error: $e");
+      return false;
+    }
+  }
+
+  Future<List<Report>> getUserReports(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId'),
+        headers: await _authHeaders(extra: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+      ).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> decodedData = json.decode(response.body);
+        return decodedData.map((jsonItem) => Report.fromJson(jsonItem)).toList();
+      } else {
+        throw Exception("Server node runtime mismatch payload: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Upstream API Sync Lookup Error: $e");
+      rethrow; 
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+    try {
+      // FIX: previously derived via baseUrl.replaceAll('/reports', '/users'),
+      // which was fragile string surgery. AppConfig exposes the users path directly.
+      final String userEndpointUrl = AppConfig.usersBaseUrl;
+
+      final response = await http.get(
+        Uri.parse('$userEndpointUrl/$userId'),
+        headers: await _authHeaders(extra: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+      ).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        print("User profile service returned abnormal status code: ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      print("User profile service fetch exception: $e");
+      return null;
+    }
+  }
+
+  /// FIX (audit #10 - "Mock analytics on Home"): backs the Home dashboard's
+  /// "1,248 kg" / "94.2%" / weekly bar chart, which were previously hardcoded
+  /// literals. Hits GET /logs/summary, which the audit notes already returns
+  /// weekly_trends, total_detections, and hotspot_zones.
+  ///
+  /// NOTE: verify this response shape against the actual backend route before
+  /// shipping — adjust the key names in home_screen.dart's parsing if they differ.
+  Future<Map<String, dynamic>?> getLogsSummary() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.logsBaseUrl}/summary'),
+        headers: await _authHeaders(extra: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }),
+      ).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        print("Logs summary returned abnormal status code: ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      print("Logs summary fetch exception: $e");
+      return null;
+    }
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\services\auth_service.dart
+```dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../config/app_config.dart';
+
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+  ApiException(this.statusCode, this.message);
+
+  @override
+  String toString() => message;
+}
+
+class AuthService {
+  String get baseUrl => AppConfig.authBaseUrl;
+
+  final storage = const FlutterSecureStorage();
+
+  Future<bool> register(String name, String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/register'),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: jsonEncode({
+        "name": name,
+        "email": email,
+        "password": password,
+        "role": "community",
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      final data = jsonDecode(response.body);
+      throw Exception(data["detail"] ?? "Registration failed");
+    }
+  }
+
+  Future<String?> login(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/login'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"email": email, "password": password}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      final user = data["user"];
+
+      final token = data["access_token"];
+      final role = user["role"];
+      final userId = user["user_id"];
+      final name = user["name"];
+      // FIX: fall back to the email the user typed in, since the login
+      // response doesn't always echo it back on the user object.
+      final userEmail = user["email"] ?? email;
+
+      await storage.write(key: "token", value: token);
+      await storage.write(key: "role", value: role);
+      await storage.write(key: "user_id", value: userId);
+      // FIX: user_profile_screen.dart reads "user_name" / "user_email", but this
+      // used to write "name" only (and never wrote email at all), so the profile
+      // screen always fell back to the hardcoded placeholder after login.
+      await storage.write(key: "user_name", value: name);
+      await storage.write(key: "user_email", value: userEmail);
+
+      return token;
+    } else {
+      final data = jsonDecode(response.body);
+      throw Exception(data["detail"] ?? "Login failed");
+    }
+  }
+
+  Future<String?> getToken() async {
+    return await storage.read(key: "token");
+  }
+
+  Future<void> logout() async {
+    await storage.deleteAll();
+  }
+
+  // Password Reset
+  Future<void> requestPasswordReset(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/forgot-password'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"email": email}),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data["detail"] ?? "Failed to send reset code");
+    }
+  }
+
+  Future<void> resetPassword(
+    String email,
+    String code,
+    String newPassword,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/reset-password'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "email": email,
+        "code": code,
+        "new_password": newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data["detail"] ?? "Invalid code or expired");
+    }
+  }
+}
+
+```
+
+------------------------------
+
+### File: mobile\lib\services\sync_services.dart
+```dart
+import 'package:TrashVision/models/report_model.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../helper/database_helper.dart';
+import 'api_service.dart';
+
+class SyncService {
+  static final SyncService _instance = SyncService._internal();
+  factory SyncService() => _instance;
+  SyncService._internal();
+
+  bool _isSyncing = false;
+
+  Future<void> syncOutbox() async {
+    if (_isSyncing) return;
+    
+    // FIX: connectivity_plus v6's checkConnectivity() returns List<ConnectivityResult>,
+    // not a single ConnectivityResult. The old `== ConnectivityResult.none` comparison
+    // was always false, so this offline guard never actually fired.
+    var connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) return;
+
+    _isSyncing = true;
+    print("Sync Engine: Checking for pending reports...");
+
+    try {
+      final List<Report> pendingReports = await DatabaseHelper.instance.getReports();
+
+      for (var report in pendingReports) {
+        bool success = await ApiService().uploadReport(report);
+        
+        if (success) {
+          // FIX (audit #9 - "Offline profile ledger shows nothing"): this
+          // used to be deleteReport(), which erased all trace of a report
+          // the moment it synced. Offline users then saw nothing for
+          // anything that had ever synced. moveReportToLedger() archives it
+          // into report_ledger instead, so Profile can always show full
+          // history regardless of connectivity.
+          await DatabaseHelper.instance.moveReportToLedger(report);
+          print("Sync Engine: Report ${report.id} synced and moved to ledger.");
+        }
+      }
+    } catch (e) {
+      print("Sync Engine Error: $e");
+    } finally {
+      _isSyncing = false;
+    }
+  }
+}
+```
+
+------------------------------
+
+### File: mobile\lib\widgets\bottom_nav.dart
+```dart
+import 'package:flutter/material.dart';
+
+class BottomNavBar extends StatelessWidget {
+  final int currentIndex;
+
+  const BottomNavBar({super.key, required this.currentIndex});
+
+  void _onItemTapped(BuildContext context, int index) {
+    if (index == currentIndex) return; 
+    bool clearAllHistory(Route<dynamic> route) => false;
+
+    switch (index) {
+      case 0:
+        Navigator.pushNamedAndRemoveUntil(context, '/home', clearAllHistory);
+        break;
+      case 1:
+        Navigator.pushNamedAndRemoveUntil(context, '/map', clearAllHistory);
+        break;
+      case 2:
+        Navigator.pushNamedAndRemoveUntil(context, '/report', clearAllHistory);
+        break;
+      case 3:
+        Navigator.pushNamedAndRemoveUntil(context, '/profile', clearAllHistory);
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomNavigationBar(
+      currentIndex: currentIndex,
+      backgroundColor: Color.fromARGB(255,255,255,255),
+      onTap: (index) => _onItemTapped(context, index),
+      selectedItemColor: const Color(0xFF005D90),
+      unselectedItemColor: Colors.grey,
+      type: BottomNavigationBarType.fixed,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.map), label: "Map"),
+        BottomNavigationBarItem(icon: Icon(Icons.report), label: "Report"),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+      ],
+    );
+  }
+}
+```
+
+------------------------------
+

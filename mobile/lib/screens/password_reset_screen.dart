@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:TrashVision/services/api_client.dart' show userMessage;
 import 'package:TrashVision/services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -69,7 +70,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    // ✅ Fixed with 'r' prefix for Raw String
     final bool isValidEmail = RegExp(
       r'^[^@]+@[^@]+\.[^@]+$',
     ).hasMatch(email);
@@ -88,14 +88,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _startTimer();
       _showStatus("Verification code sent!", isError: false);
     } catch (e) {
+      // FIX (Step 6): known-safe mapping instead of e.toString() verbatim
+      // (could leak the API host on unexpected errors).
+      debugPrint("Password reset request error: $e");
       if (!mounted) return;
-      _showStatus(e.toString().replaceAll("Exception: ", ""));
+      _showStatus(userMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Logic: Verify & Update
+  // Verify & Update
   void _handleReset() async {
     final code = _codeController.text.trim();
     final newPass = _newPasswordController.text;
@@ -121,8 +124,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _showStatus("Password updated! Please login.", isError: false);
       Navigator.pop(context);
     } catch (e) {
+      debugPrint("Password reset update error: $e");
       if (!mounted) return;
-      _showStatus(e.toString().replaceAll("Exception: ", ""));
+      _showStatus(userMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -257,7 +261,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     }),
                     child: Text(
                       "Try a different email",
-                      style: TextStyle(color: brandBlue.withOpacity(0.7)),
+                      style: TextStyle(color: brandBlue.withValues(alpha: 0.7)),
                     ),
                   ),
                 ),

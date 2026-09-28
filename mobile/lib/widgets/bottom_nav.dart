@@ -6,20 +6,21 @@ class BottomNavBar extends StatelessWidget {
   const BottomNavBar({super.key, required this.currentIndex});
 
   void _onItemTapped(BuildContext context, int index) {
-    if (index == currentIndex) return; // avoid reload
+    if (index == currentIndex) return; 
+    bool clearAllHistory(Route<dynamic> route) => false;
 
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushNamedAndRemoveUntil(context, '/home', clearAllHistory);
         break;
       case 1:
-        Navigator.pushNamed(context, '/map');
+        Navigator.pushNamedAndRemoveUntil(context, '/map', clearAllHistory);
         break;
       case 2:
-        Navigator.pushNamed(context, '/report');
+        Navigator.pushNamedAndRemoveUntil(context, '/report', clearAllHistory);
         break;
       case 3:
-        Navigator.pushNamed(context, '/profile');
+        Navigator.pushNamedAndRemoveUntil(context, '/profile', clearAllHistory);
         break;
     }
   }
@@ -28,6 +29,7 @@ class BottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       currentIndex: currentIndex,
+      backgroundColor: Color.fromARGB(255,255,255,255),
       onTap: (index) => _onItemTapped(context, index),
       selectedItemColor: const Color(0xFF005D90),
       unselectedItemColor: Colors.grey,

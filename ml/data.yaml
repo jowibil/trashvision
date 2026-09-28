@@ -3,12 +3,10 @@ train: images/train
 val: images/val
 test: images/test
 
-nc: 6
+nc: 5
 names:
-
   - composite_packaging
-  - plastic_rigid
-  - plastic_film
+  - plastic
   - metal
   - glass
   - styrofoam

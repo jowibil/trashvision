@@ -1,14 +1,12 @@
-import { 
-  ScanSearch, 
-  Map, 
-  Navigation, 
-  BarChart3, 
-  Smartphone, 
-  FileText,
-  Monitor,
-  MapPin,
-} from 'lucide-react';
-import type {  LucideIcon } from 'lucide-react'
+import { ScanSearch } from "lucide-react";
+import { Map } from "lucide-react";
+import { Navigation } from "lucide-react";
+import { BarChart3 } from "lucide-react";
+import { Smartphone } from "lucide-react";
+import { FileText } from "lucide-react";
+import { Monitor } from "lucide-react";
+import { MapPin } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export interface Feature {
   icon: LucideIcon;
@@ -32,12 +30,14 @@ export const features: Feature[] = [
   {
     icon: ScanSearch,
     title: "Real-Time Detection",
-    description: "State-of-the-art computer vision models trained to identify over 50 types of marine debris instantly.",
+    description:
+      "State-of-the-art computer vision models trained to identify over 50 types of marine debris instantly.",
   },
   {
     icon: Map,
     title: "Interactive Hotspot Map",
-    description: "Visualize pollution density across your jurisdiction with geospatial heatmaps and coordinate logging.",
+    description:
+      "Visualize pollution density across your jurisdiction with geospatial heatmaps and coordinate logging.",
   },
   {
     icon: Navigation,

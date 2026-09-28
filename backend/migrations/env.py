@@ -73,12 +73,29 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata, include_name=include_name,
         )
 
         with context.begin_transaction():
             context.run_migrations()
-
+            
+def include_name(name, type_, parent_names):
+    if type_ == "table":
+        # Ignore PostGIS internal tables
+        return name not in ["spatial_ref_sys", "layer", "topology"]
+    return True
+            
+def include_object(object, name, type_, reflected, compare_to):
+    # Protect PostGIS internal system registries from deletion
+    if type_ == "table" and name in [
+        "spatial_ref_sys", 
+        "geography_columns", 
+        "geometry_columns", 
+        "raster_columns", 
+        "raster_overviews"
+    ]:
+        return False
+    return True
 
 if context.is_offline_mode():
     run_migrations_offline()

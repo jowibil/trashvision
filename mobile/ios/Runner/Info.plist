@@ -32,6 +32,10 @@
 		<string>TrashVision needs camera access to take photos of waste.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>TrashVision needs library access to upload waste photos.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>TrashVision needs your location to tag the exact spot where waste is reported.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>TrashVision needs your location to provide real-time updates during waste collection.</string>
 		<key>UISupportedInterfaceOrientations</key>
 		<array>
 			<string>UIInterfaceOrientationPortrait</string>

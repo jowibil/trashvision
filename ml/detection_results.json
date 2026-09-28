@@ -1,10 +1,7364 @@
 [
   {
-    "image": "DJI_0080.JPG",
-    "waste_type": "styrofoam",
-    "confidence": 0.5405241847038269,
-    "latitude": 39.422482277777775,
-    "longitude": 116.7775225,
-    "timestamp": "2026-03-30T15:37:51.469491"
+    "image": "dji_fly_20260506_155118_0057_1778056435971_photo_beautify.jpg",
+    "latitude": 7.292994444444444,
+    "longitude": 125.69647222222223,
+    "captured_at": "2026-05-06T15:51:15",
+    "detections": [
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.8468,
+        "bbox": [
+          2032.04,
+          674.36,
+          2127.28,
+          783.68
+        ]
+      }
+    ],
+    "total_detections": 1
+  },
+  {
+    "image": "dji_fly_20260512_090640_0082_1778551102419_photo_beautify.jpg",
+    "latitude": 7.286180555555555,
+    "longitude": 125.691175,
+    "captured_at": "2026-05-12T09:06:39",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7321,
+        "bbox": [
+          2088.94,
+          591.63,
+          2126.41,
+          620.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5945,
+        "bbox": [
+          286.3,
+          709.85,
+          349.08,
+          791.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5939,
+        "bbox": [
+          3602.94,
+          302.49,
+          3646.04,
+          340.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5863,
+        "bbox": [
+          2534.21,
+          660.57,
+          2620.36,
+          772.27
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5584,
+        "bbox": [
+          3196.97,
+          291.6,
+          3252.88,
+          355.67
+        ]
+      }
+    ],
+    "total_detections": 5
+  },
+  {
+    "image": "dji_fly_20260512_091306_0150_1778550820211_photo_beautify.jpg",
+    "latitude": 7.285375,
+    "longitude": 125.69056388888889,
+    "captured_at": "2026-05-12T09:13:06",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8806,
+        "bbox": [
+          2523.94,
+          1619.89,
+          2747.95,
+          1775.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8317,
+        "bbox": [
+          1035.5,
+          1382.47,
+          1267.91,
+          1506.92
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8205,
+        "bbox": [
+          1834.89,
+          1631.87,
+          1940.86,
+          1737.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8011,
+        "bbox": [
+          3254.6,
+          1602.8,
+          3411.29,
+          1688.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7473,
+        "bbox": [
+          3877.25,
+          875.57,
+          3972.55,
+          978.95
+        ]
+      }
+    ],
+    "total_detections": 5
+  },
+  {
+    "image": "dji_fly_20260512_091516_0163_1778550796896_photo_beautify.jpg",
+    "latitude": 7.2861,
+    "longitude": 125.69117222222222,
+    "captured_at": "2026-05-12T09:15:13",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.805,
+        "bbox": [
+          560.49,
+          617.47,
+          652.55,
+          713.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7794,
+        "bbox": [
+          2609.11,
+          1324.0,
+          2862.41,
+          1480.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7626,
+        "bbox": [
+          2052.06,
+          427.13,
+          2126.5,
+          505.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7466,
+        "bbox": [
+          1156.89,
+          1881.32,
+          1225.94,
+          1989.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7121,
+        "bbox": [
+          975.15,
+          1187.74,
+          1039.55,
+          1245.0
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6874,
+        "bbox": [
+          2861.79,
+          605.98,
+          2923.37,
+          652.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6641,
+        "bbox": [
+          2082.89,
+          798.85,
+          2154.39,
+          870.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6241,
+        "bbox": [
+          1431.01,
+          627.94,
+          1467.5,
+          666.7
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6222,
+        "bbox": [
+          3682.15,
+          611.4,
+          3763.64,
+          697.93
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6109,
+        "bbox": [
+          1964.57,
+          516.88,
+          2024.19,
+          562.55
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5604,
+        "bbox": [
+          3895.64,
+          436.05,
+          3936.02,
+          491.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5435,
+        "bbox": [
+          2547.05,
+          934.18,
+          2604.95,
+          999.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5378,
+        "bbox": [
+          2024.36,
+          368.5,
+          2071.89,
+          422.64
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5297,
+        "bbox": [
+          3783.45,
+          675.49,
+          3835.29,
+          733.69
+        ]
+      }
+    ],
+    "total_detections": 14
+  },
+  {
+    "image": "dji_fly_20260512_092154_0180_1778550766981_photo_beautify.jpg",
+    "latitude": 7.286402777777778,
+    "longitude": 125.69138611111111,
+    "captured_at": "2026-05-12T09:21:53",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7503,
+        "bbox": [
+          1457.7,
+          877.16,
+          1538.02,
+          956.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.739,
+        "bbox": [
+          1413.05,
+          1683.15,
+          1491.13,
+          1721.56
+        ]
+      },
+      {
+        "waste_type": "glass",
+        "confidence": 0.7224,
+        "bbox": [
+          1855.74,
+          1327.67,
+          1960.74,
+          1412.92
+        ]
+      },
+      {
+        "waste_type": "glass",
+        "confidence": 0.6867,
+        "bbox": [
+          1510.15,
+          1938.28,
+          1584.2,
+          2069.88
+        ]
+      },
+      {
+        "waste_type": "glass",
+        "confidence": 0.6471,
+        "bbox": [
+          700.05,
+          1458.55,
+          842.41,
+          1561.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6194,
+        "bbox": [
+          377.46,
+          1487.06,
+          451.23,
+          1566.69
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6174,
+        "bbox": [
+          2324.38,
+          1605.87,
+          2438.6,
+          1654.33
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5596,
+        "bbox": [
+          1663.99,
+          896.39,
+          1709.69,
+          943.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5128,
+        "bbox": [
+          2960.96,
+          1364.97,
+          3032.01,
+          1453.8
+        ]
+      }
+    ],
+    "total_detections": 9
+  },
+  {
+    "image": "dji_fly_20260512_092204_0182_1778550763227_photo_beautify.jpg",
+    "latitude": 7.286405555555556,
+    "longitude": 125.69142777777778,
+    "captured_at": "2026-05-12T09:22:04",
+    "detections": [
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.8795,
+        "bbox": [
+          2369.44,
+          1077.93,
+          2450.16,
+          1147.95
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8325,
+        "bbox": [
+          2949.94,
+          753.66,
+          3371.51,
+          1087.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7699,
+        "bbox": [
+          285.47,
+          501.29,
+          503.5,
+          689.68
+        ]
+      },
+      {
+        "waste_type": "glass",
+        "confidence": 0.7306,
+        "bbox": [
+          1147.26,
+          1255.96,
+          1213.49,
+          1369.64
+        ]
+      },
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.7187,
+        "bbox": [
+          2727.75,
+          907.83,
+          2803.55,
+          983.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7096,
+        "bbox": [
+          681.59,
+          944.72,
+          739.3,
+          1020.26
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6951,
+        "bbox": [
+          534.8,
+          557.45,
+          618.34,
+          595.91
+        ]
+      },
+      {
+        "waste_type": "glass",
+        "confidence": 0.6251,
+        "bbox": [
+          229.56,
+          421.51,
+          324.32,
+          496.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5953,
+        "bbox": [
+          1880.23,
+          525.79,
+          1942.76,
+          565.12
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5577,
+        "bbox": [
+          911.37,
+          902.97,
+          954.0,
+          938.83
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5442,
+        "bbox": [
+          2340.77,
+          602.48,
+          2411.34,
+          649.23
+        ]
+      }
+    ],
+    "total_detections": 11
+  },
+  {
+    "image": "dji_fly_20260518_170658_0187_1779098743605_photo_beautify.jpg",
+    "latitude": 7.290411111111111,
+    "longitude": 125.70779444444445,
+    "captured_at": "2026-05-18T17:06:54",
+    "detections": [
+      {
+        "waste_type": "metal",
+        "confidence": 0.8114,
+        "bbox": [
+          922.6,
+          1939.78,
+          1053.15,
+          2042.38
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7837,
+        "bbox": [
+          761.1,
+          1892.32,
+          812.08,
+          1935.34
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7732,
+        "bbox": [
+          816.31,
+          1688.44,
+          901.48,
+          1765.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7339,
+        "bbox": [
+          1046.1,
+          1736.36,
+          1121.94,
+          1792.0
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.719,
+        "bbox": [
+          1360.5,
+          1071.48,
+          1407.66,
+          1120.0
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6631,
+        "bbox": [
+          126.9,
+          2175.88,
+          167.51,
+          2219.15
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6615,
+        "bbox": [
+          3500.63,
+          806.88,
+          3546.98,
+          840.92
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6413,
+        "bbox": [
+          1987.33,
+          895.75,
+          2046.13,
+          933.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6397,
+        "bbox": [
+          2159.49,
+          953.89,
+          2209.91,
+          1015.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6144,
+        "bbox": [
+          3046.41,
+          845.15,
+          3119.65,
+          886.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6064,
+        "bbox": [
+          1126.78,
+          1375.0,
+          1169.08,
+          1427.51
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5891,
+        "bbox": [
+          3368.39,
+          807.7,
+          3413.23,
+          853.23
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5655,
+        "bbox": [
+          3427.42,
+          791.95,
+          3460.61,
+          818.75
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5586,
+        "bbox": [
+          3345.82,
+          841.61,
+          3417.27,
+          908.25
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5473,
+        "bbox": [
+          408.93,
+          2074.33,
+          448.58,
+          2115.86
+        ]
+      }
+    ],
+    "total_detections": 15
+  },
+  {
+    "image": "dji_fly_20260518_170700_0188_1779098741783_photo_beautify.jpg",
+    "latitude": 7.290411111111111,
+    "longitude": 125.70779166666667,
+    "captured_at": "2026-05-18T17:07:00",
+    "detections": [
+      {
+        "waste_type": "metal",
+        "confidence": 0.8633,
+        "bbox": [
+          640.87,
+          2067.49,
+          801.91,
+          2190.93
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.821,
+        "bbox": [
+          454.85,
+          2007.0,
+          506.42,
+          2042.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7988,
+        "bbox": [
+          2190.16,
+          850.35,
+          2255.81,
+          927.34
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7965,
+        "bbox": [
+          533.79,
+          1744.62,
+          639.36,
+          1839.73
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.787,
+        "bbox": [
+          3821.12,
+          675.31,
+          3882.29,
+          712.75
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7787,
+        "bbox": [
+          835.45,
+          1801.98,
+          928.4,
+          1881.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7146,
+        "bbox": [
+          1618.21,
+          876.18,
+          1682.3,
+          922.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7131,
+        "bbox": [
+          3267.8,
+          719.28,
+          3357.81,
+          768.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.705,
+        "bbox": [
+          1222.14,
+          987.46,
+          1279.52,
+          1044.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6506,
+        "bbox": [
+          3662.29,
+          669.93,
+          3719.77,
+          721.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6457,
+        "bbox": [
+          3639.57,
+          721.91,
+          3722.65,
+          801.39
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6102,
+        "bbox": [
+          3737.41,
+          652.54,
+          3778.26,
+          685.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6021,
+        "bbox": [
+          903.88,
+          1353.94,
+          970.79,
+          1431.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5896,
+        "bbox": [
+          1268.83,
+          906.51,
+          1324.41,
+          957.71
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5055,
+        "bbox": [
+          2869.22,
+          652.46,
+          2905.78,
+          684.2
+        ]
+      }
+    ],
+    "total_detections": 15
+  },
+  {
+    "image": "dji_fly_20260518_170708_0189_1779098739747_photo_beautify.jpg",
+    "latitude": 7.290425,
+    "longitude": 125.70781944444445,
+    "captured_at": "2026-05-18T17:07:07",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.628,
+        "bbox": [
+          599.08,
+          890.12,
+          670.75,
+          941.9
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5878,
+        "bbox": [
+          3551.86,
+          1081.07,
+          3630.03,
+          1164.85
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5845,
+        "bbox": [
+          1152.98,
+          956.63,
+          1240.8,
+          1025.14
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5498,
+        "bbox": [
+          232.56,
+          871.12,
+          295.05,
+          932.05
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5488,
+        "bbox": [
+          2694.96,
+          1000.62,
+          2765.35,
+          1066.57
+        ]
+      }
+    ],
+    "total_detections": 5
+  },
+  {
+    "image": "dji_fly_20260518_170710_0190_1779098738351_photo_beautify.jpg",
+    "latitude": 7.290447222222222,
+    "longitude": 125.70786666666667,
+    "captured_at": "2026-05-18T17:07:09",
+    "detections": [],
+    "total_detections": 0
+  },
+  {
+    "image": "dji_fly_20260518_170720_0191_1779098736877_photo_beautify.jpg",
+    "latitude": 7.290444444444445,
+    "longitude": 125.70788888888889,
+    "captured_at": "2026-05-18T17:07:20",
+    "detections": [
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7779,
+        "bbox": [
+          1012.37,
+          839.19,
+          1076.72,
+          908.98
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6878,
+        "bbox": [
+          434.15,
+          821.48,
+          485.57,
+          852.33
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6501,
+        "bbox": [
+          339.27,
+          816.41,
+          386.64,
+          852.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.57,
+        "bbox": [
+          270.87,
+          814.97,
+          319.77,
+          865.7
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5426,
+        "bbox": [
+          1059.7,
+          839.53,
+          1088.66,
+          868.78
+        ]
+      }
+    ],
+    "total_detections": 5
+  },
+  {
+    "image": "dji_fly_20260518_170724_0192_1779098734988_photo_beautify.jpg",
+    "latitude": 7.290463888888889,
+    "longitude": 125.70794166666667,
+    "captured_at": "2026-05-18T17:07:23",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6173,
+        "bbox": [
+          3525.71,
+          1194.31,
+          3606.02,
+          1273.89
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5425,
+        "bbox": [
+          3371.55,
+          1115.89,
+          3459.13,
+          1175.0
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5327,
+        "bbox": [
+          1207.73,
+          1046.13,
+          1253.81,
+          1100.86
+        ]
+      }
+    ],
+    "total_detections": 3
+  },
+  {
+    "image": "dji_fly_20260518_170734_0193_1779098733462_photo_beautify.jpg",
+    "latitude": 7.290480555555556,
+    "longitude": 125.707975,
+    "captured_at": "2026-05-18T17:07:34",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7156,
+        "bbox": [
+          2303.12,
+          1245.99,
+          2355.99,
+          1305.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6119,
+        "bbox": [
+          2111.04,
+          1177.47,
+          2199.72,
+          1238.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5126,
+        "bbox": [
+          1078.64,
+          40.44,
+          1206.18,
+          163.02
+        ]
+      }
+    ],
+    "total_detections": 3
+  },
+  {
+    "image": "dji_fly_20260518_170736_0194_1779098731971_photo_beautify.jpg",
+    "latitude": 7.290486111111111,
+    "longitude": 125.70798611111111,
+    "captured_at": "2026-05-18T17:07:36",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7803,
+        "bbox": [
+          1739.09,
+          1185.52,
+          1822.2,
+          1239.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.711,
+        "bbox": [
+          1610.89,
+          1178.9,
+          1690.94,
+          1245.42
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7104,
+        "bbox": [
+          1930.11,
+          1249.4,
+          1981.64,
+          1312.54
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6475,
+        "bbox": [
+          2642.03,
+          1049.1,
+          2696.95,
+          1113.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5903,
+        "bbox": [
+          2023.87,
+          1337.53,
+          2099.64,
+          1398.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5673,
+        "bbox": [
+          854.12,
+          1182.05,
+          888.85,
+          1219.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5661,
+        "bbox": [
+          1992.83,
+          1269.4,
+          2037.18,
+          1303.2
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_170738_0195_1779098730508_photo_beautify.jpg",
+    "latitude": 7.290505555555556,
+    "longitude": 125.70802222222223,
+    "captured_at": "2026-05-18T17:07:38",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6585,
+        "bbox": [
+          2676.38,
+          44.01,
+          2737.51,
+          106.52
+        ]
+      }
+    ],
+    "total_detections": 1
+  },
+  {
+    "image": "dji_fly_20260518_170742_0196_1779098729252_photo_beautify.jpg",
+    "latitude": 7.290511111111111,
+    "longitude": 125.70804444444445,
+    "captured_at": "2026-05-18T17:07:41",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7283,
+        "bbox": [
+          2026.09,
+          1199.6,
+          2067.29,
+          1280.72
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6851,
+        "bbox": [
+          2142.42,
+          1238.05,
+          2185.37,
+          1280.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5349,
+        "bbox": [
+          1816.67,
+          652.51,
+          1927.11,
+          719.39
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5155,
+        "bbox": [
+          2213.85,
+          1199.52,
+          2271.22,
+          1247.03
+        ]
+      }
+    ],
+    "total_detections": 4
+  },
+  {
+    "image": "dji_fly_20260518_170748_0197_1779098727730_photo_beautify.jpg",
+    "latitude": 7.290511111111111,
+    "longitude": 125.70804444444445,
+    "captured_at": "2026-05-18T17:07:45",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7433,
+        "bbox": [
+          2006.04,
+          1282.57,
+          2042.02,
+          1346.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.656,
+        "bbox": [
+          2100.32,
+          98.74,
+          2147.64,
+          147.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6556,
+        "bbox": [
+          3539.61,
+          468.84,
+          3568.73,
+          498.26
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6487,
+        "bbox": [
+          2160.62,
+          1256.92,
+          2203.32,
+          1316.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6391,
+        "bbox": [
+          1842.42,
+          828.08,
+          1934.13,
+          890.55
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6066,
+        "bbox": [
+          1159.24,
+          39.9,
+          1225.26,
+          79.84
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5162,
+        "bbox": [
+          1742.09,
+          28.93,
+          1792.26,
+          80.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5017,
+        "bbox": [
+          178.67,
+          1195.35,
+          233.3,
+          1236.12
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_170754_0198_1779098726301_photo_beautify.jpg",
+    "latitude": 7.2905388888888885,
+    "longitude": 125.70802777777779,
+    "captured_at": "2026-05-18T17:07:50",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7745,
+        "bbox": [
+          1046.29,
+          873.36,
+          1122.9,
+          911.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7308,
+        "bbox": [
+          2094.73,
+          966.6,
+          2139.5,
+          1018.18
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7181,
+        "bbox": [
+          1802.5,
+          1777.16,
+          1908.3,
+          1862.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6824,
+        "bbox": [
+          1695.0,
+          882.95,
+          1744.14,
+          929.92
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6046,
+        "bbox": [
+          2972.67,
+          1407.68,
+          3081.91,
+          1461.99
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5463,
+        "bbox": [
+          3700.95,
+          1434.42,
+          3734.72,
+          1460.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5361,
+        "bbox": [
+          2438.5,
+          1047.38,
+          2474.41,
+          1080.66
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5201,
+        "bbox": [
+          2169.06,
+          965.93,
+          2201.94,
+          990.4
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_170758_0199_1779098724838_photo_beautify.jpg",
+    "latitude": 7.290516666666667,
+    "longitude": 125.70798611111111,
+    "captured_at": "2026-05-18T17:07:55",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7538,
+        "bbox": [
+          3265.6,
+          874.27,
+          3327.95,
+          923.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.723,
+        "bbox": [
+          2583.56,
+          864.94,
+          2673.43,
+          908.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7009,
+        "bbox": [
+          1171.78,
+          2050.77,
+          1250.53,
+          2109.26
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6837,
+        "bbox": [
+          1284.26,
+          2059.47,
+          1367.94,
+          2113.22
+        ]
+      },
+      {
+        "waste_type": "metal",
+        "confidence": 0.6003,
+        "bbox": [
+          3393.44,
+          1.04,
+          3762.78,
+          267.09
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5323,
+        "bbox": [
+          587.41,
+          581.03,
+          629.73,
+          632.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5022,
+        "bbox": [
+          1531.36,
+          2132.24,
+          1567.02,
+          2160.7
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_170800_0200_1779098723131_photo_beautify.jpg",
+    "latitude": 7.2905444444444445,
+    "longitude": 125.70806944444445,
+    "captured_at": "2026-05-18T17:08:01",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.717,
+        "bbox": [
+          1250.71,
+          562.19,
+          1283.6,
+          598.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7081,
+        "bbox": [
+          921.32,
+          486.46,
+          967.01,
+          530.86
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6909,
+        "bbox": [
+          933.54,
+          1746.57,
+          979.52,
+          1812.83
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6501,
+        "bbox": [
+          534.7,
+          404.34,
+          580.54,
+          454.97
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6437,
+        "bbox": [
+          863.05,
+          1806.84,
+          911.84,
+          1842.62
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5754,
+        "bbox": [
+          3463.92,
+          1504.98,
+          3561.95,
+          1575.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5722,
+        "bbox": [
+          760.65,
+          1752.54,
+          797.23,
+          1830.68
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5318,
+        "bbox": [
+          2405.28,
+          909.71,
+          2439.03,
+          942.5
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_170808_0201_1779098721533_photo_beautify.jpg",
+    "latitude": 7.2905194444444446,
+    "longitude": 125.70808055555555,
+    "captured_at": "2026-05-18T17:08:05",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7267,
+        "bbox": [
+          3213.96,
+          1804.3,
+          3274.36,
+          1851.32
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6583,
+        "bbox": [
+          664.95,
+          825.0,
+          702.82,
+          903.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6486,
+        "bbox": [
+          3599.73,
+          485.68,
+          3711.83,
+          547.68
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5168,
+        "bbox": [
+          845.78,
+          812.87,
+          904.86,
+          885.84
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.505,
+        "bbox": [
+          779.54,
+          876.68,
+          821.42,
+          913.15
+        ]
+      }
+    ],
+    "total_detections": 5
+  },
+  {
+    "image": "dji_fly_20260518_170812_0202_1779098719960_photo_beautify.jpg",
+    "latitude": 7.290511111111111,
+    "longitude": 125.7081388888889,
+    "captured_at": "2026-05-18T17:08:12",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6695,
+        "bbox": [
+          1523.27,
+          606.03,
+          1574.91,
+          649.73
+        ]
+      }
+    ],
+    "total_detections": 1
+  },
+  {
+    "image": "dji_fly_20260518_170814_0203_1779098718175_photo_beautify.jpg",
+    "latitude": 7.2905138888888885,
+    "longitude": 125.70814444444444,
+    "captured_at": "2026-05-18T17:08:14",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6937,
+        "bbox": [
+          3602.9,
+          1780.06,
+          3637.85,
+          1834.85
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6225,
+        "bbox": [
+          1096.24,
+          917.76,
+          1151.58,
+          956.16
+        ]
+      }
+    ],
+    "total_detections": 2
+  },
+  {
+    "image": "dji_fly_20260518_170828_0204_1779098716397_photo_beautify.jpg",
+    "latitude": 7.290508333333333,
+    "longitude": 125.70825277777779,
+    "captured_at": "2026-05-18T17:08:27",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8196,
+        "bbox": [
+          3506.68,
+          143.92,
+          3600.05,
+          229.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6794,
+        "bbox": [
+          3350.68,
+          177.36,
+          3422.41,
+          249.19
+        ]
+      }
+    ],
+    "total_detections": 2
+  },
+  {
+    "image": "dji_fly_20260518_170830_0205_1779098714561_photo_beautify.jpg",
+    "latitude": 7.290511111111111,
+    "longitude": 125.70828055555556,
+    "captured_at": "2026-05-18T17:08:30",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8592,
+        "bbox": [
+          2551.03,
+          268.57,
+          2639.45,
+          351.72
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7677,
+        "bbox": [
+          2440.69,
+          253.26,
+          2505.17,
+          324.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5719,
+        "bbox": [
+          2405.78,
+          298.63,
+          2464.97,
+          369.39
+        ]
+      }
+    ],
+    "total_detections": 3
+  },
+  {
+    "image": "dji_fly_20260518_170832_0206_1779098711217_photo_beautify.jpg",
+    "latitude": 7.290502777777777,
+    "longitude": 125.70828055555556,
+    "captured_at": "2026-05-18T17:08:32",
+    "detections": [],
+    "total_detections": 0
+  },
+  {
+    "image": "dji_fly_20260518_170836_0207_1779098676975_photo_beautify.jpg",
+    "latitude": 7.290508333333333,
+    "longitude": 125.70833333333334,
+    "captured_at": "2026-05-18T17:08:36",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7859,
+        "bbox": [
+          697.62,
+          40.81,
+          793.5,
+          130.42
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5438,
+        "bbox": [
+          573.29,
+          26.69,
+          651.05,
+          101.77
+        ]
+      }
+    ],
+    "total_detections": 2
+  },
+  {
+    "image": "dji_fly_20260518_170842_0208_1779098675186_photo_beautify.jpg",
+    "latitude": 7.2905138888888885,
+    "longitude": 125.70839444444445,
+    "captured_at": "2026-05-18T17:08:42",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6614,
+        "bbox": [
+          1187.68,
+          1894.33,
+          1226.62,
+          1941.58
+        ]
+      }
+    ],
+    "total_detections": 1
+  },
+  {
+    "image": "dji_fly_20260518_170908_0209_1779098673297_photo_beautify.jpg",
+    "latitude": 7.29055,
+    "longitude": 125.70806944444445,
+    "captured_at": "2026-05-18T17:09:07",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6578,
+        "bbox": [
+          354.53,
+          1710.55,
+          419.6,
+          1781.39
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5944,
+        "bbox": [
+          2258.92,
+          902.84,
+          2308.39,
+          951.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5561,
+        "bbox": [
+          1172.24,
+          1608.77,
+          1382.01,
+          1817.68
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5089,
+        "bbox": [
+          692.85,
+          1486.04,
+          727.14,
+          1538.41
+        ]
+      }
+    ],
+    "total_detections": 4
+  },
+  {
+    "image": "dji_fly_20260518_170910_0210_1779098671194_photo_beautify.jpg",
+    "latitude": 7.2905444444444445,
+    "longitude": 125.70804722222222,
+    "captured_at": "2026-05-18T17:09:10",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7606,
+        "bbox": [
+          539.34,
+          971.35,
+          637.37,
+          1083.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7511,
+        "bbox": [
+          1240.61,
+          915.04,
+          1295.4,
+          975.27
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7025,
+        "bbox": [
+          3470.1,
+          794.31,
+          3517.21,
+          845.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6571,
+        "bbox": [
+          1306.73,
+          297.75,
+          1425.14,
+          408.1
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6064,
+        "bbox": [
+          3679.39,
+          802.1,
+          3728.46,
+          844.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5904,
+        "bbox": [
+          1920.62,
+          1649.26,
+          2002.6,
+          1722.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5474,
+        "bbox": [
+          2386.96,
+          1169.18,
+          2552.96,
+          1271.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5128,
+        "bbox": [
+          3841.67,
+          775.36,
+          3924.16,
+          865.88
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_170912_0211_1779098664248_photo_beautify.jpg",
+    "latitude": 7.290541666666667,
+    "longitude": 125.70802222222223,
+    "captured_at": "2026-05-18T17:09:12",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.813,
+        "bbox": [
+          1257.02,
+          1105.11,
+          1393.32,
+          1219.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7822,
+        "bbox": [
+          2070.75,
+          990.54,
+          2149.23,
+          1100.31
+        ]
+      }
+    ],
+    "total_detections": 2
+  },
+  {
+    "image": "dji_fly_20260518_170926_0212_1779098662595_photo_beautify.jpg",
+    "latitude": 7.290488888888889,
+    "longitude": 125.70790277777778,
+    "captured_at": "2026-05-18T17:09:26",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.646,
+        "bbox": [
+          3123.61,
+          1309.32,
+          3211.62,
+          1424.95
+        ]
+      }
+    ],
+    "total_detections": 1
+  },
+  {
+    "image": "dji_fly_20260518_170948_0213_1779098660747_photo_beautify.jpg",
+    "latitude": 7.290397222222222,
+    "longitude": 125.70780555555555,
+    "captured_at": "2026-05-18T17:09:48",
+    "detections": [
+      {
+        "waste_type": "metal",
+        "confidence": 0.8316,
+        "bbox": [
+          867.42,
+          1297.88,
+          998.59,
+          1377.82
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7625,
+        "bbox": [
+          3895.95,
+          1637.93,
+          3951.16,
+          1680.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7423,
+        "bbox": [
+          2373.81,
+          1058.68,
+          2410.69,
+          1106.81
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7319,
+        "bbox": [
+          945.68,
+          986.4,
+          1016.09,
+          1053.9
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7294,
+        "bbox": [
+          3819.08,
+          1619.3,
+          3853.69,
+          1648.33
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6689,
+        "bbox": [
+          1299.11,
+          960.54,
+          1344.46,
+          990.7
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5912,
+        "bbox": [
+          1974.77,
+          867.25,
+          2017.09,
+          903.13
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5801,
+        "bbox": [
+          1066.95,
+          1028.87,
+          1108.25,
+          1057.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5542,
+        "bbox": [
+          8.94,
+          1136.7,
+          63.91,
+          1204.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.527,
+        "bbox": [
+          3324.32,
+          1371.04,
+          3401.76,
+          1417.81
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5248,
+        "bbox": [
+          1500.23,
+          1260.24,
+          1598.16,
+          1413.75
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5012,
+        "bbox": [
+          207.33,
+          1520.38,
+          244.25,
+          1573.31
+        ]
+      }
+    ],
+    "total_detections": 12
+  },
+  {
+    "image": "dji_fly_20260518_170954_0214_1779098658885_photo_beautify.jpg",
+    "latitude": 7.2904,
+    "longitude": 125.70780555555555,
+    "captured_at": "2026-05-18T17:09:50",
+    "detections": [
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7821,
+        "bbox": [
+          308.29,
+          1873.69,
+          403.76,
+          1945.5
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7017,
+        "bbox": [
+          2492.23,
+          814.0,
+          2526.38,
+          842.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.686,
+        "bbox": [
+          1338.18,
+          1062.38,
+          1384.84,
+          1090.19
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6773,
+        "bbox": [
+          707.08,
+          1589.61,
+          759.85,
+          1638.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6737,
+        "bbox": [
+          1163.07,
+          1660.1,
+          1292.61,
+          1839.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6724,
+        "bbox": [
+          1306.03,
+          1837.83,
+          1342.59,
+          1887.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6703,
+        "bbox": [
+          460.54,
+          1863.94,
+          514.85,
+          1897.72
+        ]
+      },
+      {
+        "waste_type": "metal",
+        "confidence": 0.6441,
+        "bbox": [
+          462.37,
+          2151.73,
+          628.02,
+          2249.73
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5705,
+        "bbox": [
+          734.05,
+          1514.07,
+          780.83,
+          1576.97
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.544,
+        "bbox": [
+          2231.31,
+          809.63,
+          2258.03,
+          836.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5151,
+        "bbox": [
+          2634.24,
+          808.12,
+          2702.55,
+          842.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5085,
+        "bbox": [
+          2357.18,
+          823.46,
+          2382.66,
+          843.74
+        ]
+      }
+    ],
+    "total_detections": 12
+  },
+  {
+    "image": "dji_fly_20260518_170958_0215_1779098657114_photo_beautify.jpg",
+    "latitude": 7.290413888888889,
+    "longitude": 125.70784444444445,
+    "captured_at": "2026-05-18T17:09:55",
+    "detections": [
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7507,
+        "bbox": [
+          2549.09,
+          932.96,
+          2602.2,
+          983.54
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.63,
+        "bbox": [
+          2047.88,
+          939.02,
+          2091.56,
+          965.2
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5851,
+        "bbox": [
+          132.57,
+          1141.01,
+          198.85,
+          1178.74
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5592,
+        "bbox": [
+          620.44,
+          1132.37,
+          663.51,
+          1174.32
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5531,
+        "bbox": [
+          1150.96,
+          937.79,
+          1181.05,
+          964.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5284,
+        "bbox": [
+          1991.32,
+          952.06,
+          2018.0,
+          982.12
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5069,
+        "bbox": [
+          1429.27,
+          959.13,
+          1456.22,
+          985.94
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_171004_0216_1779098654641_photo_beautify.jpg",
+    "latitude": 7.290455555555555,
+    "longitude": 125.70786666666667,
+    "captured_at": "2026-05-18T17:10:04",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7617,
+        "bbox": [
+          233.68,
+          1941.84,
+          331.94,
+          1988.78
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6813,
+        "bbox": [
+          1276.26,
+          506.17,
+          1370.31,
+          573.3
+        ]
+      }
+    ],
+    "total_detections": 2
+  },
+  {
+    "image": "dji_fly_20260518_171038_0217_1779098646763_photo_beautify.jpg",
+    "latitude": 7.2905138888888885,
+    "longitude": 125.70791944444444,
+    "captured_at": "2026-05-18T17:10:38",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7867,
+        "bbox": [
+          2755.02,
+          957.11,
+          2863.08,
+          1015.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7755,
+        "bbox": [
+          2895.39,
+          851.28,
+          3010.33,
+          958.51
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7665,
+        "bbox": [
+          2591.86,
+          1309.23,
+          2674.78,
+          1424.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7646,
+        "bbox": [
+          3070.39,
+          1254.24,
+          3190.56,
+          1385.28
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7481,
+        "bbox": [
+          2736.37,
+          1107.03,
+          2828.23,
+          1324.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7295,
+        "bbox": [
+          2777.28,
+          1410.73,
+          2885.61,
+          1513.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7144,
+        "bbox": [
+          3343.38,
+          1019.64,
+          3456.57,
+          1084.64
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6976,
+        "bbox": [
+          2986.41,
+          942.82,
+          3039.05,
+          998.91
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6636,
+        "bbox": [
+          2924.66,
+          1192.36,
+          3005.46,
+          1282.88
+        ]
+      }
+    ],
+    "total_detections": 9
+  },
+  {
+    "image": "dji_fly_20260518_171044_0218_1779098642884_photo_beautify.jpg",
+    "latitude": 7.290527777777777,
+    "longitude": 125.70793888888889,
+    "captured_at": "2026-05-18T17:10:43",
+    "detections": [],
+    "total_detections": 0
+  },
+  {
+    "image": "dji_fly_20260518_171108_0219_1779098633654_photo_beautify.jpg",
+    "latitude": 7.290691666666667,
+    "longitude": 125.70849166666667,
+    "captured_at": "2026-05-18T17:11:07",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8402,
+        "bbox": [
+          1134.55,
+          1677.13,
+          1336.69,
+          1890.89
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7889,
+        "bbox": [
+          3280.6,
+          1618.53,
+          3388.99,
+          1813.71
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6754,
+        "bbox": [
+          2462.78,
+          1925.89,
+          2621.15,
+          2037.58
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6541,
+        "bbox": [
+          2068.16,
+          1436.69,
+          2139.3,
+          1587.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6481,
+        "bbox": [
+          1859.93,
+          730.48,
+          1973.37,
+          805.31
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6477,
+        "bbox": [
+          3522.5,
+          1122.83,
+          3580.02,
+          1184.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6355,
+        "bbox": [
+          2289.17,
+          1460.73,
+          2365.72,
+          1548.79
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6298,
+        "bbox": [
+          2432.61,
+          1480.93,
+          2605.07,
+          1580.6
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6074,
+        "bbox": [
+          2896.78,
+          1619.24,
+          3026.27,
+          1687.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6007,
+        "bbox": [
+          1884.8,
+          831.79,
+          1974.08,
+          904.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5995,
+        "bbox": [
+          2775.25,
+          1994.78,
+          2858.46,
+          2131.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.585,
+        "bbox": [
+          3533.82,
+          1626.09,
+          3662.13,
+          1701.64
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5583,
+        "bbox": [
+          3204.04,
+          1157.91,
+          3244.16,
+          1229.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5501,
+        "bbox": [
+          3777.97,
+          892.59,
+          3872.39,
+          1010.82
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5367,
+        "bbox": [
+          2652.87,
+          948.62,
+          2731.24,
+          1000.37
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5206,
+        "bbox": [
+          817.01,
+          1839.27,
+          1077.81,
+          2072.23
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5201,
+        "bbox": [
+          2287.94,
+          1194.17,
+          2361.32,
+          1263.68
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5145,
+        "bbox": [
+          2931.06,
+          1239.03,
+          3004.35,
+          1281.95
+        ]
+      }
+    ],
+    "total_detections": 18
+  },
+  {
+    "image": "dji_fly_20260518_171110_0220_1779098631407_photo_beautify.jpg",
+    "latitude": 7.290691666666667,
+    "longitude": 125.70849166666667,
+    "captured_at": "2026-05-18T17:11:09",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8004,
+        "bbox": [
+          1274.74,
+          1884.84,
+          1457.68,
+          2091.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7452,
+        "bbox": [
+          3671.15,
+          1658.23,
+          3809.83,
+          1844.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7439,
+        "bbox": [
+          3200.19,
+          1819.91,
+          3298.29,
+          2004.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7172,
+        "bbox": [
+          2655.73,
+          1444.32,
+          2728.68,
+          1525.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6991,
+        "bbox": [
+          1922.68,
+          1040.71,
+          2005.79,
+          1110.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6973,
+        "bbox": [
+          114.02,
+          1227.54,
+          284.5,
+          1350.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6914,
+        "bbox": [
+          180.01,
+          1978.3,
+          309.71,
+          2076.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.68,
+        "bbox": [
+          3544.52,
+          1050.66,
+          3607.68,
+          1089.0
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6717,
+        "bbox": [
+          2579.43,
+          1336.8,
+          2667.81,
+          1391.85
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6667,
+        "bbox": [
+          2099.11,
+          1647.04,
+          2168.69,
+          1792.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6632,
+        "bbox": [
+          1904.36,
+          936.02,
+          2001.5,
+          1007.12
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6358,
+        "bbox": [
+          3430.81,
+          1815.52,
+          3550.52,
+          1887.18
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6065,
+        "bbox": [
+          2885.98,
+          1135.77,
+          2966.45,
+          1190.86
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6039,
+        "bbox": [
+          2639.26,
+          1145.05,
+          2707.6,
+          1197.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5955,
+        "bbox": [
+          3432.88,
+          1319.96,
+          3494.06,
+          1385.01
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5887,
+        "bbox": [
+          2857.12,
+          1828.89,
+          2959.6,
+          1882.91
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5791,
+        "bbox": [
+          2302.64,
+          1406.49,
+          2376.82,
+          1481.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5546,
+        "bbox": [
+          2301.3,
+          1670.54,
+          2374.41,
+          1753.05
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5494,
+        "bbox": [
+          3286.26,
+          1271.16,
+          3348.91,
+          1313.34
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.545,
+        "bbox": [
+          3683.9,
+          1096.72,
+          3770.2,
+          1204.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5209,
+        "bbox": [
+          1811.26,
+          980.47,
+          1877.72,
+          1028.97
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5187,
+        "bbox": [
+          2433.03,
+          1687.39,
+          2589.74,
+          1774.47
+        ]
+      }
+    ],
+    "total_detections": 22
+  },
+  {
+    "image": "dji_fly_20260518_171314_0221_1779098629243_photo_beautify.jpg",
+    "latitude": 7.290669444444444,
+    "longitude": 125.70849444444444,
+    "captured_at": "2026-05-18T17:13:14",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7707,
+        "bbox": [
+          2913.62,
+          1238.27,
+          2987.6,
+          1306.68
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6725,
+        "bbox": [
+          1626.75,
+          1748.06,
+          1687.68,
+          1860.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6515,
+        "bbox": [
+          1542.09,
+          1347.97,
+          1616.71,
+          1429.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6432,
+        "bbox": [
+          2447.37,
+          1323.41,
+          2485.97,
+          1398.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6069,
+        "bbox": [
+          2911.29,
+          834.8,
+          2993.85,
+          900.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6023,
+        "bbox": [
+          1837.08,
+          825.13,
+          1885.11,
+          871.51
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5863,
+        "bbox": [
+          3467.76,
+          1040.81,
+          3518.17,
+          1087.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5842,
+        "bbox": [
+          3725.84,
+          548.33,
+          3786.21,
+          602.1
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5527,
+        "bbox": [
+          2864.63,
+          918.35,
+          2904.17,
+          985.32
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5358,
+        "bbox": [
+          1004.43,
+          1067.89,
+          1071.86,
+          1121.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5036,
+        "bbox": [
+          3265.46,
+          790.27,
+          3361.21,
+          851.67
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5016,
+        "bbox": [
+          3691.93,
+          597.21,
+          3730.05,
+          634.59
+        ]
+      }
+    ],
+    "total_detections": 12
+  },
+  {
+    "image": "dji_fly_20260518_171320_0222_1779098627088_photo_beautify.jpg",
+    "latitude": 7.290680555555555,
+    "longitude": 125.70849722222222,
+    "captured_at": "2026-05-18T17:13:20",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7935,
+        "bbox": [
+          1365.9,
+          1602.32,
+          1493.92,
+          1752.9
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7724,
+        "bbox": [
+          381.58,
+          1139.77,
+          507.3,
+          1236.97
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7372,
+        "bbox": [
+          2721.48,
+          923.73,
+          2788.55,
+          980.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7224,
+        "bbox": [
+          1142.78,
+          1454.37,
+          1218.3,
+          1538.15
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6922,
+        "bbox": [
+          1861.35,
+          837.1,
+          1937.12,
+          909.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6868,
+        "bbox": [
+          1841.01,
+          732.64,
+          1938.64,
+          811.85
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6813,
+        "bbox": [
+          2865.6,
+          1539.3,
+          2928.88,
+          1654.39
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6536,
+        "bbox": [
+          1379.14,
+          1189.02,
+          1448.53,
+          1257.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6446,
+        "bbox": [
+          3325.13,
+          843.57,
+          3384.23,
+          879.23
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6405,
+        "bbox": [
+          3155.1,
+          1103.64,
+          3214.45,
+          1159.62
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5885,
+        "bbox": [
+          2334.57,
+          1717.62,
+          2420.43,
+          1856.43
+        ]
+      },
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.5839,
+        "bbox": [
+          3089.16,
+          953.8,
+          3200.35,
+          1063.17
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.58,
+        "bbox": [
+          2397.61,
+          887.28,
+          2436.24,
+          939.59
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5791,
+        "bbox": [
+          2389.8,
+          2077.24,
+          2494.92,
+          2155.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5735,
+        "bbox": [
+          3438.59,
+          893.47,
+          3504.6,
+          990.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5676,
+        "bbox": [
+          2475.33,
+          1222.22,
+          2532.79,
+          1284.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5617,
+        "bbox": [
+          2583.01,
+          1539.07,
+          2687.56,
+          1587.99
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5254,
+        "bbox": [
+          2924.63,
+          1039.48,
+          2979.23,
+          1093.01
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5057,
+        "bbox": [
+          2314.49,
+          1610.41,
+          2397.61,
+          1670.01
+        ]
+      }
+    ],
+    "total_detections": 19
+  },
+  {
+    "image": "dji_fly_20260518_171324_0223_1779098623669_photo_beautify.jpg",
+    "latitude": 7.290677777777778,
+    "longitude": 125.70850833333334,
+    "captured_at": "2026-05-18T17:13:24",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.763,
+        "bbox": [
+          677.59,
+          1598.59,
+          830.53,
+          1757.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7131,
+        "bbox": [
+          3074.22,
+          1086.6,
+          3165.36,
+          1215.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6956,
+        "bbox": [
+          2271.85,
+          1720.84,
+          2343.23,
+          1855.8
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6731,
+        "bbox": [
+          2952.8,
+          1034.5,
+          3035.09,
+          1072.93
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5904,
+        "bbox": [
+          1427.99,
+          751.0,
+          1523.92,
+          838.1
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5712,
+        "bbox": [
+          1693.19,
+          1523.71,
+          1810.93,
+          1609.78
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5205,
+        "bbox": [
+          3155.44,
+          1109.26,
+          3222.2,
+          1199.81
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5114,
+        "bbox": [
+          2299.88,
+          1044.7,
+          2371.03,
+          1116.73
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5017,
+        "bbox": [
+          2015.08,
+          1687.28,
+          2104.45,
+          1729.49
+        ]
+      }
+    ],
+    "total_detections": 9
+  },
+  {
+    "image": "dji_fly_20260518_171326_0224_1779098620037_photo_beautify.jpg",
+    "latitude": 7.290661111111111,
+    "longitude": 125.70855555555556,
+    "captured_at": "2026-05-18T17:13:26",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7082,
+        "bbox": [
+          506.59,
+          1153.62,
+          642.02,
+          1322.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6489,
+        "bbox": [
+          267.99,
+          1783.14,
+          470.02,
+          1910.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6119,
+        "bbox": [
+          2042.82,
+          456.64,
+          2162.17,
+          576.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5914,
+        "bbox": [
+          1587.7,
+          1512.07,
+          1694.76,
+          1608.71
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5836,
+        "bbox": [
+          3507.05,
+          38.99,
+          3593.86,
+          102.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5706,
+        "bbox": [
+          2663.0,
+          432.7,
+          2758.1,
+          501.32
+        ]
+      }
+    ],
+    "total_detections": 6
+  },
+  {
+    "image": "dji_fly_20260518_171330_0225_1779098616917_photo_beautify.jpg",
+    "latitude": 7.290677777777778,
+    "longitude": 125.70856944444445,
+    "captured_at": "2026-05-18T17:13:31",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.787,
+        "bbox": [
+          3021.44,
+          920.31,
+          3187.14,
+          1001.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7271,
+        "bbox": [
+          159.27,
+          942.58,
+          341.24,
+          1104.1
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.711,
+        "bbox": [
+          2437.05,
+          1777.21,
+          2508.33,
+          1866.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7032,
+        "bbox": [
+          3634.4,
+          1558.59,
+          3706.63,
+          1648.48
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6934,
+        "bbox": [
+          1012.81,
+          0.0,
+          4000.0,
+          1238.74
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6867,
+        "bbox": [
+          1606.1,
+          0.0,
+          4000.0,
+          1202.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6826,
+        "bbox": [
+          3214.48,
+          1096.45,
+          3582.89,
+          1385.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6792,
+        "bbox": [
+          2713.37,
+          957.44,
+          2808.62,
+          1035.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6746,
+        "bbox": [
+          2106.37,
+          708.09,
+          2273.47,
+          857.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6692,
+        "bbox": [
+          2697.66,
+          619.23,
+          2799.43,
+          684.99
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.667,
+        "bbox": [
+          1653.38,
+          896.0,
+          1690.43,
+          948.75
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6478,
+        "bbox": [
+          1959.83,
+          705.48,
+          1993.43,
+          743.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6401,
+        "bbox": [
+          3473.53,
+          812.35,
+          3556.05,
+          879.31
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6029,
+        "bbox": [
+          2798.31,
+          970.23,
+          2890.68,
+          1054.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6021,
+        "bbox": [
+          3652.38,
+          744.21,
+          3744.92,
+          818.89
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5747,
+        "bbox": [
+          2081.59,
+          1151.92,
+          2137.9,
+          1219.92
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5745,
+        "bbox": [
+          3015.34,
+          1309.54,
+          3121.49,
+          1379.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5745,
+        "bbox": [
+          2178.78,
+          727.49,
+          2271.42,
+          839.71
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5715,
+        "bbox": [
+          2031.05,
+          1212.27,
+          2246.99,
+          1367.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5516,
+        "bbox": [
+          1494.35,
+          0.0,
+          4000.0,
+          1334.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5313,
+        "bbox": [
+          969.78,
+          1938.88,
+          1103.51,
+          2067.6
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5169,
+        "bbox": [
+          1992.52,
+          1103.2,
+          2065.14,
+          1165.01
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5002,
+        "bbox": [
+          2312.89,
+          1253.15,
+          2360.06,
+          1310.47
+        ]
+      }
+    ],
+    "total_detections": 23
+  },
+  {
+    "image": "dji_fly_20260518_171340_0227_1779098611834_photo_beautify.jpg",
+    "latitude": 7.290677777777778,
+    "longitude": 125.70859722222222,
+    "captured_at": "2026-05-18T17:13:39",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7353,
+        "bbox": [
+          1598.99,
+          2152.53,
+          1689.66,
+          2245.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7268,
+        "bbox": [
+          1411.71,
+          919.81,
+          1575.71,
+          994.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7249,
+        "bbox": [
+          1801.09,
+          1556.22,
+          1864.82,
+          1628.62
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7185,
+        "bbox": [
+          632.99,
+          620.16,
+          797.07,
+          751.71
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7152,
+        "bbox": [
+          1875.26,
+          869.52,
+          1958.94,
+          940.17
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.712,
+        "bbox": [
+          663.85,
+          1581.27,
+          744.88,
+          1659.8
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6981,
+        "bbox": [
+          3775.37,
+          1175.44,
+          3845.53,
+          1253.86
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6877,
+        "bbox": [
+          551.96,
+          1010.72,
+          630.33,
+          1078.05
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6795,
+        "bbox": [
+          793.54,
+          0.0,
+          4000.0,
+          1226.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6554,
+        "bbox": [
+          438.6,
+          741.75,
+          531.35,
+          848.7
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6498,
+        "bbox": [
+          1205.76,
+          906.28,
+          1325.81,
+          998.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6285,
+        "bbox": [
+          901.01,
+          592.42,
+          1001.82,
+          646.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.628,
+        "bbox": [
+          3036.91,
+          1775.88,
+          3113.59,
+          1866.53
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5996,
+        "bbox": [
+          2182.94,
+          862.93,
+          2239.96,
+          900.72
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5988,
+        "bbox": [
+          144.06,
+          0.0,
+          3693.0,
+          1188.84
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5776,
+        "bbox": [
+          270.18,
+          741.09,
+          311.12,
+          779.81
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5718,
+        "bbox": [
+          3546.76,
+          1131.8,
+          3754.74,
+          1301.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5682,
+        "bbox": [
+          1984.35,
+          1028.8,
+          2037.85,
+          1085.15
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5678,
+        "bbox": [
+          819.19,
+          633.89,
+          873.7,
+          672.23
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5624,
+        "bbox": [
+          1950.81,
+          903.41,
+          2014.03,
+          967.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5537,
+        "bbox": [
+          3560.79,
+          1084.41,
+          3727.41,
+          1215.11
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.55,
+        "bbox": [
+          2875.94,
+          977.04,
+          2930.01,
+          1041.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5437,
+        "bbox": [
+          3467.43,
+          1006.47,
+          3530.77,
+          1049.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5413,
+        "bbox": [
+          3316.93,
+          1047.48,
+          3428.35,
+          1155.8
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.521,
+        "bbox": [
+          1791.67,
+          1131.18,
+          1902.94,
+          1268.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5195,
+        "bbox": [
+          2500.58,
+          892.54,
+          2589.6,
+          944.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5147,
+        "bbox": [
+          2103.18,
+          726.12,
+          2205.42,
+          803.74
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5127,
+        "bbox": [
+          492.57,
+          950.54,
+          564.83,
+          1010.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5115,
+        "bbox": [
+          1129.6,
+          916.9,
+          1217.25,
+          979.33
+        ]
+      }
+    ],
+    "total_detections": 29
+  },
+  {
+    "image": "dji_fly_20260518_171354_0229_1779098606394_photo_beautify.jpg",
+    "latitude": 7.290675,
+    "longitude": 125.708625,
+    "captured_at": "2026-05-18T17:13:53",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7492,
+        "bbox": [
+          74.47,
+          1795.16,
+          231.35,
+          1893.64
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7137,
+        "bbox": [
+          1978.88,
+          1339.38,
+          2055.33,
+          1382.34
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7045,
+        "bbox": [
+          2111.04,
+          1212.0,
+          2214.47,
+          1292.95
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6571,
+        "bbox": [
+          2034.81,
+          1175.23,
+          2110.02,
+          1270.3
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6537,
+        "bbox": [
+          2808.53,
+          1033.52,
+          2941.42,
+          1160.95
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6191,
+        "bbox": [
+          2559.72,
+          1213.89,
+          2600.6,
+          1261.78
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6075,
+        "bbox": [
+          2263.91,
+          1182.82,
+          2324.2,
+          1251.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5992,
+        "bbox": [
+          670.23,
+          1496.12,
+          725.89,
+          1530.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5981,
+        "bbox": [
+          2392.21,
+          1224.11,
+          2475.03,
+          1286.91
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5867,
+        "bbox": [
+          2955.36,
+          1291.22,
+          3089.0,
+          1416.87
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5822,
+        "bbox": [
+          576.63,
+          1510.05,
+          662.7,
+          1576.69
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5811,
+        "bbox": [
+          2536.4,
+          1107.61,
+          2601.1,
+          1162.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5793,
+        "bbox": [
+          1256.4,
+          1243.9,
+          1331.93,
+          1298.65
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5682,
+        "bbox": [
+          1943.78,
+          1523.55,
+          2017.91,
+          1568.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5539,
+        "bbox": [
+          507.94,
+          1623.04,
+          560.2,
+          1655.55
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.512,
+        "bbox": [
+          1962.73,
+          1147.81,
+          1997.36,
+          1195.97
+        ]
+      }
+    ],
+    "total_detections": 16
+  },
+  {
+    "image": "dji_fly_20260518_171356_0230_1779098604010_photo_beautify.jpg",
+    "latitude": 7.290675,
+    "longitude": 125.708625,
+    "captured_at": "2026-05-18T17:13:55",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7314,
+        "bbox": [
+          184.21,
+          1618.13,
+          329.39,
+          1701.53
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6378,
+        "bbox": [
+          2640.67,
+          1170.2,
+          2701.77,
+          1224.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6308,
+        "bbox": [
+          2340.86,
+          1220.75,
+          2415.98,
+          1303.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6124,
+        "bbox": [
+          2190.54,
+          1246.09,
+          2294.84,
+          1322.26
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6064,
+        "bbox": [
+          1347.73,
+          1190.24,
+          1419.7,
+          1248.7
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5859,
+        "bbox": [
+          2011.72,
+          1539.77,
+          2070.08,
+          1581.91
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5775,
+        "bbox": [
+          1010.64,
+          1471.37,
+          1065.97,
+          1531.89
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5634,
+        "bbox": [
+          1437.54,
+          1190.08,
+          1558.89,
+          1315.9
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5622,
+        "bbox": [
+          2647.74,
+          1290.62,
+          2687.97,
+          1339.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5531,
+        "bbox": [
+          69.13,
+          2006.04,
+          238.77,
+          2165.68
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5503,
+        "bbox": [
+          985.85,
+          1301.98,
+          1059.53,
+          1357.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5312,
+        "bbox": [
+          321.06,
+          1782.52,
+          490.31,
+          1922.12
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5308,
+        "bbox": [
+          654.99,
+          1557.5,
+          701.64,
+          1594.18
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5255,
+        "bbox": [
+          2926.0,
+          1129.07,
+          3055.19,
+          1248.42
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5186,
+        "bbox": [
+          2111.16,
+          1196.89,
+          2198.69,
+          1288.78
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5126,
+        "bbox": [
+          2953.72,
+          1238.21,
+          2998.99,
+          1270.91
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5031,
+        "bbox": [
+          1698.0,
+          1014.41,
+          1759.98,
+          1059.1
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5001,
+        "bbox": [
+          762.94,
+          1378.47,
+          818.41,
+          1412.58
+        ]
+      }
+    ],
+    "total_detections": 18
+  },
+  {
+    "image": "dji_fly_20260518_171358_0231_1779098601774_photo_beautify.jpg",
+    "latitude": 7.290672222222222,
+    "longitude": 125.70860833333333,
+    "captured_at": "2026-05-18T17:13:58",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7128,
+        "bbox": [
+          1309.42,
+          1107.39,
+          1421.23,
+          1156.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7038,
+        "bbox": [
+          239.94,
+          1817.95,
+          393.39,
+          1966.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6494,
+        "bbox": [
+          3359.84,
+          1521.81,
+          3463.57,
+          1623.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.597,
+        "bbox": [
+          1175.37,
+          1103.91,
+          1253.91,
+          1162.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5919,
+        "bbox": [
+          796.55,
+          908.24,
+          907.16,
+          1002.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5634,
+        "bbox": [
+          563.59,
+          978.54,
+          593.64,
+          1011.31
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5349,
+        "bbox": [
+          902.5,
+          1197.16,
+          997.07,
+          1284.26
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5087,
+        "bbox": [
+          3455.01,
+          1488.68,
+          3502.84,
+          1522.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5061,
+        "bbox": [
+          2026.76,
+          1085.98,
+          2084.24,
+          1128.96
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.504,
+        "bbox": [
+          3109.71,
+          1410.8,
+          3229.06,
+          1533.2
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5026,
+        "bbox": [
+          1122.5,
+          1120.38,
+          1169.93,
+          1151.62
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5016,
+        "bbox": [
+          1409.91,
+          1883.45,
+          1477.73,
+          1948.54
+        ]
+      }
+    ],
+    "total_detections": 12
+  },
+  {
+    "image": "dji_fly_20260518_171402_0232_1779098598852_photo_beautify.jpg",
+    "latitude": 7.290661111111111,
+    "longitude": 125.70855555555556,
+    "captured_at": "2026-05-18T17:14:01",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7733,
+        "bbox": [
+          2070.13,
+          1499.22,
+          2135.31,
+          1553.75
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6908,
+        "bbox": [
+          1501.3,
+          952.15,
+          1588.57,
+          1019.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6734,
+        "bbox": [
+          812.37,
+          339.42,
+          857.59,
+          396.23
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6511,
+        "bbox": [
+          2866.35,
+          1527.41,
+          2908.54,
+          1576.48
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6402,
+        "bbox": [
+          3250.04,
+          1099.77,
+          3353.0,
+          1146.05
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6355,
+        "bbox": [
+          751.93,
+          1010.82,
+          809.88,
+          1085.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5975,
+        "bbox": [
+          2726.32,
+          908.49,
+          2818.29,
+          995.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5741,
+        "bbox": [
+          3660.48,
+          1043.38,
+          3722.37,
+          1085.54
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5631,
+        "bbox": [
+          995.09,
+          577.08,
+          1048.16,
+          619.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5189,
+        "bbox": [
+          1127.49,
+          706.96,
+          1161.24,
+          751.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5182,
+        "bbox": [
+          3057.54,
+          1030.22,
+          3100.76,
+          1060.37
+        ]
+      }
+    ],
+    "total_detections": 11
+  },
+  {
+    "image": "dji_fly_20260518_171408_0233_1779098587368_photo_beautify.jpg",
+    "latitude": 7.290686111111111,
+    "longitude": 125.7085,
+    "captured_at": "2026-05-18T17:14:07",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7744,
+        "bbox": [
+          3648.69,
+          1334.85,
+          3749.66,
+          1454.57
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7502,
+        "bbox": [
+          2951.42,
+          1500.83,
+          3091.67,
+          1583.18
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7314,
+        "bbox": [
+          2983.12,
+          1321.7,
+          3121.46,
+          1403.2
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7176,
+        "bbox": [
+          643.02,
+          1921.22,
+          895.46,
+          2194.09
+        ]
+      },
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.6939,
+        "bbox": [
+          1250.92,
+          1022.57,
+          1423.85,
+          1187.2
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6836,
+        "bbox": [
+          2844.38,
+          2031.86,
+          3055.05,
+          2141.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6811,
+        "bbox": [
+          2590.84,
+          1700.03,
+          2762.0,
+          1794.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6555,
+        "bbox": [
+          2976.85,
+          1191.15,
+          3058.08,
+          1291.34
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6308,
+        "bbox": [
+          2967.2,
+          973.42,
+          3058.59,
+          1027.33
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6269,
+        "bbox": [
+          3274.52,
+          1417.25,
+          3368.82,
+          1483.18
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6128,
+        "bbox": [
+          3268.75,
+          1151.65,
+          3382.33,
+          1252.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6086,
+        "bbox": [
+          3462.71,
+          1508.92,
+          3653.78,
+          1605.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5888,
+        "bbox": [
+          2364.87,
+          1435.97,
+          2432.17,
+          1541.55
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5409,
+        "bbox": [
+          2531.2,
+          412.68,
+          2642.71,
+          550.28
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5353,
+        "bbox": [
+          3918.78,
+          1714.27,
+          3992.45,
+          1816.86
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5179,
+        "bbox": [
+          1409.56,
+          797.89,
+          1482.38,
+          858.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5174,
+        "bbox": [
+          3144.59,
+          1013.47,
+          3232.56,
+          1072.73
+        ]
+      }
+    ],
+    "total_detections": 17
+  },
+  {
+    "image": "dji_fly_20260518_171436_0235_1779098559185_photo_beautify.jpg",
+    "latitude": 7.2906305555555555,
+    "longitude": 125.70858055555556,
+    "captured_at": "2026-05-18T17:14:36",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7738,
+        "bbox": [
+          3314.1,
+          1614.68,
+          3366.12,
+          1678.66
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7702,
+        "bbox": [
+          1944.27,
+          1761.61,
+          2000.48,
+          1822.35
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7628,
+        "bbox": [
+          2159.95,
+          1880.59,
+          2221.72,
+          1956.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7205,
+        "bbox": [
+          1855.15,
+          68.72,
+          1916.18,
+          133.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7181,
+        "bbox": [
+          1556.4,
+          638.49,
+          1693.11,
+          724.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6983,
+        "bbox": [
+          3643.14,
+          353.97,
+          3697.52,
+          403.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6899,
+        "bbox": [
+          3337.35,
+          472.73,
+          3387.37,
+          511.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6623,
+        "bbox": [
+          764.0,
+          1125.63,
+          806.61,
+          1169.62
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6526,
+        "bbox": [
+          3351.73,
+          2031.17,
+          3397.42,
+          2078.17
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6464,
+        "bbox": [
+          1197.59,
+          1133.24,
+          1262.66,
+          1182.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6357,
+        "bbox": [
+          2293.16,
+          1786.27,
+          2337.06,
+          1831.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.589,
+        "bbox": [
+          1392.12,
+          479.11,
+          1428.55,
+          511.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5798,
+        "bbox": [
+          2055.05,
+          1126.24,
+          2107.89,
+          1170.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5601,
+        "bbox": [
+          1954.55,
+          1523.99,
+          2006.85,
+          1620.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5414,
+        "bbox": [
+          3406.58,
+          365.26,
+          3467.16,
+          412.82
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5128,
+        "bbox": [
+          2701.65,
+          156.14,
+          2747.63,
+          185.24
+        ]
+      }
+    ],
+    "total_detections": 16
+  },
+  {
+    "image": "dji_fly_20260518_171440_0236_1779098556087_photo_beautify.jpg",
+    "latitude": 7.290636111111111,
+    "longitude": 125.70855555555556,
+    "captured_at": "2026-05-18T17:14:40",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.764,
+        "bbox": [
+          3098.13,
+          1401.28,
+          3189.44,
+          1500.15
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7299,
+        "bbox": [
+          0.6,
+          767.32,
+          115.08,
+          922.0
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6859,
+        "bbox": [
+          3016.53,
+          517.26,
+          3066.3,
+          596.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6778,
+        "bbox": [
+          2304.1,
+          1947.47,
+          2350.69,
+          1992.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.666,
+        "bbox": [
+          2085.88,
+          1213.1,
+          2124.59,
+          1255.84
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6472,
+        "bbox": [
+          3024.03,
+          1052.02,
+          3074.58,
+          1089.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5957,
+        "bbox": [
+          2601.38,
+          561.4,
+          2671.52,
+          622.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5813,
+        "bbox": [
+          2412.88,
+          241.86,
+          2471.56,
+          278.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5791,
+        "bbox": [
+          2139.28,
+          1355.89,
+          2243.94,
+          1452.8
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5317,
+        "bbox": [
+          1130.99,
+          843.48,
+          1172.29,
+          874.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5257,
+        "bbox": [
+          2408.26,
+          1499.16,
+          2461.72,
+          1579.55
+        ]
+      }
+    ],
+    "total_detections": 11
+  },
+  {
+    "image": "dji_fly_20260518_171454_0237_1779098553784_photo_beautify.jpg",
+    "latitude": 7.290611111111111,
+    "longitude": 125.70850555555556,
+    "captured_at": "2026-05-18T17:14:53",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8501,
+        "bbox": [
+          1073.17,
+          1645.33,
+          1212.66,
+          1758.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7621,
+        "bbox": [
+          2427.37,
+          1540.28,
+          2478.79,
+          1573.78
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7571,
+        "bbox": [
+          1925.67,
+          1517.54,
+          2013.26,
+          1627.57
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.736,
+        "bbox": [
+          2234.79,
+          1541.27,
+          2297.69,
+          1573.08
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6259,
+        "bbox": [
+          3269.38,
+          2034.2,
+          3299.2,
+          2083.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5325,
+        "bbox": [
+          2986.07,
+          1097.63,
+          3024.61,
+          1129.66
+        ]
+      }
+    ],
+    "total_detections": 6
+  },
+  {
+    "image": "dji_fly_20260518_171456_0238_1779098546913_photo_beautify.jpg",
+    "latitude": 7.290602777777778,
+    "longitude": 125.70851666666667,
+    "captured_at": "2026-05-18T17:14:55",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7115,
+        "bbox": [
+          3727.1,
+          610.72,
+          3808.0,
+          664.26
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6602,
+        "bbox": [
+          1940.58,
+          1106.23,
+          2025.08,
+          1192.48
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6512,
+        "bbox": [
+          3522.49,
+          1344.68,
+          3563.81,
+          1390.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6365,
+        "bbox": [
+          2391.22,
+          1117.02,
+          2432.44,
+          1144.83
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6194,
+        "bbox": [
+          3262.01,
+          1819.15,
+          3300.87,
+          1870.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5461,
+        "bbox": [
+          3416.94,
+          309.21,
+          3480.58,
+          350.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5357,
+        "bbox": [
+          1186.08,
+          1168.69,
+          1302.24,
+          1273.93
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5349,
+        "bbox": [
+          2216.99,
+          1115.13,
+          2275.09,
+          1144.7
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_171458_0239_1779098544818_photo_beautify.jpg",
+    "latitude": 7.290622222222222,
+    "longitude": 125.70856111111111,
+    "captured_at": "2026-05-18T17:14:58",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7374,
+        "bbox": [
+          1313.17,
+          1562.2,
+          1361.38,
+          1611.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6597,
+        "bbox": [
+          2027.09,
+          1265.87,
+          2075.38,
+          1302.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6443,
+        "bbox": [
+          562.56,
+          756.5,
+          618.03,
+          791.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6415,
+        "bbox": [
+          3771.07,
+          208.85,
+          3821.06,
+          246.68
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6367,
+        "bbox": [
+          2981.56,
+          1469.87,
+          3023.46,
+          1511.83
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5083,
+        "bbox": [
+          1892.88,
+          305.63,
+          1930.74,
+          338.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5024,
+        "bbox": [
+          3207.84,
+          1082.17,
+          3253.48,
+          1111.98
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_171502_0240_1779098542661_photo_beautify.jpg",
+    "latitude": 7.290638888888889,
+    "longitude": 125.70865555555555,
+    "captured_at": "2026-05-18T17:15:02",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7935,
+        "bbox": [
+          2956.06,
+          1914.96,
+          2997.95,
+          1970.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7327,
+        "bbox": [
+          2288.57,
+          1595.14,
+          2323.27,
+          1630.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7176,
+        "bbox": [
+          3645.81,
+          1482.77,
+          3708.31,
+          1532.13
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6917,
+        "bbox": [
+          2377.59,
+          1911.71,
+          2411.6,
+          1991.06
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6722,
+        "bbox": [
+          3675.82,
+          1638.32,
+          3769.42,
+          1691.65
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6437,
+        "bbox": [
+          2022.18,
+          149.5,
+          2147.93,
+          251.8
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6357,
+        "bbox": [
+          1420.64,
+          1146.56,
+          1469.16,
+          1184.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6092,
+        "bbox": [
+          2241.71,
+          365.08,
+          2291.39,
+          405.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6003,
+        "bbox": [
+          2932.44,
+          637.48,
+          2975.97,
+          687.81
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5983,
+        "bbox": [
+          1970.64,
+          1802.98,
+          2013.57,
+          1843.36
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5857,
+        "bbox": [
+          2543.54,
+          656.68,
+          2587.57,
+          689.77
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5688,
+        "bbox": [
+          1855.33,
+          1182.08,
+          1890.05,
+          1214.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.559,
+        "bbox": [
+          1196.46,
+          1261.44,
+          1228.47,
+          1294.37
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5491,
+        "bbox": [
+          3030.23,
+          1556.22,
+          3066.65,
+          1582.58
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5471,
+        "bbox": [
+          659.52,
+          1822.16,
+          699.04,
+          1858.8
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.541,
+        "bbox": [
+          2178.6,
+          1194.6,
+          2243.75,
+          1248.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5172,
+        "bbox": [
+          1259.72,
+          1710.87,
+          1290.26,
+          1742.53
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5116,
+        "bbox": [
+          3448.72,
+          1480.53,
+          3503.19,
+          1554.39
+        ]
+      }
+    ],
+    "total_detections": 18
+  },
+  {
+    "image": "dji_fly_20260518_171512_0241_1779098540487_photo_beautify.jpg",
+    "latitude": 7.290669444444444,
+    "longitude": 125.70865833333333,
+    "captured_at": "2026-05-18T17:15:09",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7311,
+        "bbox": [
+          3383.39,
+          1496.39,
+          3453.18,
+          1562.51
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6649,
+        "bbox": [
+          757.62,
+          633.91,
+          871.64,
+          713.8
+        ]
+      },
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.6506,
+        "bbox": [
+          3260.91,
+          1467.69,
+          3356.67,
+          1556.82
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5971,
+        "bbox": [
+          330.79,
+          676.09,
+          406.93,
+          778.73
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5623,
+        "bbox": [
+          3423.82,
+          1985.1,
+          3460.66,
+          2029.55
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5294,
+        "bbox": [
+          343.54,
+          532.41,
+          449.34,
+          642.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5263,
+        "bbox": [
+          3127.33,
+          993.25,
+          3176.6,
+          1073.56
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5046,
+        "bbox": [
+          1438.95,
+          486.96,
+          1659.98,
+          640.24
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_171518_0242_1779098538502_photo_beautify.jpg",
+    "latitude": 7.290627777777778,
+    "longitude": 125.70865,
+    "captured_at": "2026-05-18T17:15:15",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7376,
+        "bbox": [
+          2908.55,
+          1413.58,
+          2953.72,
+          1450.96
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7258,
+        "bbox": [
+          748.3,
+          1626.03,
+          790.3,
+          1677.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6765,
+        "bbox": [
+          2705.7,
+          1471.8,
+          2781.16,
+          1542.93
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6401,
+        "bbox": [
+          1518.59,
+          1185.28,
+          1562.28,
+          1234.58
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.633,
+        "bbox": [
+          2366.58,
+          1246.82,
+          2403.06,
+          1295.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6057,
+        "bbox": [
+          2877.52,
+          328.55,
+          2937.44,
+          368.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6042,
+        "bbox": [
+          2083.41,
+          748.9,
+          2148.38,
+          802.13
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5914,
+        "bbox": [
+          3063.64,
+          614.16,
+          3105.89,
+          648.51
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5907,
+        "bbox": [
+          3152.7,
+          687.69,
+          3188.87,
+          716.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5717,
+        "bbox": [
+          1513.06,
+          1526.53,
+          1590.44,
+          1579.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.561,
+        "bbox": [
+          1373.46,
+          1434.88,
+          1403.57,
+          1482.69
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5275,
+        "bbox": [
+          1580.94,
+          897.87,
+          1616.56,
+          928.39
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5256,
+        "bbox": [
+          3282.45,
+          628.05,
+          3311.77,
+          656.74
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5173,
+        "bbox": [
+          1472.27,
+          1805.33,
+          1503.0,
+          1837.82
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.514,
+        "bbox": [
+          1806.37,
+          810.33,
+          1858.86,
+          852.06
+        ]
+      }
+    ],
+    "total_detections": 15
+  },
+  {
+    "image": "dji_fly_20260518_171520_0243_1779098535908_photo_beautify.jpg",
+    "latitude": 7.290627777777778,
+    "longitude": 125.70872222222222,
+    "captured_at": "2026-05-18T17:15:20",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7773,
+        "bbox": [
+          1848.44,
+          1367.37,
+          1905.72,
+          1411.57
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7742,
+        "bbox": [
+          2557.55,
+          830.6,
+          2608.08,
+          869.64
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7677,
+        "bbox": [
+          2033.53,
+          1595.26,
+          2076.0,
+          1656.08
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6655,
+        "bbox": [
+          236.29,
+          1405.02,
+          276.22,
+          1443.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.664,
+        "bbox": [
+          3213.53,
+          438.49,
+          3265.8,
+          486.81
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5899,
+        "bbox": [
+          1571.48,
+          622.69,
+          1602.7,
+          676.5
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5871,
+        "bbox": [
+          1567.71,
+          631.63,
+          1601.69,
+          683.21
+        ]
+      },
+      {
+        "waste_type": "metal",
+        "confidence": 0.5501,
+        "bbox": [
+          133.32,
+          1413.35,
+          179.0,
+          1468.74
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5433,
+        "bbox": [
+          1261.51,
+          754.18,
+          1314.58,
+          795.84
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.539,
+        "bbox": [
+          662.95,
+          6.62,
+          736.95,
+          81.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5096,
+        "bbox": [
+          2584.68,
+          1215.83,
+          2633.31,
+          1255.32
+        ]
+      }
+    ],
+    "total_detections": 11
+  },
+  {
+    "image": "dji_fly_20260518_171524_0244_1779098534055_photo_beautify.jpg",
+    "latitude": 7.290638888888889,
+    "longitude": 125.70878333333333,
+    "captured_at": "2026-05-18T17:15:23",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8021,
+        "bbox": [
+          3658.81,
+          1605.97,
+          3776.37,
+          1754.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7919,
+        "bbox": [
+          666.11,
+          876.31,
+          722.15,
+          922.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7884,
+        "bbox": [
+          1426.41,
+          1261.12,
+          1498.95,
+          1324.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7483,
+        "bbox": [
+          2931.9,
+          1300.59,
+          3022.99,
+          1350.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7226,
+        "bbox": [
+          463.5,
+          1290.95,
+          534.38,
+          1336.87
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7157,
+        "bbox": [
+          2370.04,
+          1176.79,
+          2418.38,
+          1223.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7049,
+        "bbox": [
+          1327.03,
+          1126.76,
+          1379.13,
+          1172.25
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6742,
+        "bbox": [
+          2565.44,
+          1911.74,
+          2656.53,
+          2014.39
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6433,
+        "bbox": [
+          773.56,
+          994.86,
+          1142.52,
+          1180.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6376,
+        "bbox": [
+          2563.89,
+          1158.59,
+          2604.68,
+          1197.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6343,
+        "bbox": [
+          1525.06,
+          479.72,
+          1571.22,
+          526.29
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6028,
+        "bbox": [
+          459.2,
+          897.34,
+          538.48,
+          948.31
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5984,
+        "bbox": [
+          2780.7,
+          1498.75,
+          2819.66,
+          1543.13
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5855,
+        "bbox": [
+          2732.81,
+          1847.54,
+          2816.05,
+          1922.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5768,
+        "bbox": [
+          2801.49,
+          1826.5,
+          2875.77,
+          1915.27
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5532,
+        "bbox": [
+          3477.31,
+          1590.61,
+          3544.53,
+          1660.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5422,
+        "bbox": [
+          3513.04,
+          1294.14,
+          3592.27,
+          1328.73
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5373,
+        "bbox": [
+          2455.65,
+          1021.64,
+          2501.54,
+          1059.34
+        ]
+      },
+      {
+        "waste_type": "composite_packaging",
+        "confidence": 0.5348,
+        "bbox": [
+          3846.89,
+          2181.66,
+          3942.86,
+          2248.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5158,
+        "bbox": [
+          3234.27,
+          1455.14,
+          3332.33,
+          1571.7
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5151,
+        "bbox": [
+          2856.73,
+          1485.74,
+          2888.4,
+          1532.86
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5121,
+        "bbox": [
+          3722.09,
+          1835.1,
+          3792.55,
+          1906.09
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5011,
+        "bbox": [
+          1955.32,
+          181.3,
+          1987.8,
+          214.38
+        ]
+      }
+    ],
+    "total_detections": 23
+  },
+  {
+    "image": "dji_fly_20260518_171534_0246_1779098529569_photo_beautify.jpg",
+    "latitude": 7.2906305555555555,
+    "longitude": 125.70883055555556,
+    "captured_at": "2026-05-18T17:15:33",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7404,
+        "bbox": [
+          1331.07,
+          1103.66,
+          1408.81,
+          1148.19
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7298,
+        "bbox": [
+          1877.43,
+          1255.09,
+          1963.02,
+          1367.9
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7246,
+        "bbox": [
+          2862.26,
+          1177.81,
+          2917.58,
+          1208.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7053,
+        "bbox": [
+          872.07,
+          1052.75,
+          917.84,
+          1094.18
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6887,
+        "bbox": [
+          2494.79,
+          931.88,
+          2534.13,
+          960.58
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6713,
+        "bbox": [
+          1550.61,
+          1195.08,
+          1631.28,
+          1286.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6702,
+        "bbox": [
+          1805.64,
+          1020.73,
+          1865.59,
+          1051.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.655,
+        "bbox": [
+          1464.4,
+          2078.5,
+          1520.63,
+          2157.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.652,
+        "bbox": [
+          2006.34,
+          2095.69,
+          2079.42,
+          2173.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6324,
+        "bbox": [
+          3213.3,
+          1488.69,
+          3248.35,
+          1528.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6121,
+        "bbox": [
+          1738.34,
+          1272.06,
+          1793.37,
+          1318.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6093,
+        "bbox": [
+          982.22,
+          938.09,
+          1029.15,
+          968.0
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5891,
+        "bbox": [
+          3548.13,
+          1214.18,
+          3791.35,
+          1391.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5888,
+        "bbox": [
+          1892.05,
+          1426.24,
+          1927.76,
+          1469.04
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5866,
+        "bbox": [
+          2796.59,
+          1448.84,
+          2846.66,
+          1485.99
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5785,
+        "bbox": [
+          2272.35,
+          1037.56,
+          2315.99,
+          1079.48
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5657,
+        "bbox": [
+          2430.65,
+          1489.57,
+          2477.91,
+          1522.6
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5559,
+        "bbox": [
+          1045.25,
+          1037.33,
+          1089.03,
+          1083.94
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5464,
+        "bbox": [
+          3371.89,
+          1230.62,
+          3435.86,
+          1300.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5374,
+        "bbox": [
+          663.47,
+          1013.37,
+          710.74,
+          1060.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.535,
+        "bbox": [
+          3724.58,
+          1469.06,
+          3838.33,
+          1520.44
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5299,
+        "bbox": [
+          3136.66,
+          1288.18,
+          3178.82,
+          1321.48
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5295,
+        "bbox": [
+          880.94,
+          1651.45,
+          969.8,
+          1726.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5141,
+        "bbox": [
+          2125.64,
+          1684.32,
+          2166.97,
+          1763.88
+        ]
+      }
+    ],
+    "total_detections": 24
+  },
+  {
+    "image": "dji_fly_20260518_171536_0247_1779098527276_photo_beautify.jpg",
+    "latitude": 7.290627777777778,
+    "longitude": 125.70885555555556,
+    "captured_at": "2026-05-18T17:15:37",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.736,
+        "bbox": [
+          1146.43,
+          1718.87,
+          1212.11,
+          1827.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.691,
+        "bbox": [
+          2809.08,
+          1652.3,
+          2855.61,
+          1690.95
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6895,
+        "bbox": [
+          3668.01,
+          1857.93,
+          3732.2,
+          1909.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6861,
+        "bbox": [
+          1807.67,
+          1458.87,
+          1853.45,
+          1547.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.679,
+        "bbox": [
+          833.92,
+          1103.65,
+          904.31,
+          1135.84
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6383,
+        "bbox": [
+          751.6,
+          1358.43,
+          822.96,
+          1419.42
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6273,
+        "bbox": [
+          1936.62,
+          2092.12,
+          1975.06,
+          2142.47
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6262,
+        "bbox": [
+          2671.62,
+          1189.75,
+          2763.8,
+          1230.21
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6223,
+        "bbox": [
+          1248.81,
+          1368.47,
+          1303.38,
+          1421.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.604,
+        "bbox": [
+          1605.76,
+          2030.49,
+          1674.18,
+          2091.98
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5989,
+        "bbox": [
+          2200.21,
+          1270.63,
+          2248.67,
+          1303.63
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5925,
+        "bbox": [
+          1888.56,
+          1058.01,
+          1949.89,
+          1086.3
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5876,
+        "bbox": [
+          864.82,
+          1797.79,
+          970.68,
+          1927.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5769,
+        "bbox": [
+          1841.47,
+          2093.97,
+          1883.31,
+          2155.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5748,
+        "bbox": [
+          300.93,
+          1265.6,
+          396.89,
+          1319.46
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.568,
+        "bbox": [
+          1823.93,
+          1313.41,
+          1866.41,
+          1342.02
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.568,
+        "bbox": [
+          1478.25,
+          1457.67,
+          1522.86,
+          1495.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5667,
+        "bbox": [
+          1522.44,
+          1576.02,
+          1572.55,
+          1628.82
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5492,
+        "bbox": [
+          3482.78,
+          1709.62,
+          3522.19,
+          1754.1
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5308,
+        "bbox": [
+          2367.09,
+          1030.34,
+          2415.3,
+          1081.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5165,
+        "bbox": [
+          2144.92,
+          1115.1,
+          2192.72,
+          1151.1
+        ]
+      }
+    ],
+    "total_detections": 21
+  },
+  {
+    "image": "dji_fly_20260518_171544_0248_1779098525200_photo_beautify.jpg",
+    "latitude": 7.290605555555556,
+    "longitude": 125.70890277777778,
+    "captured_at": "2026-05-18T17:15:43",
+    "detections": [
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.789,
+        "bbox": [
+          1939.7,
+          630.16,
+          2038.93,
+          719.6
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7824,
+        "bbox": [
+          2202.0,
+          1797.24,
+          2255.58,
+          1857.58
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7373,
+        "bbox": [
+          646.07,
+          538.37,
+          706.42,
+          602.43
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7114,
+        "bbox": [
+          1918.17,
+          814.66,
+          1985.49,
+          872.7
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5813,
+        "bbox": [
+          459.7,
+          499.46,
+          535.37,
+          569.22
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5622,
+        "bbox": [
+          578.95,
+          573.88,
+          617.25,
+          608.44
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5384,
+        "bbox": [
+          992.8,
+          491.8,
+          1023.22,
+          517.86
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5327,
+        "bbox": [
+          2908.23,
+          998.63,
+          2940.79,
+          1053.48
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5089,
+        "bbox": [
+          1805.92,
+          600.27,
+          1844.09,
+          642.89
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5084,
+        "bbox": [
+          2909.72,
+          999.85,
+          2944.83,
+          1067.84
+        ]
+      }
+    ],
+    "total_detections": 10
+  },
+  {
+    "image": "dji_fly_20260518_171546_0249_1779098522441_photo_beautify.jpg",
+    "latitude": 7.290619444444444,
+    "longitude": 125.7088888888889,
+    "captured_at": "2026-05-18T17:15:45",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7717,
+        "bbox": [
+          2417.22,
+          1294.55,
+          2482.87,
+          1380.67
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7659,
+        "bbox": [
+          1195.98,
+          628.99,
+          1266.29,
+          683.17
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.7304,
+        "bbox": [
+          2486.43,
+          1068.87,
+          2591.58,
+          1202.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.688,
+        "bbox": [
+          1176.95,
+          60.11,
+          1215.76,
+          116.14
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6869,
+        "bbox": [
+          1985.3,
+          869.25,
+          2030.84,
+          897.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6639,
+        "bbox": [
+          1274.69,
+          1301.62,
+          1310.44,
+          1329.54
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.6346,
+        "bbox": [
+          1599.79,
+          723.54,
+          1657.61,
+          781.45
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6344,
+        "bbox": [
+          2344.96,
+          981.58,
+          2390.15,
+          1042.61
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.586,
+        "bbox": [
+          2058.98,
+          963.35,
+          2087.63,
+          990.11
+        ]
+      },
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.5615,
+        "bbox": [
+          2001.92,
+          1247.27,
+          2043.18,
+          1289.85
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5531,
+        "bbox": [
+          837.15,
+          957.55,
+          888.42,
+          997.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5111,
+        "bbox": [
+          1477.77,
+          192.3,
+          1519.72,
+          224.73
+        ]
+      }
+    ],
+    "total_detections": 12
+  },
+  {
+    "image": "dji_fly_20260518_171646_0250_1779098519047_photo_beautify.jpg",
+    "latitude": 7.290611111111111,
+    "longitude": 125.70773333333334,
+    "captured_at": "2026-05-18T17:16:45",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7917,
+        "bbox": [
+          1819.56,
+          1450.26,
+          1892.4,
+          1531.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7862,
+        "bbox": [
+          808.01,
+          1682.45,
+          907.13,
+          1775.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7711,
+        "bbox": [
+          2190.73,
+          2075.02,
+          2264.65,
+          2142.38
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7522,
+        "bbox": [
+          527.56,
+          1779.3,
+          624.04,
+          1889.58
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7306,
+        "bbox": [
+          1587.18,
+          1454.58,
+          1666.98,
+          1534.32
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7215,
+        "bbox": [
+          182.37,
+          1392.36,
+          265.3,
+          1488.92
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6842,
+        "bbox": [
+          1617.32,
+          703.8,
+          1678.85,
+          788.15
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6554,
+        "bbox": [
+          380.87,
+          156.39,
+          447.07,
+          211.2
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6202,
+        "bbox": [
+          650.8,
+          1786.49,
+          694.97,
+          1836.79
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5941,
+        "bbox": [
+          2061.76,
+          626.69,
+          2177.23,
+          718.22
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5056,
+        "bbox": [
+          1791.61,
+          1602.47,
+          1847.46,
+          1654.49
+        ]
+      }
+    ],
+    "total_detections": 11
+  },
+  {
+    "image": "dji_fly_20260518_171648_0251_1779098516526_photo_beautify.jpg",
+    "latitude": 7.290605555555556,
+    "longitude": 125.70773055555556,
+    "captured_at": "2026-05-18T17:16:47",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7658,
+        "bbox": [
+          2256.5,
+          1912.07,
+          2333.81,
+          1971.07
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7266,
+        "bbox": [
+          1958.82,
+          1273.86,
+          2024.05,
+          1356.1
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5284,
+        "bbox": [
+          1732.19,
+          1262.71,
+          1810.49,
+          1335.06
+        ]
+      }
+    ],
+    "total_detections": 3
+  },
+  {
+    "image": "dji_fly_20260518_171650_0252_1779098514413_photo_beautify.jpg",
+    "latitude": 7.290616666666667,
+    "longitude": 125.70773055555556,
+    "captured_at": "2026-05-18T17:16:49",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8222,
+        "bbox": [
+          2561.48,
+          1508.25,
+          2662.43,
+          1602.12
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7084,
+        "bbox": [
+          1016.55,
+          1233.38,
+          1123.24,
+          1309.96
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7047,
+        "bbox": [
+          767.4,
+          545.07,
+          855.97,
+          607.11
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6776,
+        "bbox": [
+          1092.9,
+          1346.77,
+          1197.24,
+          1403.25
+        ]
+      }
+    ],
+    "total_detections": 4
+  },
+  {
+    "image": "dji_fly_20260518_171652_0253_1779098512139_photo_beautify.jpg",
+    "latitude": 7.290619444444444,
+    "longitude": 125.70773055555556,
+    "captured_at": "2026-05-18T17:16:52",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7805,
+        "bbox": [
+          2368.55,
+          1522.65,
+          2459.78,
+          1604.05
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7708,
+        "bbox": [
+          690.2,
+          1533.28,
+          804.91,
+          1632.06
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6488,
+        "bbox": [
+          478.83,
+          1692.92,
+          531.63,
+          1737.79
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6224,
+        "bbox": [
+          252.99,
+          806.31,
+          358.22,
+          883.16
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5817,
+        "bbox": [
+          2963.36,
+          1847.93,
+          3078.69,
+          1926.15
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5811,
+        "bbox": [
+          721.96,
+          346.31,
+          873.61,
+          443.57
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5619,
+        "bbox": [
+          2272.28,
+          906.74,
+          2337.09,
+          983.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5284,
+        "bbox": [
+          3282.69,
+          156.54,
+          3364.88,
+          195.76
+        ]
+      }
+    ],
+    "total_detections": 8
+  },
+  {
+    "image": "dji_fly_20260518_171724_0256_1779098501436_photo_beautify.jpg",
+    "latitude": 7.290361111111111,
+    "longitude": 125.70775277777778,
+    "captured_at": "2026-05-18T17:17:23",
+    "detections": [
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.795,
+        "bbox": [
+          1845.62,
+          1240.33,
+          1927.24,
+          1317.08
+        ]
+      },
+      {
+        "waste_type": "metal",
+        "confidence": 0.783,
+        "bbox": [
+          1916.17,
+          1381.07,
+          2010.29,
+          1504.8
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.754,
+        "bbox": [
+          1454.54,
+          1671.39,
+          1514.12,
+          1711.24
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7177,
+        "bbox": [
+          1521.88,
+          1128.66,
+          1580.88,
+          1172.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6583,
+        "bbox": [
+          1715.88,
+          1266.11,
+          1777.55,
+          1323.31
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5352,
+        "bbox": [
+          2044.69,
+          1725.59,
+          2087.14,
+          1779.01
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.501,
+        "bbox": [
+          2067.4,
+          1370.79,
+          2114.91,
+          1413.18
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_171736_0257_1779098498371_photo_beautify.jpg",
+    "latitude": 7.290408333333334,
+    "longitude": 125.70783055555556,
+    "captured_at": "2026-05-18T17:17:36",
+    "detections": [
+      {
+        "waste_type": "styrofoam",
+        "confidence": 0.8131,
+        "bbox": [
+          2724.44,
+          1326.59,
+          2783.36,
+          1379.54
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7128,
+        "bbox": [
+          2061.56,
+          1365.69,
+          2137.43,
+          1431.03
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6126,
+        "bbox": [
+          1724.84,
+          1324.63,
+          1791.25,
+          1372.49
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5427,
+        "bbox": [
+          1914.25,
+          1312.35,
+          1943.67,
+          1339.64
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5269,
+        "bbox": [
+          2137.47,
+          1324.18,
+          2164.5,
+          1356.31
+        ]
+      }
+    ],
+    "total_detections": 5
+  },
+  {
+    "image": "dji_fly_20260518_171804_0258_1779098495808_photo_beautify.jpg",
+    "latitude": 7.290711111111111,
+    "longitude": 125.70788888888889,
+    "captured_at": "2026-05-18T17:18:04",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8567,
+        "bbox": [
+          2357.25,
+          2025.45,
+          2553.81,
+          2222.53
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8203,
+        "bbox": [
+          1358.27,
+          1002.25,
+          1450.22,
+          1071.52
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8137,
+        "bbox": [
+          1146.28,
+          1245.64,
+          1268.86,
+          1365.41
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7318,
+        "bbox": [
+          3635.23,
+          1665.19,
+          3691.92,
+          1743.56
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7261,
+        "bbox": [
+          3646.73,
+          397.8,
+          3717.68,
+          457.32
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7053,
+        "bbox": [
+          2484.21,
+          1218.5,
+          2545.62,
+          1263.18
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5544,
+        "bbox": [
+          693.26,
+          200.89,
+          738.23,
+          248.78
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_171808_0259_1779098493761_photo_beautify.jpg",
+    "latitude": 7.2907166666666665,
+    "longitude": 125.70787222222222,
+    "captured_at": "2026-05-18T17:18:07",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8383,
+        "bbox": [
+          2064.52,
+          1833.35,
+          2192.6,
+          1984.23
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.823,
+        "bbox": [
+          3713.05,
+          2138.11,
+          3804.65,
+          2217.17
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8205,
+        "bbox": [
+          2298.05,
+          1549.58,
+          2394.66,
+          1622.88
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7442,
+        "bbox": [
+          3790.09,
+          485.06,
+          3940.11,
+          592.4
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6003,
+        "bbox": [
+          1396.44,
+          101.52,
+          1499.41,
+          192.67
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5236,
+        "bbox": [
+          1751.94,
+          456.9,
+          1804.76,
+          494.28
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5123,
+        "bbox": [
+          1553.09,
+          368.64,
+          1601.03,
+          425.39
+        ]
+      }
+    ],
+    "total_detections": 7
+  },
+  {
+    "image": "dji_fly_20260518_171812_0260_1779098491863_photo_beautify.jpg",
+    "latitude": 7.290705555555555,
+    "longitude": 125.70783888888889,
+    "captured_at": "2026-05-18T17:18:12",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8385,
+        "bbox": [
+          1962.64,
+          1739.84,
+          2098.05,
+          1897.81
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8092,
+        "bbox": [
+          2667.48,
+          1664.84,
+          2756.38,
+          1735.76
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.7557,
+        "bbox": [
+          1132.26,
+          1004.66,
+          1287.11,
+          1139.28
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.6345,
+        "bbox": [
+          3131.55,
+          0.0,
+          3315.31,
+          93.21
+        ]
+      }
+    ],
+    "total_detections": 4
+  },
+  {
+    "image": "dji_fly_20260518_171814_0261_1779098489800_photo_beautify.jpg",
+    "latitude": 7.290705555555555,
+    "longitude": 125.70783888888889,
+    "captured_at": "2026-05-18T17:18:13",
+    "detections": [
+      {
+        "waste_type": "plastic",
+        "confidence": 0.87,
+        "bbox": [
+          1959.99,
+          1654.9,
+          2115.76,
+          1837.9
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8355,
+        "bbox": [
+          990.31,
+          831.09,
+          1169.31,
+          975.71
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.8088,
+        "bbox": [
+          2791.61,
+          1562.85,
+          2892.21,
+          1643.79
+        ]
+      },
+      {
+        "waste_type": "plastic",
+        "confidence": 0.5627,
+        "bbox": [
+          1935.25,
+          858.21,
+          2007.98,
+          907.99
+        ]
+      }
+    ],
+    "total_detections": 4
   }
 ]

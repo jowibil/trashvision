@@ -12,15 +12,210 @@ import "leaflet/dist/leaflet.css";
 import { useAreas } from "../services/hooks/useAreas";
 import { useAreaCollection } from "../services/hooks/useAreasCollection";
 import { useReports } from "../services/hooks/useReports";
-import { generateMockDroneData } from "../types/mockWasteData";
 import { useMapControl } from "../services/hooks/useMapControl";
-import { Calendar, X, RefreshCw } from "lucide-react";
-import { useHexbinData } from "../services/hooks/useHexbins";
+import { Calendar } from "lucide-react";
+import { X } from "lucide-react";
+import { RefreshCcw as RefreshCw} from "lucide-react";
+import { Maximize2 } from "lucide-react";
+import { classifyCci, useHexbinData } from "../services/hooks/useHexbins";
 import { SectorDrawer } from "../components/ui/aside";
 import { MapOverlays } from "../components/ui/mapOverlays";
 import L from "leaflet";
+import type { PollutionCategory } from "../types/types";
 
-const mockData = generateMockDroneData();
+// Hoisted: static legend data, previously rebuilt as a fresh array literal
+// on every render inside the footer JSX.
+const CCI_LEGEND_ITEMS = [
+  { label: "Very low", category: "Very low", desc: "≤ 2" },
+  { label: "Low", category: "Low", desc: "2 - 5" },
+  { label: "Moderate", category: "Moderate", desc: "5 - 10" },
+  { label: "High", category: "High", desc: "10 - 20" },
+  { label: "Very high", category: "Very high", desc: "> 20" },
+] as const;
+
+export const getCciColor = (category?: PollutionCategory | string): string => {
+  switch (category) {
+    case "Very low":
+      return "#10b981"; // Em Green
+    case "Low":
+      return "#3b82f6"; // Blue
+    case "Moderate":
+      return "#f59e0b"; // Yellow
+    case "High":
+      return "#f97316"; // Orange
+    case "Very high":
+      return "#ef4444"; // Red
+    default:
+      return "#94a3b8"; // Slate Gray
+  }
+};
+// DYNAMIC FRONT-END BOUNDING BOX RENDER ENGINE
+function ImageWithBoundingBoxes({
+  imageUrl,
+  detections,
+}: {
+  imageUrl: string;
+  detections: any[];
+}) {
+  const [scales, setScales] = useState({ scaleX: 0, scaleY: 0 });
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  const handleImageLoad = () => {
+    if (imgRef.current) {
+      const renderedWidth = imgRef.current.clientWidth;
+      const renderedHeight = imgRef.current.clientHeight;
+      const naturalWidth = imgRef.current.naturalWidth;
+      const naturalHeight = imgRef.current.naturalHeight;
+
+      if (naturalWidth && naturalHeight) {
+        setScales({
+          scaleX: renderedWidth / naturalWidth,
+          scaleY: renderedHeight / naturalHeight,
+        });
+      }
+    }
+  };
+
+
+  const openInferenceInNewTab = () => {
+    const baseImg = imgRef.current;
+    if (!baseImg || !baseImg.naturalWidth) return;
+
+    // 1. Initialize a dynamic workspace canvas matched to the raw source dimensions
+    const canvas = document.createElement("canvas");
+    canvas.width = baseImg.naturalWidth;
+    canvas.height = baseImg.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 2. Lay down the base clean drone flight photograph
+    ctx.drawImage(baseImg, 0, 0);
+
+    // 3. Draw every bounding box matching its exact database absolute coordinate vectors
+    detections.forEach((det) => {
+      if (!det.bbox || det.bbox[0] === undefined) return;
+      const [x1, y1, x2, y2] = det.bbox;
+      const width = x2 - x1;
+      const height = y2 - y1;
+
+      // Draw the Bounding Box Outline
+      ctx.strokeStyle = "#EF4444"; // Production Red
+      ctx.lineWidth = Math.max(4, baseImg.naturalWidth * 0.003);
+      ctx.strokeRect(x1, y1, width, height);
+
+      ctx.fillStyle = "rgba(239, 68, 68, 0.1)";
+      ctx.fillRect(x1, y1, width, height);
+
+      // Draw the Label Badge
+      const text = `${det.label.toUpperCase().replace("_", " ")} ${Math.round((det.confidence > 1 ? det.confidence / 100 : det.confidence) * 100)}%`;
+      const fontSize = 24;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+
+      const textWidth = ctx.measureText(text).width;
+      const padding = fontSize * 0.4;
+
+      ctx.fillStyle = "#EF4444";
+      ctx.fillRect(
+        x1 - 2,
+        y1 - fontSize - padding,
+        textWidth + padding * 2,
+        fontSize + padding,
+      );
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x1 + padding - 2, y1 - fontSize / 2 - padding / 2);
+    });
+
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+      const newTab = window.open();
+      if (newTab) {
+        newTab.document.write(`
+          <html>
+            <head>
+              <title>TrashVision Specimen Export</title>
+              <style>
+                body { margin: 0; background: #0b0f19; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
+                img { max-width: 100%; max-height: 100vh; object-contain: contain; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+              </style>
+            </head>
+            <body>
+              <img src="${dataUrl}" alt="YOLOv8 Complete Frame Output" />
+            </body>
+          </html>
+        `);
+        newTab.document.close();
+      }
+    } catch (err) {
+      console.error(
+        "Canvas export blocked by cross-origin security configurations:",
+        err,
+      );
+      // Fallback in case of CORS security protection blocks canvas context extraction
+      window.open(imageUrl, "_blank");
+    }
+  };
+
+  useEffect(() => {
+    const handleResize = () => handleImageLoad();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return (
+    <div
+      onClick={openInferenceInNewTab}
+      className="relative w-full max-h-95 overflow-hidden rounded-2xl bg-slate-950 flex items-center justify-center border border-slate-200 cursor-zoom-in group select-none"
+    >
+      <img
+        ref={imgRef}
+        src={imageUrl}
+        crossOrigin="anonymous"
+        onLoad={handleImageLoad}
+        className="w-full h-auto object-contain max-h-95 group-hover:opacity-90 transition-opacity"
+        alt="Inference Canvas"
+      />
+
+      <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 bg-slate-900/90 backdrop-blur-xs text-white px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-opacity flex items-center gap-1.5 pointer-events-none shadow-md">
+        <Maximize2 size={11} /> Open image in new tab
+      </div>
+
+      {scales.scaleX > 0 &&
+        detections.map((det, idx) => {
+          if (!det.bbox || det.bbox[0] === undefined) return null;
+          const [x1, y1, x2, y2] = det.bbox;
+
+          const left = x1 * scales.scaleX;
+          const top = y1 * scales.scaleY;
+          const width = (x2 - x1) * scales.scaleX;
+          const height = (y2 - y1) * scales.scaleY;
+
+          return (
+            <div
+              key={idx}
+              className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none transition-all shadow-xs"
+              style={{
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+              }}
+            >
+              <span className="absolute -top-4 left-5 bg-red-500 text-white text-[8px] font-black px-1 py-0.5 rounded-xs whitespace-nowrap uppercase tracking-tight shadow-sm">
+                {det.label.replace("_", " ")}{" "}
+                {Math.round(
+                  (det.confidence > 1 ? det.confidence / 100 : det.confidence) *
+                    100,
+                )}
+                %
+              </span>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
 
 function ZoomHandler({ onZoomChange }: { onZoomChange: (z: number) => void }) {
   useMapEvents({
@@ -28,6 +223,7 @@ function ZoomHandler({ onZoomChange }: { onZoomChange: (z: number) => void }) {
   });
   return null;
 }
+
 function MapResizer({ isDrawerOpen }: { isDrawerOpen: boolean }) {
   const map = useMap();
   useEffect(() => {
@@ -44,30 +240,21 @@ function MapController({
   targetCoords: [number, number] | null;
 }) {
   const { flyToLocation } = useMapControl();
-
   useEffect(() => {
     if (targetCoords) {
       flyToLocation(targetCoords[0], targetCoords[1]);
     }
   }, [targetCoords, flyToLocation]);
-
   return null;
 }
 
-const getDensityColor = (count: number) => {
-  if (count > 10) return "#b91c1c";
-  if (count > 5) return "#ea580c";
-  if (count > 2) return "#eab308";
-  return "#22c55e";
-};
 function ZoomTracker({ setZoom }: { setZoom: (z: number) => void }) {
   const map = useMapEvents({
-    zoomend: () => {
-      setZoom(map.getZoom());
-    },
+    zoomend: () => setZoom(map.getZoom()),
   });
   return null;
 }
+
 export default function Maps() {
   const { areas } = useAreas();
   const [map, setMap] = useState<L.Map | null>(null);
@@ -87,15 +274,32 @@ export default function Maps() {
     null,
   );
   const [zoom, setZoom] = useState(15);
+  const DRONE_K_FACTOR = 20;
+
   const {
     collection: droneCollection,
     loading,
     refetch,
   } = useAreaCollection(currentArea?.area_id);
+
+  useEffect(() => {
+    if (droneCollection && droneCollection.length > 0) {
+      const firstDateStr =
+        droneCollection[0].captured_at || droneCollection[0].timestamp;
+      if (firstDateStr) {
+        const flightDate = new Date(firstDateStr);
+        if (!isNaN(flightDate.getTime())) {
+          setSelectedDate(flightDate);
+        }
+      }
+    }
+  }, [droneCollection]);
+
   const [threshold, setThreshold] = useState(() => {
     const saved = localStorage.getItem("mapThreshold");
     return saved ? parseInt(saved) : 2;
   });
+
   const hexbins = useHexbinData(
     droneCollection,
     selectedDate,
@@ -132,18 +336,40 @@ export default function Maps() {
     );
   }, [areas, searchQuery]);
 
-  const areaStatus = useMemo(() => {
-    const totalInArea = mockData.length;
-    if (totalInArea > 50)
-      return { label: "CRITICAL", color: "text-red-600", bg: "bg-red-50" };
-    if (totalInArea > 20)
-      return { label: "HIGH", color: "text-orange-500", bg: "bg-orange-50" };
+  const areaMetrics = useMemo(() => {
+    if (!currentArea?.boundary || !droneCollection) {
+      return { totalAreaM2: 0, overallDensity: 0, overallCci: 0, category: "Very Clean" as PollutionCategory };
+    }
+
+    const totalAreaM2 = turf.area(currentArea.boundary);
+    const totalDetections = droneCollection.length;
+    const overallDensity = totalAreaM2 > 0 ? totalDetections / totalAreaM2 : 0;
+    const overallCci = overallDensity * DRONE_K_FACTOR;
+
     return {
-      label: "LOW SEVERITY",
-      color: "text-green-500",
-      bg: "bg-green-50",
+      totalAreaM2,
+      totalAreaKm2: (totalAreaM2 / 1_000_000).toFixed(2),
+      overallDensity,
+      overallCci,
+      category: classifyCci(overallCci),
     };
-  }, [week]);
+  }, [currentArea, droneCollection]);
+
+  const areaStatus = useMemo(() => {
+  const category = areaMetrics.category; // Returns PollutionCategory
+  const hexColor = getCciColor(category);
+
+  return {
+    label: category.toUpperCase(),
+    color: hexColor,
+    style: {
+      color: hexColor,
+      backgroundColor: `${hexColor}1A`, // 10% tint
+      borderColor: `${hexColor}40`,     // 25% tint
+    },
+  };
+}, [areaMetrics]);
+
 
   const handleAreaSelect = (area: any) => {
     setCurrentArea(area);
@@ -151,6 +377,7 @@ export default function Maps() {
     setIsOpen(false);
     setSearchQuery("");
   };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -182,13 +409,17 @@ export default function Maps() {
   };
 
   const visiblePins = useMemo(() => {
-  if (!activePin) return [];
-  return droneCollection.filter(img => activePin.includes(img.image_id));
-}, [droneCollection, activePin]);
+    if (activePin) {
+      return droneCollection.filter((img) =>
+        activePin.includes(img.detection_id || img.image_id),
+      );
+    }
+    return droneCollection;
+  }, [droneCollection, activePin]);
 
   return (
-    <div className="h-screen w-full max-w-7xl flex flex-col overflow-hidden bg-white">
-      <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-8 sticky top-0 mt-5 bg-white">
+    <div className="h-dvh w-full max-w-7xl flex flex-col overflow-hidden bg-[#fcfcfc]">
+      <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-8 sticky top-0 mt-5 bg-[#fcfcfc]">
         <div className="flex flex-col text-left">
           <h3 className="text-3xl font-black text-[#005D90] tracking-tight">
             Waste Detection Map
@@ -196,7 +427,8 @@ export default function Maps() {
           <div className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
             <p className="text-xs text-slate-500 font-black tracking-tight uppercase">
-              Live Analysis
+              {" "}
+              Live Analysis{" "}
             </p>
           </div>
         </div>
@@ -216,7 +448,7 @@ export default function Maps() {
 
       <main className="flex flex-1 overflow-hidden relative">
         <div
-          className={`relative flex-1 m-4 rounded-3xl overflow-hidden border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
+          className={`relative h-137.5 flex-1 m-4 rounded-3xl overflow-hidden border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
         >
           <MapContainer
             ref={setMap}
@@ -229,6 +461,7 @@ export default function Maps() {
             <MapController targetCoords={targetCoords} />
             <MapResizer isDrawerOpen={drawerOpen} />
             <ZoomHandler onZoomChange={setZoom} />
+
             {currentArea && (
               <GeoJSON
                 key={`boundary-${currentArea.area_id}`}
@@ -240,79 +473,105 @@ export default function Maps() {
                   fillOpacity: 0.05,
                   dashArray: "5, 10",
                 }}
-                pathOptions={{
-                  pane: "overlayPane",
-                  color: "#005D90",
-                  weight: 3,
-                  fillOpacity: 0.2,
-                }}
               />
             )}
+
             {zoom < 18 && hexbins && (
               <GeoJSON
-                key={`drone-hex-${week}-${threshold}-${currentArea?.area_id}-${droneCollection.length}`}
+                key={`drone-hex-${week}-${threshold}-${currentArea?.area_id}-${selectedDate.getTime()}-${hexbins.features.length}`}
                 data={hexbins as any}
                 onEachFeature={onEachHex}
-                pathOptions={{ pane: "tilePane" }}
                 style={(f) => {
-                  const count = f?.properties?.pointIds?.length || 0;
+                  const category = f?.properties?.pollution_category;
                   return {
-                    fillColor: getDensityColor(count),
+                    fillColor: getCciColor(category),
                     weight: 1,
                     color: "#ffffff",
                     fillOpacity: 0.6,
-                    dashArray: "0",
                   };
                 }}
               />
             )}
-            {zoom > 17 && visiblePins.map((img) => (
-                  <CircleMarker
-                    key={img.image_id}
-                    center={[img.latitude, img.longitude]}
-                    radius={8}
-                    pathOptions={{
-                      fillColor: img.file_url ? "#ef4444" : "#94a3b8",
-                      color: "#fff",
-                      weight: 2,
-                      fillOpacity: 1,
-                    }}
-                    eventHandlers={{
-                      click: (e) => {
-                        setSelectedItem({
-                          id: img.image_id,
-                          type: "Drone Detection",
-                          image: img.file_url,
-                          description: `Captured during flight on ${img.flight_date || "N/A"}`,
-                          reporter: "Autonomous Drone",
-                          detections: [
-                            { label: "Plastic Bottle", confidence: 0.94 },
-                            { label: "Paper Waste", confidence: 0.82 },
+
+            {zoom > 17 &&
+              visiblePins.map((img) => (
+                <CircleMarker
+                  key={img.detection_id || img.image_id}
+                  center={[img.latitude, img.longitude]}
+                  radius={8}
+                  pathOptions={{
+                    fillColor: img.image_url ? "#ef4444" : "#94a3b8",
+                    color: "#fff",
+                    weight: 2,
+                    fillOpacity: 1,
+                  }}
+                  eventHandlers={{
+                    click: (e) => {
+                      const targetUrl = img.image_url || img.file_url;
+                      const siblingDetections = droneCollection
+                        .filter(
+                          (item) =>
+                            item.image_url === targetUrl ||
+                            item.file_url === targetUrl,
+                        )
+                        .map((item) => ({
+                          label: item.waste_type || item.type || "waste",
+                          confidence:
+                            item.confidence_score || item.confidence || 0.85,
+                          bbox: [
+                            item.bbox_x1,
+                            item.bbox_y1,
+                            item.bbox_x2,
+                            item.bbox_y2,
                           ],
-                        });
-                        L.DomEvent.stopPropagation(e);
-                      },
-                    }}
-                  />
-                ))}
+                        }));
+                      const typeSummaryCounts: Record<string, number> = {};
+                      siblingDetections.forEach((det) => {
+                        typeSummaryCounts[det.label] =
+                          (typeSummaryCounts[det.label] || 0) + 1;
+                      });
+
+                      const descriptionLedger = Object.entries(
+                        typeSummaryCounts,
+                      )
+                        .map(
+                          ([type, count]) =>
+                            `${type.toUpperCase()}: ${count} item(s)`,
+                        )
+                        .join(", ");
+                      setSelectedItem({
+                        id: img.detection_id || img.image_id,
+                        type: "Image Detection",
+                        image: targetUrl,
+                        description: `Image Details — [ ${descriptionLedger} ]. Coordinates: Lat ${img.latitude.toFixed(5)}, Lng ${img.longitude.toFixed(5)}.`,
+                        reporter: "YOLOV8 Model",
+                        detections: siblingDetections, // Passes all bounded items down to render concurrently
+                      });
+
+                      L.DomEvent.stopPropagation(e);
+                    },
+                  }}
+                />
+              ))}
+
             {reportGeoJSON && (
               <GeoJSON
                 key={`reports-${reportGeoJSON.features.length}`}
                 data={reportGeoJSON as any}
                 onEachFeature={onEachReport}
-                pointToLayer={(_feature, latlng) => {
-                  return L.circleMarker(latlng, {
+                pointToLayer={(_f, latlng) =>
+                  L.circleMarker(latlng, {
                     radius: 8,
                     fillColor: "#3b82f6",
                     color: "#fff",
                     weight: 2,
-                    opacity: 1,
                     fillOpacity: 0.8,
-                  });
-                }}
+                  })
+                }
               />
             )}
           </MapContainer>
+
           <div className="absolute top-4 left-20 z-1000">
             <button
               onClick={() => refetch()}
@@ -328,6 +587,7 @@ export default function Maps() {
               </span>
             </button>
           </div>
+
           <MapOverlays
             week={week}
             setWeek={setWeek}
@@ -343,15 +603,12 @@ export default function Maps() {
           isOpen={drawerOpen}
           onClose={() => {
             setDrawerOpen(false);
-            setActivePin(null); 
+            setActivePin(null);
             if (map && currentArea) {
               map.setView(
                 [currentArea.center_latitude, currentArea.center_longitude],
                 16,
-                {
-                  animate: true,
-                  duration: 1,
-                },
+                { animate: true },
               );
             }
           }}
@@ -361,11 +618,13 @@ export default function Maps() {
         />
       </main>
 
+      {/* FOOTER LEGEND MATRIX */}
       <footer className="flex flex-row justify-between items-stretch gap-4 p-4 w-full z-1003">
         <div className="bg-[#005D90] p-4 rounded-2xl flex-[1.5] relative">
           <div className="flex items-center justify-between mb-2 border-b border-blue-400/30 pb-2">
             <div className="flex items-center gap-3">
               <h3 className="text-xs font-black text-blue-200 uppercase tracking-widest">
+                {" "}
                 Location
               </h3>
               <p className="text-xs font-bold text-white uppercase truncate max-w-50">
@@ -385,10 +644,10 @@ export default function Maps() {
               value={searchQuery}
               onFocus={() => setIsOpen(true)}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-blue-900/40 text-white text-xs p-2.5 rounded-xl border border-blue-400/20 focus:outline-none focus:border-blue-400 placeholder:text-white/80"
+              className="w-full bg-blue-900/40 text-white text-xs p-2.5 rounded-xl border border-blue-400/20 focus:outline-none placeholder:text-white/80"
             />
             {isOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-48 overflow-y-auto z-2000 text-left">
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#fcfcfc] rounded-xl shadow-2xl border border-slate-200 max-h-48 overflow-y-auto z-2000 text-left">
                 {filteredAreas.length === 0 ? (
                   <div className="px-4 py-3 text-xs text-slate-400 text-center">
                     No areas found
@@ -397,9 +656,7 @@ export default function Maps() {
                   filteredAreas.map((area) => (
                     <button
                       key={area.area_id}
-                      onClick={() => {
-                        handleAreaSelect(area);
-                      }}
+                      onClick={() => handleAreaSelect(area)}
                       className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b last:border-0"
                     >
                       <p className="text-xs font-bold text-slate-800">
@@ -416,28 +673,22 @@ export default function Maps() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex-2 flex items-center justify-evenly">
-          {/* Legend logic... kept as per your design */}
+        <div className="bg-[#fcfcfc] border border-slate-200 p-4 rounded-2xl shadow-sm flex-2 flex items-center justify-evenly">
           <div className="text-left">
             <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
-              Density Legend
+              Litter Density
             </h3>
             <p className="text-xs font-bold text-slate-500 uppercase">
-              Detection Count
+              Clean Coast Index
             </p>
           </div>
           <div className="flex items-center gap-4">
-            {[
-              { label: "Low", color: "bg-[#22c55e]", desc: "1-3" },
-              { label: "Mid", color: "bg-[#eab308]", desc: "4-8" },
-              { label: "High", color: "bg-[#ea580c]", desc: "9-15" },
-              { label: "Crit", color: "bg-[#b91c1c]", desc: "16+" },
-              { label: "Verified", color: "bg-[#3b82f6]", desc: "Community" },
-            ].map((item) => (
-              <div key={item.label} className="flex flex-col items-center">
+            {CCI_LEGEND_ITEMS.map((item) => (
+              <div key={item.category} className="flex flex-col items-center">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <div
-                    className={`w-2.5 h-2.5 ${item.color} rounded-sm rotate-45 shadow-sm`}
+                    className="w-2.5 h-2.5 rounded-sm rotate-45 shadow-sm"
+                    style={{ backgroundColor: getCciColor(item.category) }}
                   />
                   <span className="text-xs font-black text-slate-700 uppercase">
                     {item.label}
@@ -452,98 +703,66 @@ export default function Maps() {
         </div>
       </footer>
 
-      {/* DETAIL MODAL */}
+      {/* DETAILED SPECIMEN INSPECTION MODAL */}
       {selectedItem && (
-        <div className="fixed inset-0 z-3000 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-4xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100">
-            {/* Image Section */}
-            <div className="relative h-64 bg-slate-100 group">
-              {selectedItem?.image ? (
-                <a href={selectedItem.image} target="_blank" rel="noreferrer">
-                  <img
-                    src={selectedItem.image}
-                    className="w-full h-full object-cover cursor-zoom-in transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="text-white font-bold text-xs bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md">
-                      Click to expand
-                    </span>
-                  </div>
-                </a>
-              ) : (
-                <div className="flex flex-col items-center">
-                  <div className="animate-spin h-6 w-6 border-2 border-[#005D90] border-t-transparent rounded-full mb-2" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Processing Image
-                  </span>
-                </div>
-              )}
+        <div className="fixed inset-0 z-3000 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-[#fcfcfc] rounded-4xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100">
+            <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+              <div className="text-left">
+                <h3 className="text-xl font-black text-[#005D90] uppercase tracking-tight leading-none">
+                  Detection Modal
+                </h3>
+                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">
+                  Context ID: #{selectedItem.id?.substring(0, 8) || "N/A"}
+                </p>
+              </div>
               <button
                 onClick={() => setSelectedItem(null)}
-                className="absolute top-4 right-4 bg-white p-2 rounded-full shadow-lg text-slate-800 hover:bg-slate-50 transition-colors"
+                className="bg-white p-2 rounded-full shadow border border-slate-200 text-slate-400 hover:bg-slate-50"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Info Section */}
-            <div className="p-8 text-left">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-2xl font-black text-[#005D90] uppercase tracking-tight leading-none">
-                    {selectedItem.type}
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">
-                    Source: {selectedItem.reporter}
-                  </p>
-                </div>
-                {selectedItem.detections?.length > 0 && (
-                  <div className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-[10px] font-black border border-red-100">
-                    AI VERIFIED
-                  </div>
-                )}
-              </div>
-
-              {/* AI Detections List */}
-              {selectedItem.detections?.length > 0 ? (
-                <div className="space-y-2 mb-6">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Detected Objects
-                  </p>
-                  {selectedItem.detections.map((det: any, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100"
-                    >
-                      <span className="text-sm font-bold text-slate-700">
-                        {det.label}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-green-500"
-                            style={{ width: `${det.confidence * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-black text-slate-500 w-8">
-                          {Math.round(det.confidence * 100)}%
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="p-6 space-y-4">
+              {/* RENDERS DYNAMIC CSS BOX LAYERS OVER RAW RESOURCE IMAGES */}
+              {selectedItem?.image ? (
+                <ImageWithBoundingBoxes
+                  imageUrl={selectedItem.image}
+                  detections={selectedItem.detections || []}
+                />
               ) : (
-                <p className="text-sm text-slate-600 leading-relaxed mb-6 pb-6">
-                  {selectedItem.description ||
-                    "No further details provided for this detection point."}
-                </p>
+                <div className="h-48 bg-slate-100 flex flex-col items-center justify-center rounded-2xl text-slate-400">
+                  <span className="text-xs font-bold uppercase tracking-wider">
+                    Asset Stream Loading...
+                  </span>
+                </div>
               )}
 
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    REPORT DETAILS
+                  </span>
+                  <div className="bg-blue-50 text-[#005D90] px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
+                    {selectedItem.reporter}
+                  </div>
+                </div>
+                <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                  {selectedItem.type}
+                </h4>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                  {selectedItem.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50/50">
               <button
                 onClick={() => setSelectedItem(null)}
-                className="w-full py-4 bg-[#005D90] text-white rounded-2xl font-black uppercase text-sm shadow-lg shadow-blue-900/20 hover:bg-[#004a73] transition-all active:scale-[0.98]"
+                className="w-full py-4 bg-[#005D90] text-white rounded-2xl font-black uppercase text-sm shadow-md hover:bg-[#004a73] transition-all"
               >
-                Close Details
+                Close
               </button>
             </div>
           </div>

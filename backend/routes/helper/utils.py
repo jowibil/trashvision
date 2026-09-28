@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, computed_field
 from typing import Optional, Dict, Any, List
 import uuid
 from uuid import UUID
@@ -48,7 +48,6 @@ class ReportPublic(BaseModel):
     reporter_name: str       
     latitude: float          
     longitude: float       
-
     class Config:
         from_attributes = True 
         
@@ -72,4 +71,4 @@ class FlightResponse(BaseModel):
     area_id: Optional[uuid.UUID] = None
     
     class Config:
-        form_attributes = True
+        from_attributes = True

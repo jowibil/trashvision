@@ -1,91 +1,35 @@
-from ultralytics import YOLO
-from PIL import Image
-import piexif
+# ml/detect.py or backend/config/ml_config.py
 import os
-import json
-from datetime import datetime
+from ultralytics import YOLO
 
-def extract_gps(image_path):
-    """Extract GPS coordinates from image EXIF metadata"""
-    try:
-        img = Image.open(image_path)
-        exif_data = piexif.load(img.info['exif'])
-        gps = exif_data.get('GPS', {})
+# Get the absolute root directory of your project
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        if not gps:
-            return None, None
+# Target the weights outside the backend directory explicitly
+WEIGHTS_PATH = os.path.join(BASE_DIR, "ml", "weights", "trashvision", "weights", "best.pt")
 
-        def convert_to_degrees(value):
-            d, m, s = value
-            return d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600
+class TrashDetector:
+    def __init__(self):
+        # Load the model directly using the structural path setup
+        if os.path.exists(WEIGHTS_PATH):
+            self.model = YOLO(WEIGHTS_PATH)
+            print(f"Custom YOLOv8 Engine successfully initialized with weights: {WEIGHTS_PATH}")
+        else:
+            raise FileNotFoundError(f"🚨 Could not find best.pt at {WEIGHTS_PATH}. Check your folder architecture.")
 
-        lat = convert_to_degrees(gps[piexif.GPSIFD.GPSLatitude])
-        lon = convert_to_degrees(gps[piexif.GPSIFD.GPSLongitude])
-
-        if gps[piexif.GPSIFD.GPSLatitudeRef] == b'S':
-            lat = -lat
-        if gps[piexif.GPSIFD.GPSLongitudeRef] == b'W':
-            lon = -lon
-
-        return lat, lon
-    except Exception as e:
-        print(f"Could not extract GPS from {image_path}: {e}")
-        return None, None
-
-
-def process_batch(image_folder):
-    """Process a folder of drone images through the trained model"""
-
-    # Load your trained model
-    model = YOLO('weights/trashvision/weights/best.pt')
-
-    results_log = []
-
-    image_extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG')
-    images = [f for f in os.listdir(image_folder) if f.endswith(image_extensions)]
-
-    print(f"Found {len(images)} images to process...")
-
-    for image_file in images:
-        image_path = os.path.join(image_folder, image_file)
-
-        # Extract GPS and timestamp from image
-        lat, lon = extract_gps(image_path)
-        timestamp = datetime.now().isoformat()  # or extract from EXIF
-
-        # Run model on image
-        results = model(image_path, conf=0.5)  # conf = confidence threshold
-
+    def run_inference(self, file_path: str):
+        results = self.model(file_path, conf=0.25) # Run model prediction
+        detections = []
+        
         for result in results:
             for box in result.boxes:
-                waste_type = model.names[int(box.cls)]
-                confidence = float(box.conf)
+                # Format to match your detection_service schema
+                detections.append({
+                    "classification": self.model.names[int(box.cls[0])],
+                    "confidence_score": float(box.conf[0]),
+                    "bounding_box": [float(x) for x in box.xyxy[0].tolist()]
+                })
+        return detections
 
-                detection = {
-                    'image': image_file,
-                    'waste_type': waste_type,
-                    'confidence': confidence,
-                    'latitude': lat,
-                    'longitude': lon,
-                    'timestamp': timestamp
-                }
-
-                results_log.append(detection)
-                print(f"  Detected: {waste_type} ({confidence:.2f}) at {lat}, {lon}")
-
-    # Save results to JSON for now (later this goes directly to your database)
-    output_path = 'detection_results.json'
-    with open(output_path, 'w') as f:
-        json.dump(results_log, f, indent=2)
-
-    print(f"\nDone. {len(results_log)} detections saved to {output_path}")
-    return results_log
-
-
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', required=True, help='Path to folder of drone images')
-    args = parser.parse_args()
-
-    process_batch(args.input)
+# Instantiate the singleton engine instance
+trash_detector = TrashDetector()

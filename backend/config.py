@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str
     SMTP_EMAIL: str
     SMTP_PASSWORD: str
+    GEMINI_API_KEY: str
+    GEMINI_MODEL_NAME: str
 
     class Config:
         env_file = env_path

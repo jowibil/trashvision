@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import * as turf from '@turf/turf';
 
+export interface Detection {
+  label: string;
+  confidence: number;
+  bbox: [number, number, number, number]; // [x1, y1, x2, y2]
+}
+
 export interface Report {
   report_id: string;
   waste_type: string;
@@ -11,6 +17,8 @@ export interface Report {
   latitude: number;
   longitude: number;
   reporter_name: string;
+  detections?: Detection[];
+  timestamp?: Date;   
 }
 
 export const useReports = (status: string = 'verified') => {
@@ -22,13 +30,11 @@ export const useReports = (status: string = 'verified') => {
     const fetchReports = async () => {
       try {
         setLoading(true);
-        // Using trailing slash to prevent CORS redirect issues
         const response = await api.get(`/reports/?status=${status}`);
         const data: Report[] = response.data;
         
         setReports(data);
 
-        // Transform into GeoJSON Points
         const features = data.map((report) => 
           turf.point([report.longitude, report.latitude], {
             id: report.report_id,

@@ -25,7 +25,7 @@ class Detection {
       lat: json['latitude'].toDouble(),
       lng: json['longitude'].toDouble(),
       isManual: json['is_manual'] ?? false,
-      imageUrl: json['file_url'], // From the joined Image table
+      imageUrl: json['file_url'],
     );
   }
 }

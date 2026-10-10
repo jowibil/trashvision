@@ -108,9 +108,3 @@ Never commit real secrets from `backend/.env` or `mobile/.env`. Config comes fro
 - `main.py` inserts the project root into `sys.path`; run uvicorn from inside `backend/`.
 - Web is TypeScript-strict: `npm run build` runs `tsc -b` — typecheck before handing off.
 - Flutter package name is `TrashVision` (capital T, V) — imports read `package:TrashVision/...`.
-
-## CAVEATS
-
-- This README used to be the stale Vite template shipped by Vite init; it has been rewritten
-  to match the actual TrashVision project above. If the app stops matching this description,
-  update the README — don't let it drift again.

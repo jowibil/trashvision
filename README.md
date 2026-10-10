@@ -28,9 +28,6 @@ uvicorn main:app --reload
 
 Migrations: `alembic upgrade head`.
 
-The backend requires `backend/.env` with `DATABASE_URL`, `SECRET_KEY`, `CLOUDINARY_*`,
-`SMTP_EMAIL`, `SMTP_PASSWORD`, `GEMINI_API_KEY`, `GEMINI_MODEL_NAME`.
-
 ### Web
 
 ```bash
@@ -59,10 +56,6 @@ flutter test
 Routers (prefix → file): `/auth` auth, `/detections` detections, `/mobile/map` mobile_map,
 `/reports` reports, `/logs` logs, `/areas` areas, `/flights` flights, `/users` users,
 `/gemini` chat.
-
-Auth is role-based: `guest` < `community` < `admin`. Backend guards endpoints with
-`require_role()` / `get_current_active_admin` from `dependency.py`; web gates admin routes
-with `ProtectedRouteHelper`; mobile has no admin surface.
 
 **Web** — React 19 + TypeScript + Vite + Tailwind 4 + react-router-dom 7 + axios +
 react-hot-toast. Map is Leaflet + react-leaflet + leaflet.heat + @geoman-io/leaflet-geoman-free
@@ -96,11 +89,6 @@ clustering.
 
 Mobile `sync_services.dart` queues reports offline; ensure new write endpoints stay
 idempotent-friendly and don't assume instant connectivity.
-
-## Secrets
-
-Never commit real secrets from `backend/.env` or `mobile/.env`. Config comes from
-`pydantic-settings` (backend) / `flutter_dotenv` (mobile).
 
 ## Gotchas
 

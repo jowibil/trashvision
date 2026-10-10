@@ -16,8 +16,8 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-100 h-20 flex items-center justify-center">
-                <img src={LOGO} alt="TrashVision Logo with Tagline" />
+              <div className="flex items-center justify-center md:justify-start">
+                <img src={LOGO} alt="TrashVision Logo with Tagline" className="h-16 md:h-20 w-auto" />
               </div>
             </div>
           </div>

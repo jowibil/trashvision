@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import '../helper/cloudinary_helper.dart';
 import '../models/mobile_map_models.dart';
 
 /// Paints detection bounding boxes over a drone frame. `box2d` holds absolute
@@ -114,19 +115,9 @@ class _ImageDetailDialogState extends State<ImageDetailDialog> {
   bool get _hasDbDimensions =>
       (widget.img.imageWidth ?? 0) > 0 && (widget.img.imageHeight ?? 0) > 0;
 
-  String get _displayUrl =>
-      _hasDbDimensions ? _thumbUrl(widget.img.fileUrl) : widget.img.fileUrl;
-
-  /// Cloudinary thumbnail transform, sized generously so box labels stay
-  /// legible. Same trick as the drawer's cloudinaryThumbUrl (mapview.dart);
-  /// falls back to the raw URL for non-Cloudinary hosts.
-  String _thumbUrl(String url) {
-    const marker = '/upload/';
-    final idx = url.indexOf(marker);
-    if (idx == -1) return url;
-    final insertAt = idx + marker.length;
-    return '${url.substring(0, insertAt)}w_1280,c_limit,q_auto,f_auto/${url.substring(insertAt)}';
-  }
+  String get _displayUrl => _hasDbDimensions
+      ? cloudinaryTransformUrl(widget.img.fileUrl, kCloudinaryDetailLarge)
+      : widget.img.fileUrl;
 
   @override
   void initState() {

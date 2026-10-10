@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
+from dependency import require_public
 from models.trash_log import TrashLog
 from models.detection import Detection
 from models.report import Report
@@ -13,10 +14,15 @@ import uuid
 
 router = APIRouter()
 
+# SECURITY: log/summary reads are PUBLIC (product decision 2026-10: the web
+# Dashboard browses logged-out via "Open Forecast"; /logs/summary also feeds
+# the mobile profile screen for logged-in users).
+
 @router.get("/")
 def get_trash_logs(
     area_id: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _user=Depends(require_public()),
 ):
     query = db.query(TrashLog)
     if area_id:
@@ -24,7 +30,10 @@ def get_trash_logs(
     return query.order_by(TrashLog.last_updated.desc()).all()
 
 @router.get("/summary")
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(
+    db: Session = Depends(get_db),
+    _user=Depends(require_public()),
+):
     total_detections = db.query(func.count(Detection.detection_id)).scalar() or 0
 
     frequent_query = db.query(
@@ -112,7 +121,11 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     }
 
 @router.get("/{area_id}")
-def get_logs_by_area(area_id: str, db: Session = Depends(get_db)):
+def get_logs_by_area(
+    area_id: str,
+    db: Session = Depends(get_db),
+    _user=Depends(require_public()),
+):
     return db.query(TrashLog).filter(
         TrashLog.area_id == uuid.UUID(area_id)
     ).order_by(TrashLog.last_updated.desc()).all()

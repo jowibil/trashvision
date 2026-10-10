@@ -1,54 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-// Thumbnail decoding for the drawer's 100px cells: CachedNetworkImage
-// disk/mem-caches the bytes and memCacheWidth caps the decoded bitmap size
-// (audit #6: Image.network decoded full-res drone imagery with no cache
-// bound -> OOM crashes on mid-range devices).
-import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/image_detail_dialog.dart';
+import '../widgets/sector_panel.dart';
 import '../config/theme.dart';
 import '../config/app_config.dart';
 import '../models/mobile_map_models.dart';
+import '../services/map_offline_tile_cache.dart';
 import '../services/mobile_map_service.dart';
-
-// ─── Cloudinary Thumbnail Helper ──────────────────────────────────────────────
-/// FIX (audit #2.4 - "Lazy Image Loading & OOM Prevention", biggest single
-/// win per the audit): backend/services/cloudinary_service.py uploads via
-/// `cloudinary.uploader.upload(...)` and returns the raw `secure_url` with no
-/// transform applied, so the drawer was downloading the full original drone
-/// frame (often several MB / 4K) just to show a 100px thumbnail. Cloudinary
-/// renders any transform on-demand by inserting params into the URL path
-/// after `/upload/` — this needs NO backend change, since Cloudinary derives
-/// the thumbnail from the original upload at request time.
-///
-/// Falls back to the untouched URL if it doesn't look like a Cloudinary
-/// `/upload/` URL (e.g. local/dev fixtures), so this never breaks non-prod data.
-String cloudinaryThumbUrl(String url) {
-  const marker = '/upload/';
-  final idx = url.indexOf(marker);
-  if (idx == -1) return url;
-  final insertAt = idx + marker.length;
-  return '${url.substring(0, insertAt)}w_320,h_240,c_fill,q_auto,f_auto/${url.substring(insertAt)}';
-}
+import '../widgets/report_detail_sheet.dart';
+import '../widgets/skeleton.dart';
 
 // ─── Design Theme Utilities ──────────────────────────────────────────────────
-Color getDensityColor(int count) {
-  if (count > 10) return const Color(0xFFb91c1c);
-  if (count > 5) return const Color(0xFFea580c);
-  if (count > 2) return const Color(0xFFeab308);
-  return const Color(0xFF22c55e);
-}
-
-String getDensityLabel(int count) {
-  if (count > 10) return 'CRITICAL';
-  if (count > 5) return 'HIGH';
-  if (count > 2) return 'MID';
-  return 'LOW';
-}
-
 // ─── Map View Widget ─────────────────────────────────────────────────────────
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -57,12 +23,19 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView> {
+class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   List<AreaModel> areas = [];
   AreaModel? currentArea;
   
   List<HexBin> hexbins = [];
+
+  // Community layer: verified citizen reports for the selected area
+  // (secondary layer — failures leave the map fully functional, hexbins are
+  // the primary layer).
+  List<ReportPin> reportPins = [];
+  bool showReports = true;
+  bool reportsFailed = false;
   List<DroneImage> drawerImages = [];
   // FIX (Step 4): distinguishes "batch request failed" from "sector is empty"
   // — the drawer previously showed the same 'No images found' text for both.
@@ -72,6 +45,10 @@ class _MapViewState extends State<MapView> {
   DateTime selectedDate = DateTime.now();
   int week = 4;
   int threshold = 2;
+  // Window mode (product decision 2026-10): "month" = per-month reporting
+  // view (calendar + week chips); "accumulated" = Jan 1 → end of the picked
+  // month, no week chips, higher min/cell slider ceiling. Default: month.
+  String viewMode = 'month';
   // FIX (audit #14 - "Manual zoom tracking rebuilds the entire widget tree"):
   // this used to be a plain `double zoom` mutated via setState() inside
   // onMapEvent, so every pan/zoom frame rebuilt the whole screen (map tiles,
@@ -79,12 +56,25 @@ class _MapViewState extends State<MapView> {
   // below. A ValueNotifier + ValueListenableBuilder scopes the rebuild to
   // just those layers.
   final ValueNotifier<double> _zoomNotifier = ValueNotifier<double>(15);
+
+  // Hex polygons are their own tap targets: the layer reports hits through
+  // this notifier (populated during MapOptions.onTap's hit test), which
+  // replaces the old count-bubble MarkerLayer entirely.
+  final LayerHitNotifier<HexBin> _hexHitNotifier = ValueNotifier(null);
+
+  // Camera flight animation (see _animatedMove).
+  AnimationController? _cameraAnim;
   String searchQuery = '';
   bool searchOpen = false;
   bool loading = false;
   // Distinguishes "network/HTTP failure" from "legitimately no data" — the
   // old UI rendered the same 'No detections' toast for both.
   String? loadError;
+
+  // Offline-first (cache-then-network): true when the currently displayed
+  // areas/hexbins came from the on-device cache. Drives the amber
+  // "cached data" banner so users know it may be stale, without hiding data.
+  bool showingCachedData = false;
 
   // FIX (audit #6 remediation - "Cap the drawer list (page size 20, load
   // more)"): a sector's image_ids can number in the hundreds; fetching /
@@ -109,6 +99,7 @@ class _MapViewState extends State<MapView> {
   void dispose() {
     _filterDebounce?.cancel();
     _zoomNotifier.dispose();
+    _cameraAnim?.dispose();
     super.dispose();
   }
 
@@ -118,40 +109,74 @@ class _MapViewState extends State<MapView> {
   }
 
   Future<void> _loadAreas() async {
-    final data = await MobileMapService.getAreas();
+    // Cache-then-network: cached areas render instantly (also offline);
+    // a fresh fetch replaces them when the network cooperates.
+    final result = await MobileMapService.getAreasCached();
     if (!mounted) return;
-    if (data == null) {
+    if (result.data == null) {
       setState(() => loadError = 'Could not load areas. Check your connection.');
       return;
     }
     setState(() {
       loadError = null;
-      areas = data;
-      if (data.isNotEmpty) currentArea = data.first;
+      showingCachedData = result.fromCache;
+      areas = result.data!;
+      if (areas.isNotEmpty && currentArea == null) currentArea = areas.first;
     });
-    if (data.isNotEmpty) await _fetchMapData(data.first.areaId);
+    if (areas.isNotEmpty) {
+      await _fetchMapData(areas.first.areaId);
+      await _fetchReportPins(areas.first.areaId);
+    }
+  }
+
+  /// Verified community report pins for the area (cache-then-network).
+  /// Deliberately quiet on failure: no full-width banner for a secondary
+  /// layer — the toggle in the controls panel shows a small offline icon.
+  Future<void> _fetchReportPins(String areaId) async {
+    try {
+      final result = await MobileMapService.getReportPinsCached(areaId);
+      if (!mounted) return;
+      setState(() {
+        reportPins = result.data!;
+        reportsFailed = false;
+      });
+    } catch (e) {
+      debugPrint('fetchReportPins error: $e');
+      if (!mounted) return;
+      setState(() => reportsFailed = true);
+    }
   }
 
   Future<void> _fetchMapData(String areaId) async {
+    // Show whatever we already have immediately (stale-while-revalidate);
+    // don't blank the map during a refresh.
     setState(() {
       loading = true;
       loadError = null;
     });
     try {
-      final bins = await MobileMapService.getHexBins(
+      final result = await MobileMapService.getHexBinsCached(
         areaId: areaId,
         selectedDate: selectedDate,
         week: week,
         threshold: threshold,
+        mode: viewMode,
       );
       if (!mounted) return;
-      setState(() => hexbins = bins);
+      setState(() {
+        hexbins = result.data!;
+        // Only flag cached data if the FRESH fetch didn't just succeed.
+        showingCachedData = result.fromCache;
+      });
     } catch (e) {
       debugPrint('fetchMapData error: $e');
       if (!mounted) return;
       // Keep stale hexbins visible instead of wiping them on a transient
-      // failure, but tell the user the refresh didn't happen.
-      setState(() => loadError = 'Map data failed to load. Retry by changing filters.');
+      // failure, but tell the user the refresh didn't happen. If the bins on
+      // screen came from the cache, say so explicitly.
+      setState(() => loadError = showingCachedData
+          ? 'Offline — showing cached map data.'
+          : 'Map data failed to load. Retry by changing filters.');
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -174,8 +199,9 @@ class _MapViewState extends State<MapView> {
       searchQuery = '';
     });
     _closeDrawer();
-    _mapController.move(LatLng(area.centerLatitude, area.centerLongitude), 15);
+    _animatedMove(LatLng(area.centerLatitude, area.centerLongitude), 15);
     _fetchMapData(area.areaId);
+    _fetchReportPins(area.areaId);
   }
 
   void _onFilterChanged() {
@@ -184,15 +210,45 @@ class _MapViewState extends State<MapView> {
     }
   }
 
+  /// Curve-animated camera flight for area select + sector tap. Plain
+  /// `move()` teleports and reads as "jumpy"; this tweens center + zoom over
+  /// the shared motion duration. Starting a new flight replaces the old one
+  /// (the previous controller is disposed lazily on the next flight/dispose).
+  void _animatedMove(LatLng target, double targetZoom) {
+    _cameraAnim?.dispose();
+    final camera = _mapController.camera;
+    final controller = AnimationController(vsync: this, duration: motionDuration);
+    _cameraAnim = controller;
+
+    final latTween = Tween<double>(begin: camera.center.latitude, end: target.latitude)
+        .animate(CurvedAnimation(parent: controller, curve: motionCurve));
+    final lngTween = Tween<double>(begin: camera.center.longitude, end: target.longitude)
+        .animate(CurvedAnimation(parent: controller, curve: motionCurve));
+    final zoomTween = Tween<double>(begin: camera.zoom, end: targetZoom)
+        .animate(CurvedAnimation(parent: controller, curve: motionCurve));
+
+    void tick() {
+      if (!mounted) return;
+      _mapController.move(LatLng(latTween.value, lngTween.value), zoomTween.value);
+    }
+
+    controller.addListener(tick);
+    controller.forward();
+  }
+
   void _onHexTap(HexBin hex) async {
+    // Subtle tactile confirmation that the sector was registered.
+    HapticFeedback.selectionClick();
     // HexBin already computes its centroid in its constructor — reuse it
     // instead of re-reducing the polygon on every tap.
     final center = hex.center;
 
-    // FIX (audit #6 remediation): only fetch/render the first page of image
-    // ids up front; the rest stay pending until "load more" is tapped.
-    final firstPage = hex.imageIds.take(_imagePageSize).toList();
-    final remaining = hex.imageIds.skip(_imagePageSize).toList();
+    // The cell's items (detection ids on current backends, image ids on
+    // legacy ones). Only the first page is fetched up front (audit #6);
+    // the rest stay pending until "load more" is tapped.
+    final cellIds = hex.detectionIds.isNotEmpty ? hex.detectionIds : hex.imageIds;
+    final firstPage = cellIds.take(_imagePageSize).toList();
+    final remaining = cellIds.skip(_imagePageSize).toList();
 
     setState(() {
       selectedSector = hex;
@@ -201,10 +257,13 @@ class _MapViewState extends State<MapView> {
       drawerError = false;
       _pendingImageIds = remaining;
     });
-    _mapController.move(center, 18);
+    _animatedMove(center, 18);
 
     try {
-      final images = await MobileMapService.getBatchImages(firstPage);
+      final isDetectionContract = hex.detectionIds.isNotEmpty;
+      final images = isDetectionContract
+          ? await MobileMapService.getBatchDetections(firstPage)
+          : await MobileMapService.getBatchImages(firstPage);
       if (!mounted) return;
       setState(() {
         drawerImages = images;
@@ -228,7 +287,10 @@ class _MapViewState extends State<MapView> {
     final remaining = _pendingImageIds.skip(_imagePageSize).toList();
 
     try {
-      final images = await MobileMapService.getBatchImages(nextPage);
+      final isDetectionContract = selectedSector?.detectionIds.isNotEmpty ?? false;
+      final images = isDetectionContract
+          ? await MobileMapService.getBatchDetections(nextPage)
+          : await MobileMapService.getBatchImages(nextPage);
       if (!mounted) return;
       setState(() {
         drawerImages = [...drawerImages, ...images];
@@ -244,6 +306,18 @@ class _MapViewState extends State<MapView> {
         const SnackBar(content: Text("Couldn't load more images. Tap +N to retry.")),
       );
     }
+  }
+
+  /// Community report pin tap: tactile confirm, glide to the pin, detail
+  /// sheet. Markers are real widgets, so this gesture wins the arena over
+  /// MapOptions.onTap — a pin tap never leaks into the hex hit-notifier.
+  void _onReportPinTap(ReportPin pin) {
+    HapticFeedback.selectionClick();
+    _animatedMove(LatLng(pin.latitude, pin.longitude), 17);
+    showDialog(
+      context: context,
+      builder: (context) => ReportDetailSheet(pin: pin),
+    );
   }
 
   void _showImageDetails(DroneImage img) {
@@ -313,10 +387,18 @@ class _MapViewState extends State<MapView> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: loading ? const CircularProgressIndicator(strokeWidth: 2, color: primaryBlue) : null,
+                  // Refresh indicator: shimmer pill (fixed slot height, so
+                  // the header row never jitters when it appears/vanishes).
+                  AnimatedSwitcher(
+                    duration: motionDuration,
+                    child: loading
+                        ? const SkeletonBox(
+                            key: ValueKey('header-loading'),
+                            width: 64,
+                            height: 18,
+                            radius: BorderRadius.all(Radius.circular(9)),
+                          )
+                        : const SizedBox.shrink(key: ValueKey('header-idle')),
                   ),
                 ],
               ),
@@ -390,6 +472,14 @@ class _MapViewState extends State<MapView> {
                       _zoomNotifier.value = e.camera.zoom;
                     },
                     onTap: (tapPos, latLng) {
+                      // The polygon layer populates its hit notifier during
+                      // this tap's hit test — a hex hit opens the sector,
+                      // anything else closes the drawer.
+                      final hit = _hexHitNotifier.value;
+                      if (hit != null && hit.hitValues.isNotEmpty) {
+                        _onHexTap(hit.hitValues.first);
+                        return;
+                      }
                       if (drawerOpen) _closeDrawer();
                     },
                   ),
@@ -399,24 +489,14 @@ class _MapViewState extends State<MapView> {
                       tileDimension: 512,
                       zoomOffset: -1,
                       userAgentPackageName: 'com.example.mobile',
-                    ),
-
-                    RepaintBoundary(
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _zoomNotifier,
-                        builder: (context, zoom, _) {
-                          if (zoom >= 18 || hexbins.isEmpty) return const SizedBox.shrink();
-                          return PolygonLayer(
-                            polygons: hexbins
-                                .map((hex) => Polygon(
-                                      points: hex.polygon,
-                                      color: getDensityColor(hex.count).withValues(alpha: 0.45),
-                                      borderColor: Colors.white.withValues(alpha: 0.7),
-                                      borderStrokeWidth: 1,
-                                    ))
-                                .toList(),
-                          );
-                        },
+                      // Offline-first tile caching: MapOfflineTileCache serves
+                      // cached tiles WITHOUT deleting them when a refresh
+                      // fails (the built-in cache evicts on network error,
+                      // which made it useless offline). Tiles persist in the
+                      // app support dir across restarts.
+                      tileProvider: NetworkTileProvider(
+                        cachingProvider: MapOfflineTileCache.instance,
+                        silenceExceptions: true,
                       ),
                     ),
 
@@ -425,30 +505,80 @@ class _MapViewState extends State<MapView> {
                         valueListenable: _zoomNotifier,
                         builder: (context, zoom, _) {
                           if (zoom >= 18 || hexbins.isEmpty) return const SizedBox.shrink();
+                          return PolygonLayer<HexBin>(
+                            // Hex polygons are the only interactive layer:
+                            // taps are reported via _hexHitNotifier (see
+                            // MapOptions.onTap) — no marker overlay needed.
+                            hitNotifier: _hexHitNotifier,
+                            simplificationTolerance: 0.4,
+                            polygons: hexbins
+                                .map((hex) => Polygon(
+                                      points: hex.polygon,
+                                      // CCI (size-invariant), not raw count:
+                                      // cell sizes are adaptive per area, so
+                                      // counts alone would compare apples to
+                                      // oranges across areas.
+                                      color: getCciColor(hex.cci).withValues(alpha: 0.45),
+                                      borderColor: Colors.white.withValues(alpha: 0.7),
+                                      borderStrokeWidth: 1,
+                                      hitValue: hex,
+                                      // Count rendered on-canvas at the cell
+                                      // centroid — replaces the old per-hex
+                                      // marker widgets.
+                                      label: '${hex.count}',
+                                      labelStyle: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        shadows: [
+                                          Shadow(blurRadius: 3, color: Color(0x990F172A)),
+                                        ],
+                                      ),
+                                    ))
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ),
+
+
+                    RepaintBoundary(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _zoomNotifier,
+                        builder: (context, zoom, _) {
+                          // Community layer: verified report pins fill the
+                          // mid-zoom gap (hexes get coarse below 18, detection
+                          // circles only show at 18). Distinct silhouette:
+                          // brand-blue pin vs. flat detection dots.
+                          if (!showReports || zoom < 16 || reportPins.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
                           return MarkerLayer(
-                            markers: hexbins.map((hex) {
+                            markers: reportPins.map((pin) {
                               return Marker(
-                                point: hex.center,
-                                width: 34,
-                                height: 34,
+                                point: LatLng(pin.latitude, pin.longitude),
+                                width: 30,
+                                height: 30,
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
-                                  onTap: () => _onHexTap(hex),
+                                  onTap: () => _onReportPinTap(pin),
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.4),
+                                      color: primaryBlue,
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 1.5),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        '${hex.count}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: primaryBlue.withValues(alpha: 0.35),
+                                          blurRadius: 5,
+                                          spreadRadius: -1,
                                         ),
-                                      ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.location_on_rounded,
+                                      size: 14,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
@@ -483,6 +613,47 @@ class _MapViewState extends State<MapView> {
 
                 if (!drawerOpen && !searchOpen) _buildControls(),
                 if (drawerOpen && selectedSector != null) _buildDrawer(),
+
+                // Offline-first: when the displayed bins/areas came from the
+                // on-device cache (network failed), say so — quietly, without
+                // hiding the data. Tappable to retry like the error banner.
+                if (!loading &&
+                    showingCachedData &&
+                    loadError == null &&
+                    !drawerOpen &&
+                    hexbins.isNotEmpty)
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    child: GestureDetector(
+                      onTap: () {
+                        final area = currentArea;
+                        if (area != null) _fetchMapData(area.areaId);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFb45309).withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.cloud_off, color: Colors.white, size: 14),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Offline — showing cached map data. Tap to retry.',
+                                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            const Icon(Icons.refresh, color: Colors.white, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // FIX: network failures used to be indistinguishable from
                 // empty data. Now they surface as a distinct, tappable error
@@ -549,342 +720,407 @@ class _MapViewState extends State<MapView> {
   }
 
   Widget _buildControls() {
+    // One double-bezel glass panel, hairline-divided into three sections:
+    // threshold slider, period picker, legend. Staggers in on mount.
     return Positioned(
       top: 12,
       right: 12,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Container(
-            width: 190,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'MIN/CELL',
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF94a3b8), letterSpacing: 0.8),
-                    ),
-                    Text('$threshold', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: primaryBlue)),
-                  ],
-                ),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                  ),
-                  child: Slider(
-                    value: threshold.toDouble(),
-                    min: 1,
-                    max: 15,
-                    activeColor: primaryBlue,
-                    inactiveColor: const Color(0xFFe2e8f0),
-                    onChanged: (v) {
-                      setState(() => threshold = v.round());
-                      // FIX: debounced instead of firing a request per pixel dragged.
-                      _onFilterChangedDebounced();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: 190,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0f172a).withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                    );
-                    if (picked != null) {
-                      setState(() => selectedDate = picked);
-                      _onFilterChanged();
-                    }
-                  },
-                  child: Row(
+      child: Builder(builder: (context) {
+          // Adaptive width: wider panel on tablets/landscape (decide on
+          // available space, not device type). NOTE: a Positioned child of
+          // the map's Stack has unbounded width, so a LayoutBuilder here
+          // would always see maxWidth == infinity — read the viewport
+          // instead.
+          final panelWidth = MediaQuery.sizeOf(context).width > 600 ? 240.0 : 196.0;
+
+          return StaggerIn(
+            0,
+            child: MapPanel(
+              width: panelWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // VIEW MODE — segmented pill (per-month vs accumulated),
+                  // same visual language as the web's control panel.
+                  Row(
                     children: [
-                      const Icon(Icons.calendar_today, color: Color(0xFF60a5fa), size: 11),
-                      const SizedBox(width: 5),
+                      for (final m in const [('Per month', 'month'), ('Accumulated', 'accumulated')])
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              if (viewMode == m.$2) return;
+                              setState(() {
+                                viewMode = m.$2;
+                                // Accumulated windows hold many more
+                                // detections: the min/cell slider ceiling
+                                // rises to 100 (product spec).
+                                if (viewMode == 'accumulated' && threshold > 100) {
+                                  threshold = 100;
+                                }
+                              });
+                              _onFilterChanged();
+                            },
+                            child: AnimatedContainer(
+                              duration: motionDuration,
+                              curve: motionCurve,
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: viewMode == m.$2 ? primaryBlue : primaryBlue.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Text(
+                                m.$1,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: viewMode == m.$2 ? Colors.white : primaryBlue.withValues(alpha: 0.75),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  const Hairline(),
+
+                  // MIN / CELL — ceiling adapts to the mode (15 monthly /
+                  // 100 accumulated).
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Eyebrow('Min / cell'),
                       Text(
-                        '${_shortMonth(selectedDate.month)} ${selectedDate.year}',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
-                      const Spacer(),
-                      Text(
-                        'up to ${week == 4 ? "end" : "${_shortMonth(selectedDate.month)} ${week * 7}"}',
-                        style: const TextStyle(fontSize: 9, color: Color(0xFF60a5fa)),
+                        '$threshold',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: primaryBlue,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: List.generate(4, (i) {
-                    final w = i + 1;
-                    final isActive = week == w;
-                    return Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() => week = w);
-                          _onFilterChanged();
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                          padding: const EdgeInsets.symmetric(vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isActive ? const Color(0xFF3b82f6) : const Color(0xFF1e293b),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'W$w',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isActive ? Colors.white : const Color(0xFF64748b)),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6)],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _legendDot(const Color(0xFF22c55e), 'Low'),
-                _legendDot(const Color(0xFFeab308), 'Mid'),
-                _legendDot(const Color(0xFFea580c), 'High'),
-                _legendDot(const Color(0xFFb91c1c), 'Crit'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _legendDot(Color color, String label) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Row(
-          children: [
-            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-            const SizedBox(width: 3),
-            Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF64748b))),
-          ],
-        ),
-      );
-
-  Widget _buildDrawer() {
-    final hex = selectedSector!;
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 16)],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: getDensityColor(hex.count).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                      activeTrackColor: primaryBlue,
+                      inactiveTrackColor: const Color(0xFFe2e8f0),
+                      thumbColor: Colors.white,
+                      overlayColor: primaryBlue.withValues(alpha: 0.08),
                     ),
+                    child: Slider(
+                      value: threshold.clamp(1, viewMode == 'accumulated' ? 100 : 15).toDouble(),
+                      min: 1,
+                      max: viewMode == 'accumulated' ? 100 : 15,
+                      onChanged: (v) {
+                        setState(() => threshold = v.round());
+                        // Debounced: one request per settled value.
+                        _onFilterChangedDebounced();
+                      },
+                    ),
+                  ),
+
+                  const Hairline(),
+
+                  // PERIOD — calendar always; the label explains the active
+                  // window (week cutoff vs Jan→month accumulation).
+                  const Eyebrow('Period'),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() => selectedDate = picked);
+                        _onFilterChanged();
+                      }
+                    },
                     child: Row(
                       children: [
-                        Container(width: 8, height: 8, decoration: BoxDecoration(color: getDensityColor(hex.count), shape: BoxShape.circle)),
-                        const SizedBox(width: 5),
+                        const Icon(Icons.calendar_today_rounded, color: primaryBlue, size: 12),
+                        const SizedBox(width: 6),
                         Text(
-                          '${getDensityLabel(hex.count)}  ·  ${hex.count} image${hex.count != 1 ? 's' : ''}',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: getDensityColor(hex.count)),
+                          viewMode == 'accumulated'
+                              ? 'Jan – ${_shortMonth(selectedDate.month)} ${selectedDate.year}'
+                              : '${_shortMonth(selectedDate.month)} ${selectedDate.year}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0f172a)),
+                        ),
+                        const Spacer(),
+                        Text(
+                          viewMode == 'accumulated'
+                              ? 'accumulated'
+                              : (week == 4 ? 'to end' : 'to ${_shortMonth(selectedDate.month)} ${week * 7}'),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748b)),
                         ),
                       ],
                     ),
                   ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: _closeDrawer,
-                    child: const Icon(Icons.close, size: 18, color: Color(0xFF94a3b8)),
+                  // Week chips only exist in the per-month view — the
+                  // accumulated window always runs to month end.
+                  if (viewMode == 'month') ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: List.generate(4, (i) {
+                        final w = i + 1;
+                        final isActive = week == w;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => week = w);
+                              _onFilterChanged();
+                            },
+                            child: AnimatedContainer(
+                              duration: motionDuration,
+                              curve: motionCurve,
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                // Brand pill when active; quiet tint when not.
+                                color: isActive ? primaryBlue : primaryBlue.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Text(
+                                'W$w',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isActive ? Colors.white : primaryBlue.withValues(alpha: 0.75),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+
+                  const Hairline(),
+
+                  // DENSITY LEGEND - CCI scale (single source of truth in
+                  // theme.dart, mirrors the web's 5-band legend).
+                  const Eyebrow('Density (CCI)'),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        for (final (color, label) in cciScale) _legendDot(color, label),
+                      ],
+                    ),
+                  ),
+
+                  const Hairline(),
+
+                  // COMMUNITY REPORTS toggle (verified citizen reports as
+                  // pins from zoom 16). The cloud icon appears when the
+                  // pins couldn't be fetched and no cache exists.
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded, size: 12, color: primaryBlue),
+                            const SizedBox(width: 5),
+                            const Text(
+                              'Report pins',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                            if (reportsFailed) ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.cloud_off_rounded, size: 11, color: Color(0xFFb45309)),
+                            ],
+                          ],
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => showReports = !showReports),
+                          child: AnimatedContainer(
+                            duration: motionDuration,
+                            curve: motionCurve,
+                            width: 34,
+                            height: 18,
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: showReports ? primaryBlue : primaryBlue.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: AnimatedAlign(
+                              duration: motionDuration,
+                              curve: motionCurve,
+                              alignment: showReports ? Alignment.centerRight : Alignment.centerLeft,
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            // FIX (audit #15): EdgeInsetsPadding was a one-line wrapper
-            // used exactly once — inlined as a plain SizedBox.
-            SizedBox(
-              height: 110,
-              child: loading
-                  ? const Center(child: CircularProgressIndicator(color: primaryBlue, strokeWidth: 2))
-                  : drawerError
-                      // FIX (Step 4): a failed batch request is not the same
-                      // as an empty sector — show a retryable error row
-                      // instead of the misleading 'No images found' text.
-                      ? GestureDetector(
-                          onTap: () {
-                            final sector = selectedSector;
-                            if (sector != null) _onHexTap(sector);
-                          },
-                          child: Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.wifi_off, size: 14, color: Color(0xFFb91c1c)),
-                                SizedBox(width: 6),
-                                Text(
-                                  "Couldn't load images. Tap to retry.",
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFb91c1c)),
-                                ),
-                                SizedBox(width: 6),
-                                Icon(Icons.refresh, size: 14, color: Color(0xFFb91c1c)),
-                              ],
-                            ),
-                          ),
-                        )
-                      : drawerImages.isEmpty
-                          ? const Center(child: Text('No images found in this sector.', style: TextStyle(fontSize: 12, color: Colors.grey)))
-                          : ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                          itemCount: drawerImages.length + (_pendingImageIds.isNotEmpty ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            // FIX (audit #6 remediation): trailing tile fetches the next
-                            // page of image_ids instead of rendering all of them up front.
-                            if (index == drawerImages.length) {
-                              return GestureDetector(
-                                onTap: _loadMoreImages,
-                                child: Container(
-                                  width: 80,
-                                  margin: const EdgeInsets.only(right: 8),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
-                                    color: const Color(0xFFf1f5f9),
-                                    border: Border.all(color: const Color(0xFFe2e8f0)),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: _loadingMoreImages
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: primaryBlue),
-                                        )
-                                      : Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.add_photo_alternate_outlined, color: primaryBlue, size: 20),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              '+${_pendingImageIds.length}',
-                                              style: const TextStyle(fontSize: 10, color: primaryBlue, fontWeight: FontWeight.bold),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              );
-                            }
+          );
+        },
+      ),
+    );
+  }
 
-                            final img = drawerImages[index];
-                            return GestureDetector(
-                              onTap: () => _showImageDetails(img), // FIXED: Wrapped item to accept click events
-                              child: Container(
-                                width: 100,
-                                margin: const EdgeInsets.only(right: 8),
-                                decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFf1f5f9)),
-                                clipBehavior: Clip.antiAlias,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    // FIX (audit #6): Image.network decoded the full-res
-                                    // drone frame (often several MB / 4K) into memory for a
-                                    // 100px cell, with no cache bound — a common source of
-                                    // OOM crashes on mid-range Android devices, plus repeated
-                                    // multi-MB re-downloads on every scroll/hex tap.
-                                    // CachedNetworkImage disk/mem-caches the bytes and
-                                    // memCacheWidth caps the *decoded* bitmap size.
-                                    // FIX (audit #6 + #2.4): now requests the
-                                    // Cloudinary-transformed thumbnail (see
-                                    // cloudinaryThumbUrl above) instead of the
-                                    // full original file — cuts network bytes,
-                                    // not just decoded memory. memCacheWidth
-                                    // stays as a second safety net.
-                                    CachedNetworkImage(
-                                      imageUrl: cloudinaryThumbUrl(img.fileUrl),
-                                      fit: BoxFit.cover,
-                                      memCacheWidth: 200, // ~2x the 100px cell for retina
-                                      maxWidthDiskCache: 400,
-                                      placeholder: (context, url) => const Center(
-                                        child: SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: primaryBlue),
-                                        ),
-                                      ),
-                                      errorWidget: (context, url, error) => const Center(
-                                        child: Icon(Icons.broken_image, color: Color(0xFFcbd5e1), size: 24),
-                                      ),
-                                    ),
-                                    if (img.type != null)
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                          color: Colors.black.withValues(alpha: 0.5),
-                                          child: Text(
-                                            img.type!,
-                                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+  Widget _legendDot(Color color, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 5, spreadRadius: -1)],
             ),
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF64748b))),
+        ],
+      );
+
+  Widget _buildDrawer() {
+    final hex = selectedSector!;
+
+    // Adaptive: side panel on wide screens (tablet/landscape), draggable
+    // bottom sheet on phones. Decided on available width, not device type.
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth > 600;
+          final panel = SectorPanel(
+            hex: hex,
+            wide: wide,
+            loading: loading,
+            drawerError: drawerError,
+            drawerImages: drawerImages,
+            pendingCount: _pendingImageIds.length,
+            loadingMore: _loadingMoreImages,
+            onClose: _closeDrawer,
+            onRetry: () => _onHexTap(hex),
+            onLoadMore: _loadMoreImages,
+            onImageTap: _showImageDetails,
+          );
+          if (wide) {
+            // Side panel: right-anchored, full height, slides in from the right.
+            return Align(
+              alignment: Alignment.centerRight,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: motionDuration,
+                curve: motionCurve,
+                builder: (context, t, _) => Transform.translate(
+                  offset: Offset(40 * (1 - t), 0),
+                  child: Opacity(opacity: t, child: panel),
+                ),
+              ),
+            );
+          }
+          // Draggable bottom sheet (Maps-app pattern): drag to expand,
+          // drag down to collapse back to peek; close via the grab handle or
+          // a map tap. The outer Positioned.fill already bounds this box, so
+          // the sheet fills it directly (Positioned must be a direct Stack
+          // child — no wrapping here).
+          return DraggableScrollableSheet(
+            initialChildSize: 0.34,
+            minChildSize: 0.34,
+            maxChildSize: 0.85,
+            snap: true,
+            snapSizes: const [0.34, 0.85],
+            builder: (context, scrollController) => _SheetSurface(
+              onClose: _closeDrawer,
+              child: SectorPanel.sheetContent(
+                hex: hex,
+                loading: loading,
+                drawerError: drawerError,
+                drawerImages: drawerImages,
+                pendingCount: _pendingImageIds.length,
+                loadingMore: _loadingMoreImages,
+                onRetry: () => _onHexTap(hex),
+                onLoadMore: _loadMoreImages,
+                onImageTap: _showImageDetails,
+                scrollController: scrollController,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Chrome for the draggable sector sheet: grab handle + close button above
+/// the panel content. The close action routes through the same _closeDrawer
+/// (the sheet itself is removed by rebuilding without it).
+class _SheetSurface extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onClose;
+
+  const _SheetSurface({required this.child, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Outer tray shell, same surface language as MapPanel/SectorPanel.
+      decoration: BoxDecoration(
+        color: ink.withValues(alpha: 0.06),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+        boxShadow: surfaceShadow(alpha: 0.22),
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.all(4),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: onClose,
+              child: Container(
+                width: double.infinity,
+                color: Colors.transparent,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: ink.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(child: child),
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
+from dependency import require_role, require_public
 from models.area import Area
 from pydantic import BaseModel
 from typing import Optional
@@ -11,10 +12,17 @@ from shapely.geometry import shape, mapping
 
 router = APIRouter()
 
+# SECURITY: area reads are PUBLIC (product decision 2026-10: the web portal
+# browses the map without an account — "Open Forecast"; mobile map also reads
+# these). Writes stay admin-only (web DrawArea/Settings pages).
 
 
 @router.post("/create")
-def create_area(data: AreaCreate, db: Session = Depends(get_db)):
+def create_area(
+    data: AreaCreate,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
+):
     poly_shape = shape(data.boundary_coordinates)
     centroid = poly_shape.centroid
     
@@ -39,7 +47,10 @@ def create_area(data: AreaCreate, db: Session = Depends(get_db)):
     }
 
 @router.get("/")
-def get_all_areas(db: Session = Depends(get_db)):
+def get_all_areas(
+    db: Session = Depends(get_db),
+    _user=Depends(require_public()),
+):
     areas = db.query(Area).all()    
     return [
         {
@@ -54,7 +65,11 @@ def get_all_areas(db: Session = Depends(get_db)):
     ]
 
 @router.delete("/{area_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_area(area_id: uuid.UUID, db: Session = Depends(get_db)):
+def delete_area(
+    area_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
+):
     area = db.query(Area).filter(Area.area_id == area_id).first()
 
     if not area:

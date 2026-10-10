@@ -235,6 +235,7 @@ export default function Navbar() {
               <a
                 key={link.name}
                 href={link.href}
+                onClick={() => setMenuOpen(false)}
                 className={`block text-sm px-4 py-3 rounded-xl ${scrolled ? "text-slate-600" : "text-white/80"}`}
               >
                 {link.name}

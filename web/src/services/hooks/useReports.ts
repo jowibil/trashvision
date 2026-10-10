@@ -21,6 +21,15 @@ export interface Report {
   timestamp?: Date;   
 }
 
+/**
+ * Explicit page size for every reports list request. The backend default was
+ * silently capping consumers that omitted `limit` at 10 (oldest verified
+ * reports dropped off the map/feed without any error); sending it explicitly
+ * keeps the web layer immune to future backend default changes. 200 matches
+ * the mobile map layer's explicit request (mobile_map_service.dart).
+ */
+export const REPORTS_LIST_LIMIT = 200;
+
 export const useReports = (status: string = 'verified') => {
   const [reports, setReports] = useState<Report[]>([]);
   const [reportGeoJSON, setReportGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -30,7 +39,9 @@ export const useReports = (status: string = 'verified') => {
     const fetchReports = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/reports/?status=${status}`);
+        const response = await api.get(`/reports/?status=${status}`, {
+          params: { limit: REPORTS_LIST_LIMIT },
+        });
         const data: Report[] = response.data;
         
         setReports(data);

@@ -99,6 +99,14 @@ export interface DetectionRow {
   area?: AreaMetadata;
   cluster_count?: number;
   sub_frames?: SubFrameTelemetry[];
+
+  /** Backend sends bounding boxes under any of these shapes (see GET /detections). */
+  detections?: BoundingBox[] | string;
+  boxes?: BoundingBox[] | string;
+  bbox_x1?: number;
+  bbox_y1?: number;
+  bbox_x2?: number;
+  bbox_y2?: number;
 }
 
 export interface SubFrameTelemetry {

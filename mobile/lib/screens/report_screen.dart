@@ -272,18 +272,30 @@ Future<void> _pickImage() async {
 
         if (!mounted) return;
 
-        if (status == 401) {
+        if (status == 200 || status == 201) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Report submitted successfully!")),
+          );
+        } else if (status == 401) {
           // Session expired mid-submit: the global ApiClient hook has already
           // redirected to /login with a snackbar. Queue the report so sync
           // picks it up after re-login — and do NOT navigate here, the
           // redirect already replaced the stack.
           await DatabaseHelper.instance.insertReport(newReport);
           return;
+        } else {
+          // FIX: any other non-2xx (server 500, validation 4xx, 0 = dropped
+          // connection) used to be greeted with "Report submitted
+          // successfully!" while the report was silently lost — it was never
+          // uploaded AND never queued. Route it to the outbox instead so
+          // SyncService retries it when connectivity allows, matching the
+          // offline contract ("Server unreachable. Saved to outbox.").
+          await DatabaseHelper.instance.insertReport(newReport);
+          if (!mounted) return; // re-guard: insertReport is an async gap
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Server unreachable. Saved to outbox.")),
+          );
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Report submitted successfully!")),
-        );
       }
 
       if (!mounted) return;

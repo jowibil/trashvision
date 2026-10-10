@@ -25,7 +25,9 @@ class DatabaseHelper {
     // opening Profile saw only whatever was still pending upload — anything
     // that had ever successfully synced simply vanished from their history
     // until they reconnected.
-    return await openDatabase(path, version: 3, onCreate: _createDB, onUpgrade: _upgradeDB);
+    // v4: adds map_cache — durable JSON cache of map API responses (areas,
+    // hexbins) so the map opens offline with stale data (offline-first).
+    return await openDatabase(path, version: 4, onCreate: _createDB, onUpgrade: _upgradeDB);
   }
 
   static const String _ledgerTableSql = '''CREATE TABLE report_ledger (
@@ -42,6 +44,7 @@ class DatabaseHelper {
     );''';
 
   Future _createDB(Database db, int version) async {
+    await db.execute(_mapCacheTableSql);
     await db.execute('''CREATE TABLE report_outbox (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       waste_type TEXT NOT NULL,
@@ -62,6 +65,85 @@ class DatabaseHelper {
     }
     if (oldVersion < 3) {
       await db.execute(_ledgerTableSql);
+    }
+    if (oldVersion < 4) {
+      await db.execute(_mapCacheTableSql);
+    }
+  }
+
+  /// General-purpose key/value cache for map API payloads (offline-first).
+  /// Values are JSON strings of the response; keys are deterministic
+  /// request-identifiers (see MobileMapService).LRU-ish: updated_at is bumped
+  /// on every write, and trimMapCache() keeps only the most recent entries.
+  static const String _mapCacheTableSql = '''CREATE TABLE map_cache (
+      cache_key TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );''';
+
+  /// Reads a cached map payload. Returns null on miss. Never throws — a
+  /// corrupt cache entry must not break the offline path.
+  Future<String?> getMapCache(String cacheKey) async {
+    try {
+      final db = await instance.database;
+      final rows = await db.query(
+        'map_cache',
+        columns: ['payload'],
+        where: 'cache_key = ?',
+        whereArgs: [cacheKey],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      return rows.first['payload'] as String;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Upserts a cached map payload and refreshes updated_at.
+  Future<void> putMapCache(String cacheKey, String payload) async {
+    try {
+      final db = await instance.database;
+      await db.insert(
+        'map_cache',
+        {
+          'cache_key': cacheKey,
+          'payload': payload,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (_) {
+      // Cache writes are best-effort; storage failures must not crash the app.
+    }
+  }
+
+  /// Keeps the cache bounded: after inserting, drop everything but the
+  /// [maxEntries] most-recently-updated keys (excludes [keep] so the areas
+  /// list is never evicted by hexbin churn).
+  Future<void> trimMapCache({int maxEntries = 24, Set<String> keep = const {}}) async {
+    try {
+      final db = await instance.database;
+      await db.delete(
+        'map_cache',
+        where: 'cache_key NOT IN (${List.filled(keep.length, '?').join(',')})'
+            ' AND cache_key NOT IN (SELECT cache_key FROM map_cache'
+            ' ORDER BY updated_at DESC LIMIT ?)',
+        whereArgs: [...keep, maxEntries],
+      );
+    } catch (_) {
+      // Best-effort.
+    }
+  }
+
+  /// Wipes the map cache (e.g. "reset offline data" action or after a
+  /// backend contract change).
+  Future<void> clearMapCache() async {
+    try {
+      final db = await instance.database;
+      await db.delete('map_cache');
+    } catch (_) {
+      // Best-effort.
     }
   }
 
@@ -126,5 +208,23 @@ class DatabaseHelper {
       orderBy: 'synced_at DESC',
     );
     return result.map((json) => Report.fromSql(json)).toList();
+  }
+
+  /// Profile helper: merged newest-first mix of pending outbox reports and
+  /// synced ledger reports for one user. Pending rows have syncedAt == null
+  /// (report_ledger always sets it), which is exactly what the UI needs to
+  /// tag "Pending sync" vs "Synced" — no extra flag column in either table.
+  /// createdAt falls back to synced_at for ledger rows so the sort can't
+  /// collapse ties to insertion order.
+  Future<List<Report>> getAllReportsByUserIdMerged(String userId) async {
+    final pending = await getReportsByUserId(userId);
+    final synced = await getLedgerReportsByUserId(userId);
+    final merged = [...pending, ...synced];
+    merged.sort((a, b) {
+      final aTime = a.createdAt ?? a.syncedAt ?? DateTime(0);
+      final bTime = b.createdAt ?? b.syncedAt ?? DateTime(0);
+      return bTime.compareTo(aTime);
+    });
+    return merged;
   }
 }

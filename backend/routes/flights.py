@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db
+from dependency import require_role, limiter
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
 from models.detection import Detection
@@ -8,13 +11,24 @@ from routes.helper.utils import FlightCreate, FlightResponse
 from services.gps_service import extract_gps, extract_dimensions
 from services.detection_service import process_image_upload
 from services.dbscan_service import cluster_points
-from typing import Optional
+from services.mobile_service import MobileMapService
+from dependency import require_public
+from typing import Optional, List, Dict
 from datetime import date
+from sqlalchemy import extract
 import uuid
 import shutil
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# SECURITY: all flight endpoints require a valid JWT. Reads are guest-level
+# (any logged-in user); upload-batch stays admin-gated by the web client's
+# ProtectedRoute and is additionally rate-limited (each frame triggers YOLO
+# inference + a Cloudinary upload — expensive per request).
 
 # Directory where uploaded frames are staged before the background worker
 # uploads them to Cloudinary. Cleaned up per-file by the worker.
@@ -22,7 +36,11 @@ TEMP_UPLOAD_DIR = "temp"
 
 
 @router.post("/")
-def create_flight(data: FlightCreate, db: Session = Depends(get_db)):
+def create_flight(
+    data: FlightCreate,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
+):
     flight = DroneFlightLog(
         flight_date=data.flight_date,
         pilot_name=data.pilot_name,
@@ -36,19 +54,47 @@ def create_flight(data: FlightCreate, db: Session = Depends(get_db)):
     return flight
 
 @router.get("/", response_model=list[FlightResponse])
-def get_all_flights(db: Session = Depends(get_db)):
+def get_all_flights(
+    db: Session = Depends(get_db),
+    _user=Depends(require_role("guest")),
+):
     return db.query(DroneFlightLog).order_by(
         DroneFlightLog.flight_date.desc()
     ).all()
 
 @router.get("/areas/{area_id}/collection")
-def get_area_image_collection(area_id: str, db: Session = Depends(get_db)):
+def get_area_image_collection(
+    area_id: str,
+    # Optional time window (FIX: pins used to ignore the map's date filter
+    # entirely — 2025 pins stayed visible under a 2026 calendar). Omitting
+    # the params keeps the old all-history behavior for existing callers;
+    # the web map now sends the SAME window the hexbins use, so pins and
+    # hexes always describe the same time slice.
+    month: Optional[int] = Query(None, ge=1, le=12),
+    year: Optional[int] = Query(None),
+    week: int = Query(4, ge=1, le=4),
+    mode: str = Query("month", pattern="^(month|accumulated)$"),
+    db: Session = Depends(get_db),
+    # PUBLIC (web map pins logged-out via Open Forecast; mirrors the mobile
+    # tiles endpoint's guard).
+    _user=Depends(require_public()),
+):
     try:
         area_uuid = uuid.UUID(area_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid area UUID format")
 
-    detections = db.query(Detection).filter(Detection.area_id == area_uuid).all()
+    query = db.query(Detection).filter(Detection.area_id == area_uuid)
+    if year is not None and month is not None:
+        query = query.filter(extract("year", Detection.timestamp) == year)
+        if mode == "accumulated":
+            # Jan 1 → end of selected month (same year), no week cutoff.
+            query = query.filter(extract("month", Detection.timestamp) <= month)
+        else:
+            query = query.filter(extract("month", Detection.timestamp) == month)
+            if week < 4:
+                query = query.filter(extract("day", Detection.timestamp) <= week * 7)
+    detections = query.all()
 
     return [
         {
@@ -70,15 +116,99 @@ def get_area_image_collection(area_id: str, db: Session = Depends(get_db)):
             "timestamp": d.timestamp.isoformat() if d.timestamp else None,
             "captured_at": d.timestamp.isoformat() if d.timestamp else None,
 
-            "image_id": str(d.detection_id),
+            "image_id": str(d.image_id) if d.image_id else None,
             "file_url": d.image_url,
             "type": d.waste_type
         }
         for d in detections
     ]
 
+@router.get("/areas/{area_id}/hexbins")
+@limiter.limit("60/minute")
+def get_area_hexbins(
+    request: Request,
+    area_id: str,
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(...),
+    week: int = Query(4, ge=1, le=4),
+    threshold: int = Query(2, ge=1),
+    mode: str = Query("month", pattern="^(month|accumulated)$"),
+    db: Session = Depends(get_db),
+    # PUBLIC (web map logged-out via Open Forecast; mirrors the mobile tiles
+    # endpoint's guard).
+    _user=Depends(require_public()),
+):
+    """
+    Server-aggregated hexbins for the web map — the same PostGIS "Heavy
+    Lifter" pipeline mobile uses, so the client never downloads the raw
+    detection collection just to turf-hexbin it in the browser. Also returns
+    cheap aggregates (total + latest detection timestamp) for the header
+    metrics and the date-filter bootstrap.
+    """
+    try:
+        area_uuid = uuid.UUID(area_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid area UUID format")
+
+    area_key = str(area_uuid)
+    try:
+        tiles = MobileMapService.calculate_hex_tiles(
+            db=db, area_id=area_key, month=month, year=year, week=week, threshold=threshold,
+            mode=mode,
+        )
+        stats = MobileMapService.get_area_detection_stats(
+            db=db, area_id=area_key, month=month, year=year, week=week, mode=mode,
+        )
+    except Exception:
+        # Same opaque-500 contract as the mobile tiles route: log the full
+        # traceback server-side, never leak SQL/geometry internals to the
+        # client. An UNHANDLED 500 here bypasses CORSMiddleware entirely, so
+        # the browser reports a misleading CORS failure instead of a server
+        # error — containing it keeps CORS headers on the error response.
+        logger.exception("Hexbin pipeline failed for area %s (mode=%s)", area_key, mode)
+        raise HTTPException(status_code=500, detail="Internal server error while computing map tiles")
+    return {
+        "tiles": tiles,
+        "total_detections": stats["total"],
+        "latest_detection_at": stats["latest"],
+    }
+
+@router.post("/areas/{area_id}/images/batch")
+def get_area_detection_batch(
+    area_id: str,
+    payload: Dict[str, List[str]],
+    db: Session = Depends(get_db),
+    # PUBLIC (product rule: guests browse the map fully — sector drawer
+    # included). POST is only the transport for the id-list body; this is a
+    # read-only id→payload resolution with no personal data. JWT bearer auth
+    # (no cookies) means CSRF is not a concern for anonymous calls.
+    _user=Depends(require_public()),
+):
+    """
+    On-demand drawer details for the web map: resolves detection ids (from a
+    clicked hexbin) into full records with image URL + bounding boxes. Keeps
+    the hexbin payload small instead of embedding per-detection metadata.
+    Mirrors POST /mobile/map/images/batch (same service behind both).
+    """
+    try:
+        uuid.UUID(area_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid area UUID format")
+
+    detection_ids = payload.get("detection_ids")
+    if not detection_ids:
+        return []
+    try:
+        return MobileMapService.fetch_batch_detections(db=db, detection_ids=detection_ids)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid detection id list")
+
 @router.get("/{flight_id}")
-def get_flight(flight_id: str, db: Session = Depends(get_db)):
+def get_flight(
+    flight_id: str,
+    db: Session = Depends(get_db),
+    _user=Depends(require_role("guest")),
+):
     flight = db.query(DroneFlightLog).filter(
         DroneFlightLog.flight_id == uuid.UUID(flight_id)
     ).first()
@@ -92,7 +222,11 @@ def get_flight(flight_id: str, db: Session = Depends(get_db)):
     }
 
 @router.delete("/{flight_id}")
-def delete_flight(flight_id: str, db: Session = Depends(get_db)):
+def delete_flight(
+    flight_id: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
+):
     flight = db.query(DroneFlightLog).filter(
         DroneFlightLog.flight_id == uuid.UUID(flight_id)
     ).first()
@@ -137,7 +271,9 @@ def _cluster_frames(frames: list[dict]) -> list[dict]:
 
 
 @router.post("/upload-batch")
+@limiter.limit("10/minute")
 async def upload_flight_batch(
+    request: Request,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
 
@@ -146,7 +282,8 @@ async def upload_flight_batch(
     pilot_name: str = Form(...),
     notes: str = Form(...),
 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
 ):
     """
     Stage A Frame-Level DBSCAN Implementation.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -10,14 +10,16 @@ import {
 import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
 import { useAreas } from "../services/hooks/useAreas";
-import { useAreaCollection } from "../services/hooks/useAreasCollection";
+import { useLazyAreaCollection, type CollectionWindow } from "../services/hooks/useAreasCollection";
+import { useAreaHexbins, type SectorDetection } from "../services/hooks/useAreaHexbins";
 import { useReports } from "../services/hooks/useReports";
 import { useMapControl } from "../services/hooks/useMapControl";
 import { Calendar } from "lucide-react";
 import { X } from "lucide-react";
 import { RefreshCcw as RefreshCw} from "lucide-react";
 import { Maximize2 } from "lucide-react";
-import { classifyCci, useHexbinData } from "../services/hooks/useHexbins";
+import { classifyCci, hexbinTilesToFeatureCollection, DRONE_K_FACTOR } from "../services/hooks/useHexbins";
+import api from "../api/axios";
 import { SectorDrawer } from "../components/ui/aside";
 import { MapOverlays } from "../components/ui/mapOverlays";
 import L from "leaflet";
@@ -49,7 +51,15 @@ export const getCciColor = (category?: PollutionCategory | string): string => {
       return "#94a3b8"; // Slate Gray
   }
 };
-// DYNAMIC FRONT-END BOUNDING BOX RENDER ENGINE
+/**
+ * Detection preview: the raw drone frame with every YOLO bounding box drawn
+ * on top. Boxes live in one SVG whose viewBox is the image's native pixel
+ * space with `preserveAspectRatio="xMidYMid meet"` — the same letterboxing
+ * the `object-contain` img applies — so they stay glued to the objects at
+ * any rendered size, with no clientWidth scaling state to keep fresh (the
+ * old approach drifted on resize). Click still exports the annotated frame
+ * via canvas (unchanged).
+ */
 function ImageWithBoundingBoxes({
   imageUrl,
   detections,
@@ -57,25 +67,13 @@ function ImageWithBoundingBoxes({
   imageUrl: string;
   detections: any[];
 }) {
-  const [scales, setScales] = useState({ scaleX: 0, scaleY: 0 });
   const imgRef = useRef<HTMLImageElement | null>(null);
-
-  const handleImageLoad = () => {
-    if (imgRef.current) {
-      const renderedWidth = imgRef.current.clientWidth;
-      const renderedHeight = imgRef.current.clientHeight;
-      const naturalWidth = imgRef.current.naturalWidth;
-      const naturalHeight = imgRef.current.naturalHeight;
-
-      if (naturalWidth && naturalHeight) {
-        setScales({
-          scaleX: renderedWidth / naturalWidth,
-          scaleY: renderedHeight / naturalHeight,
-        });
-      }
-    }
-  };
-
+  // Native pixel size, read once on load: the SVG viewBox needs it. Purely
+  // view state — no scaling math survives.
+  const [nativeSize, setNativeSize] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
 
   const openInferenceInNewTab = () => {
     const baseImg = imgRef.current;
@@ -157,22 +155,30 @@ function ImageWithBoundingBoxes({
     }
   };
 
-  useEffect(() => {
-    const handleResize = () => handleImageLoad();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
   return (
     <div
       onClick={openInferenceInNewTab}
       className="relative w-full max-h-95 overflow-hidden rounded-2xl bg-slate-950 flex items-center justify-center border border-slate-200 cursor-zoom-in group select-none"
     >
       <img
-        ref={imgRef}
+        ref={(el) => {
+          imgRef.current = el;
+          // Cached images can finish loading before React attaches onLoad;
+          // recover the native size here so boxes never stay hidden.
+          if (el?.complete && el.naturalWidth) {
+            setNativeSize(
+              (prev) => prev ?? { w: el.naturalWidth, h: el.naturalHeight },
+            );
+          }
+        }}
         src={imageUrl}
         crossOrigin="anonymous"
-        onLoad={handleImageLoad}
+        onLoad={(e) =>
+          setNativeSize({
+            w: e.currentTarget.naturalWidth,
+            h: e.currentTarget.naturalHeight,
+          })
+        }
         className="w-full h-auto object-contain max-h-95 group-hover:opacity-90 transition-opacity"
         alt="Inference Canvas"
       />
@@ -181,47 +187,62 @@ function ImageWithBoundingBoxes({
         <Maximize2 size={11} /> Open image in new tab
       </div>
 
-      {scales.scaleX > 0 &&
-        detections.map((det, idx) => {
-          if (!det.bbox || det.bbox[0] === undefined) return null;
-          const [x1, y1, x2, y2] = det.bbox;
+      {/* Same-letterbox overlay: viewBox = native pixels, so x/y map 1:1 to
+          the model's coordinate space at any rendered size, and
+          non-scaling-stroke keeps borders 2px on screen. */}
+      {nativeSize && detections.length > 0 && (
+        <svg
+          className="absolute inset-0 h-full w-full pointer-events-none"
+          viewBox={`0 0 ${nativeSize.w} ${nativeSize.h}`}
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
+        >
+          {detections.map((det, idx) => {
+            if (!det.bbox || det.bbox[0] === undefined) return null;
+            const [x1, y1, x2, y2] = det.bbox;
+            const width = Math.max(0, x2 - x1);
+            const height = Math.max(0, y2 - y1);
 
-          const left = x1 * scales.scaleX;
-          const top = y1 * scales.scaleY;
-          const width = (x2 - x1) * scales.scaleX;
-          const height = (y2 - y1) * scales.scaleY;
-
-          return (
-            <div
-              key={idx}
-              className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none transition-all shadow-xs"
-              style={{
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${width}px`,
-                height: `${height}px`,
-              }}
-            >
-              <span className="absolute -top-4 left-5 bg-red-500 text-white text-[8px] font-black px-1 py-0.5 rounded-xs whitespace-nowrap uppercase tracking-tight shadow-sm">
-                {det.label.replace("_", " ")}{" "}
-                {Math.round(
-                  (det.confidence > 1 ? det.confidence / 100 : det.confidence) *
-                    100,
-                )}
-                %
-              </span>
-            </div>
-          );
-        })}
+            return (
+              <g key={idx}>
+                <rect
+                  x={x1}
+                  y={y1}
+                  width={width}
+                  height={height}
+                  fill="rgba(239, 68, 68, 0.1)"
+                  stroke="#EF4444"
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={x1 + 5}
+                  y={y1 > 14 ? y1 - 4 : y1 + 12}
+                  fill="#FFFFFF"
+                  fontSize="12"
+                  fontWeight="900"
+                  className="font-sans uppercase tracking-tight select-none"
+                  style={{
+                    paintOrder: "stroke",
+                    stroke: "#000000",
+                    strokeWidth: "2.5px",
+                  }}
+                >
+                  {(det.label || "waste").replace(/_/g, " ")}{" "}
+                  {Math.round(
+                    ((det.confidence ?? 0) > 1
+                      ? det.confidence / 100
+                      : det.confidence ?? 0) * 100,
+                  )}
+                  %
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
     </div>
   );
-}
-
-function ZoomHandler({ onZoomChange }: { onZoomChange: (z: number) => void }) {
-  useMapEvents({
-    zoomend: (e) => onZoomChange(e.target.getZoom()),
-  });
-  return null;
 }
 
 function MapResizer({ isDrawerOpen }: { isDrawerOpen: boolean }) {
@@ -267,46 +288,91 @@ export default function Maps() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  // Window mode for the hexbin + pin queries. "month" = the reporting view
+  // (per-month, week chips apply); "accumulated" = Jan 1 → end of the
+  // selected month (carry-over view, week chips hidden). Product decision
+  // 2026-10: per-month is the default on load.
+  const [viewMode, setViewMode] = useState<"month" | "accumulated">("month");
   const [selectedSector, setSelectedSector] = useState<any>(null);
-  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [activePin, setActivePin] = useState<string[] | null>(null);
   const [targetCoords, setTargetCoords] = useState<[number, number] | null>(
     null,
   );
   const [zoom, setZoom] = useState(15);
-  const DRONE_K_FACTOR = 20;
-
-  const {
-    collection: droneCollection,
-    loading,
-    refetch,
-  } = useAreaCollection(currentArea?.area_id);
-
-  useEffect(() => {
-    if (droneCollection && droneCollection.length > 0) {
-      const firstDateStr =
-        droneCollection[0].captured_at || droneCollection[0].timestamp;
-      if (firstDateStr) {
-        const flightDate = new Date(firstDateStr);
-        if (!isNaN(flightDate.getTime())) {
-          setSelectedDate(flightDate);
-        }
-      }
-    }
-  }, [droneCollection]);
 
   const [threshold, setThreshold] = useState(() => {
     const saved = localStorage.getItem("mapThreshold");
     return saved ? parseInt(saved) : 2;
   });
 
-  const hexbins = useHexbinData(
-    droneCollection,
-    selectedDate,
-    week,
-    threshold,
-    currentArea?.boundary,
+  // Perf (Heavy Lifter migration): hexbins are aggregated server-side by
+  // PostGIS; the web client no longer downloads every raw detection just to
+  // turf-hexbin it in the browser. One small payload per settled filter.
+  const {
+    tiles: hexTiles,
+    totalDetections,
+    latestDetectionAt,
+    loading,
+    isStale,
+    refetch,
+  } = useAreaHexbins(currentArea?.area_id, selectedDate, week, threshold, viewMode);
+
+  // Bootstrap the date filter to the most recent flight data for the area.
+  useEffect(() => {
+    if (!latestDetectionAt) return;
+    const flightDate = new Date(latestDetectionAt);
+    if (!isNaN(flightDate.getTime())) {
+      setSelectedDate(flightDate);
+    }
+  }, [latestDetectionAt]);
+
+  // Modal a11y: Escape closes, focus moves to the close button on open and
+  // returns to the previously focused element on close. No focus trap —
+  // the map must stay reachable (Operate mode, not a blocking wizard).
+  const modalPanelRef = useRef<HTMLDivElement | null>(null);
+  const modalCloseRef = useRef<HTMLButtonElement | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    lastFocusedElementRef.current = document.activeElement as HTMLElement | null;
+    modalCloseRef.current?.focus();
+    return () => {
+      lastFocusedElementRef.current?.focus?.();
+    };
+  }, [selectedItem]);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedItem(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedItem]);
+
+  const closeDetectionModal = useCallback(() => setSelectedItem(null), []);
+
+  // PostGIS tiles → Leaflet FeatureCollection (CCI math stays client-side).
+  const hexbins = useMemo(
+    () => hexbinTilesToFeatureCollection(hexTiles, currentArea?.boundary),
+    [hexTiles, currentArea?.boundary],
   );
+
+  // Raw points are only needed for the zoom>=18 pin layer — fetch lazily on
+  // first close zoom, cached per area for the session.
+  const rawCollection = useLazyAreaCollection(currentArea?.area_id, zoom >= 18, {
+    month: selectedDate.getMonth() + 1,
+    year: selectedDate.getFullYear(),
+    week,
+    mode: viewMode,
+  } as CollectionWindow);
+
+  // Per-sector drawer details, resolved on demand when a hex is clicked.
+  const [selectedHexId, setSelectedHexId] = useState<string | null>(null);
+  const [batchDetails, setBatchDetails] = useState<Record<string, SectorDetection[]>>({});
+  const batchDetailsRef = useRef<Record<string, SectorDetection[]>>({});
+  const batchInFlight = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (areas.length > 0 && !currentArea) setCurrentArea(areas[0]);
@@ -321,7 +387,55 @@ export default function Maps() {
         const pinsInHex = feature.properties.pointIds || [];
         setActivePin(pinsInHex.length > 0 ? pinsInHex : null);
 
-        if (currentArea) setSelectedAreaId(currentArea.area_id);
+        // Resolve the sector's detections on demand (thumbnail, type,
+        // confidence, bbox) instead of embedding them in every hexbin.
+        const hexKey = [...pinsInHex].sort().join(",");
+        setSelectedHexId(pinsInHex.length > 0 ? hexKey : null);
+        if (
+          pinsInHex.length > 0 &&
+          currentArea &&
+          !batchDetailsRef.current[hexKey] &&
+          !batchInFlight.current.has(hexKey)
+        ) {
+          batchInFlight.current.add(hexKey);
+          api
+            .post(`/flights/areas/${currentArea.area_id}/images/batch`, {
+              detection_ids: pinsInHex,
+            })
+            .then((res) => {
+              const details: SectorDetection[] = ((res.data || []) as any[]).map(
+                (r) => ({
+                  detection_id: r.detection_id,
+                  file_url: r.file_url ?? null,
+                  type: r.type ?? null,
+                  confidence: Number(r.detections?.[0]?.confidence ?? 0),
+                  bbox: (r.detections?.[0]?.box_2d ?? [0, 0, 0, 0]) as [
+                    number,
+                    number,
+                    number,
+                    number,
+                  ],
+                }),
+              );
+              batchDetailsRef.current = {
+                ...batchDetailsRef.current,
+                [hexKey]: details,
+              };
+              setBatchDetails(batchDetailsRef.current);
+            })
+            .catch((err) => {
+              console.error("Sector details fetch error", err);
+              // Resolve to empty so the drawer renders its fallback cards
+              // instead of skeletons that would never clear (a network
+              // error must not read as eternal loading).
+              batchDetailsRef.current = {
+                ...batchDetailsRef.current,
+                [hexKey]: [],
+              };
+              setBatchDetails(batchDetailsRef.current);
+            })
+            .finally(() => batchInFlight.current.delete(hexKey));
+        }
 
         const center = turf.center(feature);
         const [lng, lat] = center.geometry.coordinates;
@@ -337,12 +451,13 @@ export default function Maps() {
   }, [areas, searchQuery]);
 
   const areaMetrics = useMemo(() => {
-    if (!currentArea?.boundary || !droneCollection) {
+    if (!currentArea?.boundary) {
       return { totalAreaM2: 0, overallDensity: 0, overallCci: 0, category: "Very Clean" as PollutionCategory };
     }
 
+    // Total comes from the server aggregate over the SAME cumulative week
+    // filter as the hexbins (the old code summed the unfiltered collection).
     const totalAreaM2 = turf.area(currentArea.boundary);
-    const totalDetections = droneCollection.length;
     const overallDensity = totalAreaM2 > 0 ? totalDetections / totalAreaM2 : 0;
     const overallCci = overallDensity * DRONE_K_FACTOR;
 
@@ -353,7 +468,7 @@ export default function Maps() {
       overallCci,
       category: classifyCci(overallCci),
     };
-  }, [currentArea, droneCollection]);
+  }, [currentArea, totalDetections]);
 
   const areaStatus = useMemo(() => {
   const category = areaMetrics.category; // Returns PollutionCategory
@@ -409,13 +524,14 @@ export default function Maps() {
   };
 
   const visiblePins = useMemo(() => {
+    const points = rawCollection ?? [];
     if (activePin) {
-      return droneCollection.filter((img) =>
-        activePin.includes(img.detection_id || img.image_id),
+      return points.filter((img) =>
+        activePin.includes(img.detection_id || img.image_id || ""),
       );
     }
-    return droneCollection;
-  }, [droneCollection, activePin]);
+    return points;
+  }, [rawCollection, activePin]);
 
   return (
     <div className="h-dvh w-full max-w-7xl flex flex-col overflow-hidden bg-[#fcfcfc]">
@@ -460,7 +576,6 @@ export default function Maps() {
             <ZoomTracker setZoom={setZoom} />
             <MapController targetCoords={targetCoords} />
             <MapResizer isDrawerOpen={drawerOpen} />
-            <ZoomHandler onZoomChange={setZoom} />
 
             {currentArea && (
               <GeoJSON
@@ -497,7 +612,7 @@ export default function Maps() {
               visiblePins.map((img) => (
                 <CircleMarker
                   key={img.detection_id || img.image_id}
-                  center={[img.latitude, img.longitude]}
+                  center={[Number(img.latitude), Number(img.longitude)]}
                   radius={8}
                   pathOptions={{
                     fillColor: img.image_url ? "#ef4444" : "#94a3b8",
@@ -508,14 +623,14 @@ export default function Maps() {
                   eventHandlers={{
                     click: (e) => {
                       const targetUrl = img.image_url || img.file_url;
-                      const siblingDetections = droneCollection
+                      const siblingDetections = (rawCollection ?? [])
                         .filter(
                           (item) =>
                             item.image_url === targetUrl ||
                             item.file_url === targetUrl,
                         )
                         .map((item) => ({
-                          label: item.waste_type || item.type || "waste",
+                          label: String(item.waste_type || item.type || "waste"),
                           confidence:
                             item.confidence_score || item.confidence || 0.85,
                           bbox: [
@@ -543,7 +658,7 @@ export default function Maps() {
                         id: img.detection_id || img.image_id,
                         type: "Image Detection",
                         image: targetUrl,
-                        description: `Image Details — [ ${descriptionLedger} ]. Coordinates: Lat ${img.latitude.toFixed(5)}, Lng ${img.longitude.toFixed(5)}.`,
+                        description: `Image Details — [ ${descriptionLedger} ]. Coordinates: Lat ${Number(img.latitude).toFixed(5)}, Lng ${Number(img.longitude).toFixed(5)}.`,
                         reporter: "YOLOV8 Model",
                         detections: siblingDetections, // Passes all bounded items down to render concurrently
                       });
@@ -572,11 +687,12 @@ export default function Maps() {
             )}
           </MapContainer>
 
-          <div className="absolute top-4 left-20 z-1000">
-            <button
-              onClick={() => refetch()}
-              className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all"
-            >
+          <div className="absolute top-4 left-20 z-1000 flex items-center gap-2">              <button
+                type="button"
+                onClick={() => refetch()}
+                aria-label="Refresh detections for this area"
+                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90]"
+              >
               {loading ? (
                 <div className="animate-spin h-3 w-3 border-2 border-[#005D90] border-t-transparent rounded-full" />
               ) : (
@@ -586,6 +702,14 @@ export default function Maps() {
                 Refresh Area
               </span>
             </button>
+            {/* Offline-first: what's on screen came from the IndexedDB map
+                cache and the background revalidation hasn't replaced it yet
+                (or failed) — mirror of mobile's "showing cached data". */}
+            {isStale && (
+              <span className="px-3 py-2 bg-white/90 border-2 border-slate-200 rounded-full shadow text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Cached
+              </span>
+            )}
           </div>
 
           <MapOverlays
@@ -596,6 +720,8 @@ export default function Maps() {
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
             drawerOpen={drawerOpen}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
           />
         </div>
 
@@ -614,6 +740,7 @@ export default function Maps() {
           }}
           selectedSector={selectedSector}
           areaStatus={areaStatus}
+          sectorDetections={selectedHexId ? batchDetails[selectedHexId] : undefined}
           onItemSelect={setSelectedItem}
         />
       </main>
@@ -641,10 +768,11 @@ export default function Maps() {
             <input
               type="text"
               placeholder="Search area..."
+              aria-label="Search areas"
               value={searchQuery}
               onFocus={() => setIsOpen(true)}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-blue-900/40 text-white text-xs p-2.5 rounded-xl border border-blue-400/20 focus:outline-none placeholder:text-white/80"
+              className="w-full bg-blue-900/40 text-white text-xs p-2.5 rounded-xl border border-blue-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 placeholder:text-white/80"
             />
             {isOpen && (
               <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#fcfcfc] rounded-xl shadow-2xl border border-slate-200 max-h-48 overflow-y-auto z-2000 text-left">
@@ -676,10 +804,10 @@ export default function Maps() {
         <div className="bg-[#fcfcfc] border border-slate-200 p-4 rounded-2xl shadow-sm flex-2 flex items-center justify-evenly">
           <div className="text-left">
             <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
-              Litter Density
+              Clean Coast Index
             </h3>
             <p className="text-xs font-bold text-slate-500 uppercase">
-              Clean Coast Index
+              Density-weighted severity scale
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -703,38 +831,52 @@ export default function Maps() {
         </div>
       </footer>
 
-      {/* DETAILED SPECIMEN INSPECTION MODAL */}
+      {/* Detection details modal */}
       {selectedItem && (
-        <div className="fixed inset-0 z-3000 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-[#fcfcfc] rounded-4xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Detection details"
+          onClick={closeDetectionModal}
+          className="fixed inset-0 z-3000 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 opacity-100 transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
+        >
+          <div
+            ref={modalPanelRef}
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#fcfcfc] rounded-4xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 outline-none scale-100 transition-transform duration-200 ease-out starting:scale-[0.97] motion-reduce:transition-none"
+          >
             <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
               <div className="text-left">
                 <h3 className="text-xl font-black text-[#005D90] uppercase tracking-tight leading-none">
-                  Detection Modal
+                  Detection details
                 </h3>
                 <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">
-                  Context ID: #{selectedItem.id?.substring(0, 8) || "N/A"}
+                  ID: #{selectedItem.id?.substring(0, 8) || "N/A"}
                 </p>
               </div>
               <button
-                onClick={() => setSelectedItem(null)}
-                className="bg-white p-2 rounded-full shadow border border-slate-200 text-slate-400 hover:bg-slate-50"
+                type="button"
+                ref={modalCloseRef}
+                onClick={closeDetectionModal}
+                aria-label="Close detection details"
+                className="bg-white p-2 rounded-full shadow border border-slate-200 text-slate-400 hover:bg-slate-50 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90]"
               >
-                <X size={16} />
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
 
             <div className="p-6 space-y-4">
-              {/* RENDERS DYNAMIC CSS BOX LAYERS OVER RAW RESOURCE IMAGES */}
               {selectedItem?.image ? (
                 <ImageWithBoundingBoxes
+                  key={selectedItem.image}
                   imageUrl={selectedItem.image}
                   detections={selectedItem.detections || []}
                 />
               ) : (
                 <div className="h-48 bg-slate-100 flex flex-col items-center justify-center rounded-2xl text-slate-400">
                   <span className="text-xs font-bold uppercase tracking-wider">
-                    Asset Stream Loading...
+                    No image available
                   </span>
                 </div>
               )}
@@ -742,7 +884,7 @@ export default function Maps() {
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    REPORT DETAILS
+                    Detection summary
                   </span>
                   <div className="bg-blue-50 text-[#005D90] px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
                     {selectedItem.reporter}
@@ -760,7 +902,7 @@ export default function Maps() {
             <div className="p-6 border-t border-slate-100 bg-slate-50/50">
               <button
                 onClick={() => setSelectedItem(null)}
-                className="w-full py-4 bg-[#005D90] text-white rounded-2xl font-black uppercase text-sm shadow-md hover:bg-[#004a73] transition-all"
+                className="w-full py-4 bg-[#005D90] text-white rounded-2xl font-black uppercase text-sm shadow-md hover:bg-[#004a73] transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
               >
                 Close
               </button>

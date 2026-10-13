@@ -88,20 +88,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     // report is removed from report_outbox (see moveReportToLedger), so
     // reading only getReportsByUserId here would show pending reports but
     // silently drop everything that had ever successfully synced while
-    // offline. Merge outbox (pending) + ledger (already synced).
+    // offline. The merged helper returns outbox (pending, syncedAt == null)
+    // + ledger (synced) newest-first; the syncedAt field lets the UI tag
+    // each row "Pending sync" vs "Synced" instead of rendering them
+    // identically.
     if (connectivityResult.contains(ConnectivityResult.none)) {
-      final pending = await DatabaseHelper.instance.getReportsByUserId(_userId!);
-      final synced = await DatabaseHelper.instance.getLedgerReportsByUserId(_userId!);
-      logs = [...pending, ...synced];
-      logs.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+      logs = await DatabaseHelper.instance.getAllReportsByUserIdMerged(_userId!);
     } else {
       try {
         logs = await ApiService().getUserReports(_userId!);
       } catch (e) {
-        final pending = await DatabaseHelper.instance.getReportsByUserId(_userId!);
-        final synced = await DatabaseHelper.instance.getLedgerReportsByUserId(_userId!);
-        logs = [...pending, ...synced];
-        logs.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+        logs = await DatabaseHelper.instance.getAllReportsByUserIdMerged(_userId!);
       }
     }
 
@@ -213,11 +210,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           const SizedBox(height: 20),
           _buildMetricTile(
-            count: _submittedReports.length.toString(),
-            label: "Total Submissions",
+            // Honest counts: "submissions" previously included rows still
+            // sitting in the offline outbox, which had never left the device.
+            count: _syncedCount.toString(),
+            label: "Synced reports",
             icon: LucideIcons.fileText,
             color: Colors.white24,
           ),
+          const SizedBox(height: 10),
+          if (_pendingCount > 0) _buildPendingTile(),
         ],
       ),
     );
@@ -269,6 +270,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  // Pending rows (report_outbox) have syncedAt == null; ledger rows always
+  // carry it. Server-fetched rows never have it either, but those are by
+  // definition already on the server.
+  int get _pendingCount => _submittedReports.where((r) => r.syncedAt == null).length;
+  int get _syncedCount => _submittedReports.length - _pendingCount;
+
+  /// Amber tile shown only while reports await upload — makes the offline
+  /// pending state visible at a glance instead of hiding inside the total.
+  Widget _buildPendingTile() {
+    return _buildMetricTile(
+      count: _pendingCount.toString(),
+      label: "Pending sync",
+      icon: LucideIcons.clock,
+      color: Colors.black.withValues(alpha: 0.15),
+    );
+  }
+
   Widget _buildHistoryPane() {
     if (_submittedReports.isEmpty) {
       return Center(
@@ -290,12 +308,52 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      itemCount: _submittedReports.length,
-      itemBuilder: (context, index) {
-        return _buildReportCardNode(_submittedReports[index]);
-      },
+    return RefreshIndicator(
+      // Pull-to-refresh re-runs the merged outbox+ledger query so the sync
+      // mix (and the pending count) is current without leaving the screen.
+      onRefresh: _loadProfileAndReports,
+      color: const Color(0xFF005D90),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        itemCount: _submittedReports.length,
+        itemBuilder: (context, index) {
+          return _buildReportCardNode(_submittedReports[index]);
+        },
+      ),
+    );
+  }
+
+  /// Amber "Pending sync" chip for outbox rows, neutral "Synced" chip for
+  /// ledger rows — the offline visibility contract: the user can always tell
+  /// which of their reports haven't reached the server yet.
+  Widget _buildSyncStateChip(Report report) {
+    final isPending = report.syncedAt == null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: isPending ? Colors.amber.shade100 : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isPending ? LucideIcons.clock : LucideIcons.checkCircle2,
+            size: 10,
+            color: isPending ? Colors.amber.shade800 : const Color(0xFF64748B),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            isPending ? "Pending sync" : "Synced",
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: isPending ? Colors.amber.shade900 : const Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -357,14 +415,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      report.wasteType.replaceAll('_', ' ').toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 12, 
-                        fontWeight: FontWeight.w900, 
-                        color: Color(0xFF005D90),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            report.wasteType.replaceAll('_', ' ').toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 12, 
+                              fontWeight: FontWeight.w900, 
+                              color: Color(0xFF005D90),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildSyncStateChip(report),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(

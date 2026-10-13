@@ -11,6 +11,10 @@ class Report {
   final String description;
   final DateTime? createdAt;
   final String? status;
+  /// Ledger rows only: when the report was successfully synced
+  /// (report_ledger.synced_at). Null for pending outbox rows and server
+  /// reports — consumers use this to tag "Synced" vs "Pending sync".
+  final DateTime? syncedAt;
 
   Report({
     this.id,
@@ -25,6 +29,7 @@ class Report {
     required this.description,
     this.createdAt,
     this.status,
+    this.syncedAt,
   });
 
   /// --- EXISTING SQL CODES ---
@@ -52,6 +57,9 @@ class Report {
       localPhotoPath: map['local_photo_path'] as String?,
       description: map['description'] as String? ?? '',
       createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'] as String) : null,
+      // Ledger rows carry synced_at (row was uploaded); outbox rows don't
+      // have the column, so this is what tags pending vs synced in Profile.
+      syncedAt: map['synced_at'] != null ? DateTime.tryParse(map['synced_at'] as String) : null,
     );
   }
 

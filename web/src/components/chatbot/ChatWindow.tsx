@@ -35,9 +35,9 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
             className="flex h-7 w-7 items-center justify-center rounded-full text-white"
             style={LOADING_AVATAR_STYLE}
           >
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           </div>
-          <span>TrashVision AI is thinking...</span>
+          <span role="status">TrashVision AI is thinking…</span>
         </div>
       ) : null}
     </div>

@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db
+from dependency import require_role, limiter
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
 from models.detection import Detection
@@ -8,13 +11,25 @@ from routes.helper.utils import FlightCreate, FlightResponse
 from services.gps_service import extract_gps, extract_dimensions
 from services.detection_service import process_image_upload
 from services.dbscan_service import cluster_points
-from typing import Optional
-from datetime import date
+from services.mobile_service import MobileMapService
+from dependency import require_public
+from typing import Optional, List, Dict
+from datetime import date, datetime
+from sqlalchemy import extract
 import uuid
 import shutil
+import hashlib
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# SECURITY: all flight endpoints require a valid JWT. Reads are guest-level
+# (any logged-in user); upload-batch stays admin-gated by the web client's
+# ProtectedRoute and is additionally rate-limited (each frame triggers YOLO
+# inference + a Cloudinary upload — expensive per request).
 
 # Directory where uploaded frames are staged before the background worker
 # uploads them to Cloudinary. Cleaned up per-file by the worker.
@@ -22,7 +37,11 @@ TEMP_UPLOAD_DIR = "temp"
 
 
 @router.post("/")
-def create_flight(data: FlightCreate, db: Session = Depends(get_db)):
+def create_flight(
+    data: FlightCreate,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
+):
     flight = DroneFlightLog(
         flight_date=data.flight_date,
         pilot_name=data.pilot_name,
@@ -36,19 +55,47 @@ def create_flight(data: FlightCreate, db: Session = Depends(get_db)):
     return flight
 
 @router.get("/", response_model=list[FlightResponse])
-def get_all_flights(db: Session = Depends(get_db)):
+def get_all_flights(
+    db: Session = Depends(get_db),
+    _user=Depends(require_role("guest")),
+):
     return db.query(DroneFlightLog).order_by(
         DroneFlightLog.flight_date.desc()
     ).all()
 
 @router.get("/areas/{area_id}/collection")
-def get_area_image_collection(area_id: str, db: Session = Depends(get_db)):
+def get_area_image_collection(
+    area_id: str,
+    # Optional time window (FIX: pins used to ignore the map's date filter
+    # entirely — 2025 pins stayed visible under a 2026 calendar). Omitting
+    # the params keeps the old all-history behavior for existing callers;
+    # the web map now sends the SAME window the hexbins use, so pins and
+    # hexes always describe the same time slice.
+    month: Optional[int] = Query(None, ge=1, le=12),
+    year: Optional[int] = Query(None),
+    week: int = Query(4, ge=1, le=4),
+    mode: str = Query("month", pattern="^(month|accumulated)$"),
+    db: Session = Depends(get_db),
+    # PUBLIC (web map pins logged-out via Open Forecast; mirrors the mobile
+    # tiles endpoint's guard).
+    _user=Depends(require_public()),
+):
     try:
         area_uuid = uuid.UUID(area_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid area UUID format")
 
-    detections = db.query(Detection).filter(Detection.area_id == area_uuid).all()
+    query = db.query(Detection).filter(Detection.area_id == area_uuid)
+    if year is not None and month is not None:
+        query = query.filter(extract("year", Detection.timestamp) == year)
+        if mode == "accumulated":
+            # Jan 1 → end of selected month (same year), no week cutoff.
+            query = query.filter(extract("month", Detection.timestamp) <= month)
+        else:
+            query = query.filter(extract("month", Detection.timestamp) == month)
+            if week < 4:
+                query = query.filter(extract("day", Detection.timestamp) <= week * 7)
+    detections = query.all()
 
     return [
         {
@@ -70,15 +117,99 @@ def get_area_image_collection(area_id: str, db: Session = Depends(get_db)):
             "timestamp": d.timestamp.isoformat() if d.timestamp else None,
             "captured_at": d.timestamp.isoformat() if d.timestamp else None,
 
-            "image_id": str(d.detection_id),
+            "image_id": str(d.image_id) if d.image_id else None,
             "file_url": d.image_url,
             "type": d.waste_type
         }
         for d in detections
     ]
 
+@router.get("/areas/{area_id}/hexbins")
+@limiter.limit("60/minute")
+def get_area_hexbins(
+    request: Request,
+    area_id: str,
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(...),
+    week: int = Query(4, ge=1, le=4),
+    threshold: int = Query(2, ge=1),
+    mode: str = Query("month", pattern="^(month|accumulated)$"),
+    db: Session = Depends(get_db),
+    # PUBLIC (web map logged-out via Open Forecast; mirrors the mobile tiles
+    # endpoint's guard).
+    _user=Depends(require_public()),
+):
+    """
+    Server-aggregated hexbins for the web map — the same PostGIS "Heavy
+    Lifter" pipeline mobile uses, so the client never downloads the raw
+    detection collection just to turf-hexbin it in the browser. Also returns
+    cheap aggregates (total + latest detection timestamp) for the header
+    metrics and the date-filter bootstrap.
+    """
+    try:
+        area_uuid = uuid.UUID(area_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid area UUID format")
+
+    area_key = str(area_uuid)
+    try:
+        tiles = MobileMapService.calculate_hex_tiles(
+            db=db, area_id=area_key, month=month, year=year, week=week, threshold=threshold,
+            mode=mode,
+        )
+        stats = MobileMapService.get_area_detection_stats(
+            db=db, area_id=area_key, month=month, year=year, week=week, mode=mode,
+        )
+    except Exception:
+        # Same opaque-500 contract as the mobile tiles route: log the full
+        # traceback server-side, never leak SQL/geometry internals to the
+        # client. An UNHANDLED 500 here bypasses CORSMiddleware entirely, so
+        # the browser reports a misleading CORS failure instead of a server
+        # error — containing it keeps CORS headers on the error response.
+        logger.exception("Hexbin pipeline failed for area %s (mode=%s)", area_key, mode)
+        raise HTTPException(status_code=500, detail="Internal server error while computing map tiles")
+    return {
+        "tiles": tiles,
+        "total_detections": stats["total"],
+        "latest_detection_at": stats["latest"],
+    }
+
+@router.post("/areas/{area_id}/images/batch")
+def get_area_detection_batch(
+    area_id: str,
+    payload: Dict[str, List[str]],
+    db: Session = Depends(get_db),
+    # PUBLIC (product rule: guests browse the map fully — sector drawer
+    # included). POST is only the transport for the id-list body; this is a
+    # read-only id→payload resolution with no personal data. JWT bearer auth
+    # (no cookies) means CSRF is not a concern for anonymous calls.
+    _user=Depends(require_public()),
+):
+    """
+    On-demand drawer details for the web map: resolves detection ids (from a
+    clicked hexbin) into full records with image URL + bounding boxes. Keeps
+    the hexbin payload small instead of embedding per-detection metadata.
+    Mirrors POST /mobile/map/images/batch (same service behind both).
+    """
+    try:
+        uuid.UUID(area_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid area UUID format")
+
+    detection_ids = payload.get("detection_ids")
+    if not detection_ids:
+        return []
+    try:
+        return MobileMapService.fetch_batch_detections(db=db, detection_ids=detection_ids)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid detection id list")
+
 @router.get("/{flight_id}")
-def get_flight(flight_id: str, db: Session = Depends(get_db)):
+def get_flight(
+    flight_id: str,
+    db: Session = Depends(get_db),
+    _user=Depends(require_role("guest")),
+):
     flight = db.query(DroneFlightLog).filter(
         DroneFlightLog.flight_id == uuid.UUID(flight_id)
     ).first()
@@ -92,7 +223,11 @@ def get_flight(flight_id: str, db: Session = Depends(get_db)):
     }
 
 @router.delete("/{flight_id}")
-def delete_flight(flight_id: str, db: Session = Depends(get_db)):
+def delete_flight(
+    flight_id: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
+):
     flight = db.query(DroneFlightLog).filter(
         DroneFlightLog.flight_id == uuid.UUID(flight_id)
     ).first()
@@ -103,13 +238,21 @@ def delete_flight(flight_id: str, db: Session = Depends(get_db)):
     return {"message": "Flight log deleted"}
 
 
-def _save_upload_to_temp(file: UploadFile) -> str:
-    """Persist an uploaded stream to disk so PIL/EXIF and YOLO can read it."""
+def _save_upload_to_temp(file: UploadFile) -> tuple[str, str]:
+    """Persist an uploaded stream to disk so PIL/EXIF and YOLO can read it.
+
+    The SHA-256 of the raw bytes is computed while the stream is written
+    (single pass over the multipart body) so callers can dedup re-uploads
+    before Stage B ever touches the frame. Returns (temp_path, sha256_hex).
+    """
     os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
     path = os.path.join(TEMP_UPLOAD_DIR, f"{uuid.uuid4()}_{file.filename}")
+    hasher = hashlib.sha256()
     with open(path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return path
+        while chunk := file.file.read(8192):
+            hasher.update(chunk)
+            buffer.write(chunk)
+    return path, hasher.hexdigest()
 
 
 def _cluster_frames(frames: list[dict]) -> list[dict]:
@@ -137,7 +280,9 @@ def _cluster_frames(frames: list[dict]) -> list[dict]:
 
 
 @router.post("/upload-batch")
+@limiter.limit("10/minute")
 async def upload_flight_batch(
+    request: Request,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
 
@@ -146,7 +291,8 @@ async def upload_flight_batch(
     pilot_name: str = Form(...),
     notes: str = Form(...),
 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_role("admin")),
 ):
     """
     Stage A Frame-Level DBSCAN Implementation.
@@ -166,24 +312,56 @@ async def upload_flight_batch(
     db.refresh(flight)
     flight_id = str(flight.flight_id)
 
-    # 1. Save streams to disk and read EXIF GPS from the file path.
+    # 1. Save streams to disk (hashing on the fly) and read EXIF GPS from
+    # the file path.
     extracted_frames = []
     for file in files:
-        temp_path = _save_upload_to_temp(file)
+        temp_path, content_hash = _save_upload_to_temp(file)
         lat, lng = extract_gps(temp_path)
         width, height = extract_dimensions(temp_path)
         extracted_frames.append({
             "id": str(uuid.uuid4()),
             "file": file,
             "temp_path": temp_path,
+            "content_hash": content_hash,
             "lat": lat,
             "lng": lng,
             "width": width,
             "height": height,
         })
 
-    # 2. Stage A clustering across the batch.
-    clustered_groups = _cluster_frames(extracted_frames)
+    # 1b. Content-hash dedup (Stage 0). A frame whose bytes already exist in
+    # a past flight — or earlier in this same batch — is pulled out BEFORE
+    # Stage A clustering so it never re-triggers YOLO inference + Cloudinary
+    # upload. It still gets an Image row (audit trail) but no background
+    # task; its temp file is deleted here since the worker, which normally
+    # cleans up, is never enqueued for it. Legacy rows have NULL hashes and
+    # NULL never equals NULL, so they are never skipped.
+    batch_hashes = [f["content_hash"] for f in extracted_frames]
+    existing_hashes = {
+        h for (h,) in db.query(Image.content_hash).filter(
+            Image.content_hash.in_(batch_hashes)
+        ).all()
+        if h is not None
+    }
+    already_uploaded_frames = []
+    fresh_frames = []
+    seen_hashes = set()
+    for frame in extracted_frames:
+        if frame["content_hash"] in existing_hashes or frame["content_hash"] in seen_hashes:
+            already_uploaded_frames.append(frame)
+        else:
+            seen_hashes.add(frame["content_hash"])
+            fresh_frames.append(frame)
+
+    if already_uploaded_frames:
+        logger.info(
+            "Content-hash dedup skipped %d of %d frames for flight %s",
+            len(already_uploaded_frames), len(files), flight_id,
+        )
+
+    # 2. Stage A clustering across the de-duplicated batch.
+    clustered_groups = _cluster_frames(fresh_frames)
 
     # 3. Persist Image rows; queue Stage B for representatives only.
     processed_images: list[Image] = []
@@ -206,6 +384,11 @@ async def upload_flight_batch(
                 longitude=member["lng"] if member["lng"] is not None else 0.0,
                 image_width=member["width"],
                 image_height=member["height"],
+                content_hash=member["content_hash"],
+                # From the admin-entered flight date (captured_at feeds
+                # batch-image listings); the insert clock would misdate
+                # historical flights.
+                captured_at=datetime.combine(flight.flight_date, datetime.min.time()),
                 is_representative=is_rep,
                 cluster_id=cluster_str_id,
                 processing_status=status
@@ -224,6 +407,35 @@ async def upload_flight_batch(
                     lng=member["lng"],
                     image_id=str(db_image.image_id),
                 )
+            else:
+                # Stage A duplicate: no worker is enqueued for this frame, so
+                # its temp file would leak to disk forever. The worker's
+                # finally-block is what normally frees the file.
+                if os.path.exists(member["temp_path"]):
+                    os.remove(member["temp_path"])
+
+    # 3b. Persist audit rows for already-uploaded frames and free their temp
+    # files (no background worker will ever clean these up). cluster_id stays
+    # NULL: these frames never entered this batch's Stage A clustering.
+    for frame in already_uploaded_frames:
+        db.add(Image(
+            image_id=uuid.UUID(frame["id"]),
+            flight_id=flight.flight_id,
+            file_url=f"pending/{flight_id}/{frame['file'].filename}",
+            asset_url=f"pending/{flight_id}/{frame['file'].filename}",
+            filename=frame['file'].filename,
+            latitude=frame["lat"] if frame["lat"] is not None else 0.0,
+            longitude=frame["lng"] if frame["lng"] is not None else 0.0,
+            image_width=frame["width"],
+            image_height=frame["height"],
+            content_hash=frame["content_hash"],
+            captured_at=datetime.combine(flight.flight_date, datetime.min.time()),
+            is_representative=False,
+            cluster_id=None,
+            processing_status=ProcessingStatus.DUPLICATE_SKIPPED
+        ))
+        if os.path.exists(frame["temp_path"]):
+            os.remove(frame["temp_path"])
     db.commit()
 
     return {
@@ -232,5 +444,6 @@ async def upload_flight_batch(
         "pilot_name": pilot_name,
         "total_uploaded": len(files),
         "representatives_queued": len([img for img in processed_images if img.is_representative]),
-        "duplicates_skipped": len([img for img in processed_images if not img.is_representative])
+        "duplicates_skipped": len([img for img in processed_images if not img.is_representative]),
+        "already_uploaded": len(already_uploaded_frames)
     }

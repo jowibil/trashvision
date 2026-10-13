@@ -1,5 +1,5 @@
 // web/src/components/ui/aside.tsx
-import { memo, type CSSProperties } from "react";
+import { memo, useEffect, useState, type CSSProperties } from "react";
 
 // Direct path imports instead of the lucide-react barrel export.
 import { X } from "lucide-react";
@@ -10,6 +10,7 @@ import { Search } from "lucide-react";
 
 import { getCciColor } from "../../pages/MapView";
 import type { HexbinProperties } from "../../types/types";
+import type { SectorDetection } from "../../services/hooks/useAreaHexbins";
 
 interface SectorFeature {
   properties: HexbinProperties;
@@ -38,6 +39,8 @@ interface SectorDrawerProps {
   onClose: () => void;
   selectedSector: SectorFeature | null;
   areaStatus?: StatusBadge;
+  /** On-demand details for the selected sector's detection ids (server hexbins carry ids only). */
+  sectorDetections?: SectorDetection[];
   onItemSelect: (detection: SelectedDetection) => void;
 }
 
@@ -47,11 +50,120 @@ const FALLBACK_STATUS_STYLE: CSSProperties = {
   borderColor: "#f1f5f9",
 };
 
+// Skeleton cap: a huge sector could hold hundreds of ids — the drawer shows
+// ~4 cards at once, so a dozen pulsing placeholders is plenty.
+const SKELETON_CARD_COUNT = 12;
+
+/** Loading placeholder shaped exactly like a DetectionCard (Tailwind pulse). */
+const SkeletonCard = memo(function SkeletonCard() {
+  return (
+    <div className="w-full bg-slate-100 rounded-2xl overflow-hidden animate-pulse">
+      <div className="h-32 w-full bg-slate-200" />
+      <div className="p-3 flex justify-between items-center">
+        <div className="h-2.5 w-28 rounded bg-slate-200" />
+        <div className="h-3.5 w-3.5 rounded-full bg-slate-200" />
+      </div>
+    </div>
+  );
+});
+
+interface DetectionCardProps {
+  id: string;
+  imgUrl?: string;
+  wasteType: string;
+  confidence: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  onItemSelect: (detection: SelectedDetection) => void;
+}
+
+/** One detection row in the drawer: shimmer-while-loading thumbnail, then a
+ * fade-in; a local slate fallback on error (the old via.placeholder.com
+ * onError pointed at a dead service and rendered a broken-image icon). */
+const DetectionCard = memo(function DetectionCard({
+  id,
+  imgUrl,
+  wasteType,
+  confidence,
+  x1,
+  y1,
+  x2,
+  y2,
+  onItemSelect,
+}: DetectionCardProps) {
+  const [imgState, setImgState] = useState<"loading" | "ok" | "error">(
+    imgUrl ? "loading" : "error",
+  );
+
+  // Reset when the drawer is reused for a different sector/image.
+  useEffect(() => {
+    setImgState(imgUrl ? "loading" : "error");
+  }, [imgUrl]);
+
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        onItemSelect({
+          id,
+          type: wasteType,
+          image: imgUrl ?? "",
+          reporter: "YOLOv8",
+          description:
+            "Automated aerial tracking identification finalized with coordinate markers.",
+          detections: [
+            {
+              label: wasteType,
+              confidence,
+              bbox: [x1, y1, x2, y2],
+            },
+          ],
+        })
+      }
+      className="group w-full cursor-pointer bg-slate-100 rounded-2xl overflow-hidden hover:border-blue-400 border border-transparent transition-all text-left"
+    >
+      <div className="h-32 w-full overflow-hidden relative bg-slate-200">
+        {imgUrl && imgState !== "error" ? (
+          <>
+            <img
+              src={imgUrl}
+              alt="Detection preview"
+              onLoad={() => setImgState("ok")}
+              onError={() => setImgState("error")}
+              className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ${
+                imgState === "ok" ? "opacity-100" : "opacity-0"
+              }`}
+            />
+            {imgState === "loading" && (
+              <div className="absolute inset-0 animate-pulse bg-slate-200" />
+            )}
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-full text-[10px] text-slate-400 font-bold">
+            Image Unavailable
+          </div>
+        )}
+        <div className="absolute top-2 right-2 bg-[#005D90]/80 px-2 py-1 rounded text-[10px] font-black text-white uppercase">
+          {Math.round(confidence * 100)}% Conf.
+        </div>
+      </div>
+
+      <div className="p-3 flex justify-between items-center">
+        <span className="text-[11px] font-black text-slate-800 uppercase">{wasteType}</span>
+        <CheckCircle size={14} className="text-slate-300 group-hover:text-green-500" />
+      </div>
+    </button>
+  );
+});
+
 export const SectorDrawer = memo(function SectorDrawer({
   isOpen,
   onClose,
   selectedSector,
   areaStatus,
+  sectorDetections,
   onItemSelect,
 }: SectorDrawerProps) {
   const sectorCategory = selectedSector?.properties?.pollution_category;
@@ -120,66 +232,43 @@ export const SectorDrawer = memo(function SectorDrawer({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {selectedSector.properties.pointIds.map((id: string, index: number) => {
-              const imgUrl = selectedSector.properties.images?.[index];
-              const wasteType = selectedSector.properties.types?.[index] || "Unclassified Waste";
-              const confidencescore = selectedSector.properties.confidence_scores?.[index] ?? 0.85;
+            {sectorDetections === undefined ? (
+              // Details request still in flight: skeletons shaped like the
+              // real cards (never fallback junk that pops into thumbnails).
+              // MapView resolves failed batches to [] so this can't stick.
+              Array.from({ length: Math.min(SKELETON_CARD_COUNT, selectedSector.properties.pointIds.length || 1) }, (_, i) => (
+                <SkeletonCard key={`skeleton-${i}`} />
+              ))
+            ) : (
+              selectedSector.properties.pointIds.map((id: string, index: number) => {
+                // Server hexbins carry only ids; per-detection details are
+                // resolved on demand (MapView batches them per sector click).
+                const detail = sectorDetections.find((d) => d.detection_id === id);
+                const imgUrl = detail?.file_url ?? selectedSector.properties.images?.[index];
+                const wasteType = detail?.type ?? selectedSector.properties.types?.[index] ?? "Unclassified Waste";
+                const confidencescore = detail?.confidence ?? selectedSector.properties.confidence_scores?.[index] ?? 0.85;
 
-              const x1 = selectedSector.properties.x1s?.[index] ?? 0;
-              const y1 = selectedSector.properties.y1s?.[index] ?? 0;
-              const x2 = selectedSector.properties.x2s?.[index] ?? 0;
-              const y2 = selectedSector.properties.y2s?.[index] ?? 0;
+                const x1 = detail?.bbox[0] ?? selectedSector.properties.x1s?.[index] ?? 0;
+                const y1 = detail?.bbox[1] ?? selectedSector.properties.y1s?.[index] ?? 0;
+                const x2 = detail?.bbox[2] ?? selectedSector.properties.x2s?.[index] ?? 0;
+                const y2 = detail?.bbox[3] ?? selectedSector.properties.y2s?.[index] ?? 0;
 
-              return (
-                <button
-                  type="button"
-                  key={`${id}-${index}`}
-                  onClick={() =>
-                    onItemSelect({
-                      id,
-                      type: wasteType,
-                      image: imgUrl ?? "",
-                      reporter: "YOLOv8",
-                      description:
-                        "Automated aerial tracking identification finalized with coordinate markers.",
-                      detections: [
-                        {
-                          label: wasteType,
-                          confidence: confidencescore,
-                          bbox: [x1, y1, x2, y2],
-                        },
-                      ],
-                    })
-                  }
-                  className="group w-full cursor-pointer bg-slate-100 rounded-2xl overflow-hidden hover:border-blue-400 border border-transparent transition-all text-left"
-                >
-                  <div className="h-32 w-full overflow-hidden relative bg-slate-200">
-                    {imgUrl ? (
-                      <img
-                        src={imgUrl}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        alt="Detection preview"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://via.placeholder.com/150?text=Error";
-                        }}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-[10px] text-slate-400 font-bold">
-                        Image Unavailable
-                      </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-[#005D90]/80 px-2 py-1 rounded text-[10px] font-black text-white uppercase">
-                      {Math.round(confidencescore * 100)}% Conf.
-                    </div>
-                  </div>
-
-                  <div className="p-3 flex justify-between items-center">
-                    <span className="text-[11px] font-black text-slate-800 uppercase">{wasteType}</span>
-                    <CheckCircle size={14} className="text-slate-300 group-hover:text-green-500" />
-                  </div>
-                </button>
-              );
-            })}
+                return (
+                  <DetectionCard
+                    key={`${id}-${index}`}
+                    id={id}
+                    imgUrl={imgUrl}
+                    wasteType={wasteType}
+                    confidence={confidencescore}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    onItemSelect={onItemSelect}
+                  />
+                );
+              })
+            )}
           </div>
         </>
       ) : (

@@ -12,7 +12,7 @@ export default function FeatureCard({ icon: Icon, title, description, size = "md
 
   return (
     <div
-      className={`relative h-full text-left group overflow-hidden bg-[#fcfcfc] rounded-3xl border border-zinc-900/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/10 ${
+      className={`relative h-full text-left group overflow-hidden bg-[#fcfcfc] rounded-3xl border border-zinc-900/5 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/10 ${
         isLarge ? "p-10" : "p-8"
       }`}
     >
@@ -26,7 +26,9 @@ export default function FeatureCard({ icon: Icon, title, description, size = "md
         <p className={`text-slate-600 leading-relaxed ${isLarge ? "text-base max-w-md" : ""}`}>{description}</p>
       </div>
 
-      <div className="absolute bottom-0 left-0 h-1 w-0 bg-[#005D90] transition-all duration-300 group-hover:w-full z-10" />
+      {/* Underline sweep: scale-x instead of animating width — transform
+          stays on the GPU; width would trigger layout every frame. */}
+      <div className="absolute bottom-0 left-0 h-1 w-full origin-left scale-x-0 bg-[#005D90] transition-transform duration-300 ease-out group-hover:scale-x-100 z-10" />
     </div>
   );
 }

@@ -81,3 +81,5 @@ dump.rdb
 *.bak
 *.tmp
 *.temp
+# Drone frame transit staging (hashed in DB; originals land on Cloudinary)
+backend/temp/

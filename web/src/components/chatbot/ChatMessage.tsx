@@ -24,7 +24,7 @@ export default function ChatMessage({ role, text }: ChatMessageData) {
           className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full text-white shadow-sm"
           style={AVATAR_STYLE}
         >
-          <Bot className="h-5 w-5" />
+          <Bot className="h-5 w-5" aria-hidden="true" />
         </div>
       ) : null}
 
@@ -40,7 +40,7 @@ export default function ChatMessage({ role, text }: ChatMessageData) {
 
       {!isBot ? (
         <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-slate-200 text-slate-600">
-          <User className="h-4 w-4" />
+          <User className="h-4 w-4" aria-hidden="true" />
         </div>
       ) : null}
     </div>

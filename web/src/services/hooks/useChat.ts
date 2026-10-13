@@ -1,9 +1,25 @@
 import { useState } from 'react';
-import { sendMessage as sendApiMessage } from '../chatApi';
+import { sendMessage as sendApiMessage, type ChatHistoryTurn } from '../chatApi';
 
 export interface ChatMessageData {
   role: 'user' | 'bot';
   text: string;
+}
+
+// Stateless backend: the client owns conversation memory. Keep the last
+// 8 messages (4 user + 4 bot) — enough context for a 2–5 sentence assistant
+// without growing payloads.
+const HISTORY_WINDOW = 8;
+
+function toHistoryTurns(messages: ChatMessageData[]): ChatHistoryTurn[] {
+  return messages
+    // The greeting is not part of the real conversation.
+    .filter((m) => m.role === 'user' || m.role === 'bot')
+    .slice(-HISTORY_WINDOW)
+    .map((m) => ({
+      role: (m.role === 'bot' ? 'model' : 'user') as ChatHistoryTurn['role'],
+      text: m.text,
+    }));
 }
 
 export interface UseChatReturn {
@@ -32,7 +48,10 @@ export function useChat(): UseChatReturn {
     setIsLoading(true);
 
     try {
-      const data = await sendApiMessage(conversationId, trimmedText);
+      // Snapshot history BEFORE appending the new user message, and strip
+      // the initial greeting from it.
+      const history = toHistoryTurns(messages.slice(1));
+      const data = await sendApiMessage(conversationId, trimmedText, history);
       setMessages((prev) => [...prev, { role: 'bot', text: data.reply }]);
     } catch (error) {
       console.error('Chat error:', error);

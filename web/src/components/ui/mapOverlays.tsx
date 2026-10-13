@@ -2,6 +2,8 @@ import { Calendar } from "lucide-react";
 import { useRef } from "react";
 import type { WasteClass } from "../../types/types";
 
+export type MapViewMode = "month" | "accumulated";
+
 export const WasteColorMap: Record<WasteClass, string> = {
   plastic: "#EF4444", // Red
   styrofoam: "#F87171", // Light Red / Pink
@@ -28,6 +30,8 @@ interface MapOverlaysProps {
   selectedDate: Date;
   setSelectedDate: (date: Date) => void;
   drawerOpen: boolean;
+  viewMode: MapViewMode;
+  setViewMode: (mode: MapViewMode) => void;
 }
 
 export const MapOverlays = ({
@@ -38,25 +42,61 @@ export const MapOverlays = ({
   selectedDate,
   setSelectedDate,
   drawerOpen,
+  viewMode,
+  setViewMode,
 }: MapOverlaysProps) => {
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const localDateString = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(
     selectedDate.getDate(),
   ).padStart(2, "0")}`;
 
+  // Accumulated windows hold many more detections than a single month, so
+  // the min/cell floor rises (product spec: slider up to 100 in this mode).
+  const thresholdMax = viewMode === "accumulated" ? 100 : 15;
+  const effectiveThreshold = Math.min(threshold, thresholdMax);
+
   return (
     <>
       {!drawerOpen ? (
         <div className="absolute top-6 right-6 z-[400] w-64 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white">
+          {/* View switch: segmented pill control, same visual language as
+              the week chips and the mobile MapPanel toggles. */}
+          <div className="flex mb-3 p-0.5 bg-slate-100 rounded-xl">
+            {(
+              [
+                { id: "month", label: "Per Month" },
+                { id: "accumulated", label: "Accumulated" },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  setViewMode(m.id);
+                  // Clamp an out-of-range threshold when switching modes
+                  // (accumulated uses a higher slider ceiling).
+                  setThreshold(Math.min(threshold, m.id === "accumulated" ? 100 : 15));
+                }}
+                className={`flex-1 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all ${
+                  viewMode === m.id
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex justify-between mb-2">
             <label className="text-xs font-black uppercase text-slate-500">Min Items/Cell</label>
-            <span className="text-xs font-black text-blue-600">{threshold}</span>
+            <span className="text-xs font-black text-blue-600">{effectiveThreshold}</span>
           </div>
           <input
             type="range"
             min="1"
-            max="15"
-            value={threshold}
+            max={thresholdMax}
+            value={effectiveThreshold}
             onChange={(e) => {
               const val = parseInt(e.target.value);
               setThreshold(val);
@@ -64,6 +104,11 @@ export const MapOverlays = ({
             }}
             className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
           />
+          {viewMode === "accumulated" && (
+            <p className="mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+              Jan 1 – {selectedDate.toLocaleString("default", { month: "short" })} {selectedDate.getFullYear()}, all history this year
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -76,17 +121,25 @@ export const MapOverlays = ({
           <div className="flex justify-between items-center mb-4">
             <button
               type="button"
-              className="flex items-center gap-2 cursor-pointer group"
+              aria-label="Change map date"
+              className="flex items-center gap-2 cursor-pointer group focus-visible:outline-2 focus-visible:outline-blue-400"
               onClick={() => dateInputRef.current?.showPicker()}
             >
               <div className="p-2 bg-blue-500 rounded-lg text-white">
                 <Calendar size={16} />
               </div>
               <div className="text-left">
-                <h3 className="text-sm font-black uppercase leading-tight tracking-widest">Week {week} View</h3>
+                <h3 className="text-sm font-black uppercase leading-tight tracking-widest">
+                  {viewMode === "accumulated"
+                    ? `Jan – ${selectedDate.toLocaleString("default", { month: "short" })}`
+                    : `Week ${week} View`}
+                </h3>
                 <p className="text-[9px] font-bold text-left text-blue-400 uppercase">
-                  Cumulative: Jan 1 – {selectedDate.toLocaleString("default", { month: "short" })}{" "}
-                  {week === 4 ? "end of month" : week * 7}, {selectedDate.getFullYear()}
+                  {viewMode === "accumulated"
+                    ? `Accumulated · Jan 1 – end of ${selectedDate.toLocaleString("default", { month: "short" })} ${selectedDate.getFullYear()}`
+                    : `Cumulative: Jan 1 – ${selectedDate.toLocaleString("default", { month: "short" })} ${
+                        week === 4 ? "end of month" : week * 7
+                      }, ${selectedDate.getFullYear()}`}
                 </p>
               </div>
             </button>
@@ -103,7 +156,8 @@ export const MapOverlays = ({
               className="absolute opacity-0 pointer-events-none"
             />
           </div>
-          <div className="mt-3">
+          {viewMode === "month" && (
+            <div className="mt-3">
             <input
               type="range"
               min="1"
@@ -118,7 +172,8 @@ export const MapOverlays = ({
               {WEEK_SLOTS.map((w) => {
                 // FIX: dropped the unused `start` (always Jan 1 now, not
                 // meaningful per-button) and relabeled as a "thru" checkpoint
-                // to match the cumulative filter in useHexbins.ts.
+                // to match the server's cumulative week filter (hexbins
+                // endpoint aggregates with the same cutoff).
                 const end = w === 4 ? "end" : w * 7;
                 return (
                   <button
@@ -137,7 +192,8 @@ export const MapOverlays = ({
                 );
               })}
             </div>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </>

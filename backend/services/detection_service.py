@@ -2,11 +2,13 @@
 import os
 import uuid
 import logging
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from ml.detect import trash_detector
 from models.detection import Detection
+from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
 from services.dbscan_service import cluster_points
 from services.cloudinary_service import upload_drone_image
@@ -38,6 +40,18 @@ def run_yolo_inference(
     raw_detections = trash_detector.run_inference(file_path)
     if not raw_detections:
         return []
+
+    # Temporal source of truth is the admin-entered flight date, NOT the
+    # worker's insert clock: the map's month/year/week windows filter
+    # detections.timestamp, so stamping insert time put historical flight
+    # pins into the upload month instead of the flight month.
+    flight_ts: datetime | None = None
+    if flight_id:
+        flight = db.get(DroneFlightLog, uuid.UUID(flight_id))
+        if flight is not None and flight.flight_date is not None:
+            # Naive midnight of the flight date, matching the detections
+            # column type (TIMESTAMP without tz).
+            flight_ts = datetime.combine(flight.flight_date, datetime.min.time())
 
     if lat is None or lng is None:
         # No geotag: keep every raw detection as its own unclustered row.
@@ -88,6 +102,8 @@ def run_yolo_inference(
             duplicate_count=cluster["member_count"],
             cluster_id=str(cluster["cluster_id"]),
         )
+        if flight_ts is not None:
+            new_detection.timestamp = flight_ts
         db.add(new_detection)
         db_detections.append(new_detection)
 

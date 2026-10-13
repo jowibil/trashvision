@@ -36,6 +36,13 @@ class Image(Base):
     
     filename = Column(String, nullable=False)
 
+    # SHA-256 of the uploaded bytes, computed while the stream is written to
+    # temp so a re-upload of the same photo can be skipped before Stage B
+    # (Cloudinary + YOLO) runs. Nullable: frames uploaded before this column
+    # existed have no stored hash, and NULL never matches another NULL, so
+    # legacy rows are never deduped.
+    content_hash = Column(String, nullable=True, index=True)
+
     captured_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     is_representative = Column(Boolean, default=True, nullable=False)

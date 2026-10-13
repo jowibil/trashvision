@@ -14,10 +14,11 @@ from services.dbscan_service import cluster_points
 from services.mobile_service import MobileMapService
 from dependency import require_public
 from typing import Optional, List, Dict
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import extract
 import uuid
 import shutil
+import hashlib
 import os
 import logging
 
@@ -237,13 +238,21 @@ def delete_flight(
     return {"message": "Flight log deleted"}
 
 
-def _save_upload_to_temp(file: UploadFile) -> str:
-    """Persist an uploaded stream to disk so PIL/EXIF and YOLO can read it."""
+def _save_upload_to_temp(file: UploadFile) -> tuple[str, str]:
+    """Persist an uploaded stream to disk so PIL/EXIF and YOLO can read it.
+
+    The SHA-256 of the raw bytes is computed while the stream is written
+    (single pass over the multipart body) so callers can dedup re-uploads
+    before Stage B ever touches the frame. Returns (temp_path, sha256_hex).
+    """
     os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
     path = os.path.join(TEMP_UPLOAD_DIR, f"{uuid.uuid4()}_{file.filename}")
+    hasher = hashlib.sha256()
     with open(path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return path
+        while chunk := file.file.read(8192):
+            hasher.update(chunk)
+            buffer.write(chunk)
+    return path, hasher.hexdigest()
 
 
 def _cluster_frames(frames: list[dict]) -> list[dict]:
@@ -303,24 +312,56 @@ async def upload_flight_batch(
     db.refresh(flight)
     flight_id = str(flight.flight_id)
 
-    # 1. Save streams to disk and read EXIF GPS from the file path.
+    # 1. Save streams to disk (hashing on the fly) and read EXIF GPS from
+    # the file path.
     extracted_frames = []
     for file in files:
-        temp_path = _save_upload_to_temp(file)
+        temp_path, content_hash = _save_upload_to_temp(file)
         lat, lng = extract_gps(temp_path)
         width, height = extract_dimensions(temp_path)
         extracted_frames.append({
             "id": str(uuid.uuid4()),
             "file": file,
             "temp_path": temp_path,
+            "content_hash": content_hash,
             "lat": lat,
             "lng": lng,
             "width": width,
             "height": height,
         })
 
-    # 2. Stage A clustering across the batch.
-    clustered_groups = _cluster_frames(extracted_frames)
+    # 1b. Content-hash dedup (Stage 0). A frame whose bytes already exist in
+    # a past flight — or earlier in this same batch — is pulled out BEFORE
+    # Stage A clustering so it never re-triggers YOLO inference + Cloudinary
+    # upload. It still gets an Image row (audit trail) but no background
+    # task; its temp file is deleted here since the worker, which normally
+    # cleans up, is never enqueued for it. Legacy rows have NULL hashes and
+    # NULL never equals NULL, so they are never skipped.
+    batch_hashes = [f["content_hash"] for f in extracted_frames]
+    existing_hashes = {
+        h for (h,) in db.query(Image.content_hash).filter(
+            Image.content_hash.in_(batch_hashes)
+        ).all()
+        if h is not None
+    }
+    already_uploaded_frames = []
+    fresh_frames = []
+    seen_hashes = set()
+    for frame in extracted_frames:
+        if frame["content_hash"] in existing_hashes or frame["content_hash"] in seen_hashes:
+            already_uploaded_frames.append(frame)
+        else:
+            seen_hashes.add(frame["content_hash"])
+            fresh_frames.append(frame)
+
+    if already_uploaded_frames:
+        logger.info(
+            "Content-hash dedup skipped %d of %d frames for flight %s",
+            len(already_uploaded_frames), len(files), flight_id,
+        )
+
+    # 2. Stage A clustering across the de-duplicated batch.
+    clustered_groups = _cluster_frames(fresh_frames)
 
     # 3. Persist Image rows; queue Stage B for representatives only.
     processed_images: list[Image] = []
@@ -343,6 +384,11 @@ async def upload_flight_batch(
                 longitude=member["lng"] if member["lng"] is not None else 0.0,
                 image_width=member["width"],
                 image_height=member["height"],
+                content_hash=member["content_hash"],
+                # From the admin-entered flight date (captured_at feeds
+                # batch-image listings); the insert clock would misdate
+                # historical flights.
+                captured_at=datetime.combine(flight.flight_date, datetime.min.time()),
                 is_representative=is_rep,
                 cluster_id=cluster_str_id,
                 processing_status=status
@@ -361,6 +407,35 @@ async def upload_flight_batch(
                     lng=member["lng"],
                     image_id=str(db_image.image_id),
                 )
+            else:
+                # Stage A duplicate: no worker is enqueued for this frame, so
+                # its temp file would leak to disk forever. The worker's
+                # finally-block is what normally frees the file.
+                if os.path.exists(member["temp_path"]):
+                    os.remove(member["temp_path"])
+
+    # 3b. Persist audit rows for already-uploaded frames and free their temp
+    # files (no background worker will ever clean these up). cluster_id stays
+    # NULL: these frames never entered this batch's Stage A clustering.
+    for frame in already_uploaded_frames:
+        db.add(Image(
+            image_id=uuid.UUID(frame["id"]),
+            flight_id=flight.flight_id,
+            file_url=f"pending/{flight_id}/{frame['file'].filename}",
+            asset_url=f"pending/{flight_id}/{frame['file'].filename}",
+            filename=frame['file'].filename,
+            latitude=frame["lat"] if frame["lat"] is not None else 0.0,
+            longitude=frame["lng"] if frame["lng"] is not None else 0.0,
+            image_width=frame["width"],
+            image_height=frame["height"],
+            content_hash=frame["content_hash"],
+            captured_at=datetime.combine(flight.flight_date, datetime.min.time()),
+            is_representative=False,
+            cluster_id=None,
+            processing_status=ProcessingStatus.DUPLICATE_SKIPPED
+        ))
+        if os.path.exists(frame["temp_path"]):
+            os.remove(frame["temp_path"])
     db.commit()
 
     return {
@@ -369,5 +444,6 @@ async def upload_flight_batch(
         "pilot_name": pilot_name,
         "total_uploaded": len(files),
         "representatives_queued": len([img for img in processed_images if img.is_representative]),
-        "duplicates_skipped": len([img for img in processed_images if not img.is_representative])
+        "duplicates_skipped": len([img for img in processed_images if not img.is_representative]),
+        "already_uploaded": len(already_uploaded_frames)
     }

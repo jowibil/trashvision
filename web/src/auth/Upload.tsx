@@ -143,7 +143,7 @@ export default function DroneUploadUI() {
     });
 
     try {
-      await api.post("/flights/upload-batch", formData, {
+      const res = await api.post("/flights/upload-batch", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
@@ -151,7 +151,20 @@ export default function DroneUploadUI() {
         },
       });
 
-      toast.success("Flight analysis queued successfully!");
+      // Surface content-hash dedup results from the backend: frames already
+      // uploaded in a previous flight (or earlier in this batch) are
+      // SKIPPED server-side and never re-processed.
+      const { representatives_queued = 0, duplicates_skipped = 0, already_uploaded = 0 } =
+        (res.data ?? {}) as { representatives_queued?: number; duplicates_skipped?: number; already_uploaded?: number };
+      if (already_uploaded > 0) {
+        toast.success(
+          `Flight queued — ${representatives_queued} new frames analyzed, ${already_uploaded} already-uploaded image${already_uploaded === 1 ? "" : "s"} skipped`
+        );
+      } else if (duplicates_skipped > 0) {
+        toast.success(`Flight analysis queued successfully! (${duplicates_skipped} duplicate frames skipped)`);
+      } else {
+        toast.success("Flight analysis queued successfully!");
+      }
 
       setSelectedFiles([]);
       setUploadMetadata({
@@ -222,7 +235,7 @@ export default function DroneUploadUI() {
                     </span>
                   </span>
                 </label>
-                <p className="text-xs text-slate-400 mt-4 max-w-xs mx-auto text-center">
+                <p className="text-xs text-slate-400 mt-6 mx-auto text-center">
                   One batch per flight — photos keep their GPS metadata for automatic area detection.
                 </p>
               </div>

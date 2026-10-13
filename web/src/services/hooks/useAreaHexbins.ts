@@ -52,7 +52,7 @@ interface HexbinsResponse {
  * so a drag fires ONE request at the settled value, matching mobile.
  *
  * Offline-first (mirrors mobile's getHexBinsCached): every request key is
- * `hexbins_v3:{mode}:{areaId}:{year}-{month}:w{week}:t{threshold}` — the
+ * `hexbins_v6:{mode}:{areaId}:{year}-{month}:w{week}:t{threshold}` — the
  * exact format mobile uses for its sqflite map_cache. Cached payloads
  * render immediately (stale-while-revalidate) and the network result
  * replaces them; on network failure the cached/stale tiles stay on screen
@@ -81,10 +81,11 @@ export const useAreaHexbins = (
       setLoading(true);
 
       // Cache key mirrors mobile's _hexBinsCacheKey format exactly.
-      // v5: back to raw detection counts (map-level cross-flight clustering
-      // was rolled back — v4 entries hold item counts). Mode segment stays
-      // first so a stale-while-revalidate hit always matches the active mode.
-      const cacheKey = `hexbins_v5:${mode}:${areaId}:${selectedDate.getFullYear()}-${
+      // v6: timestamps were re-derived from flight_date server-side (update
+      // from the insert-clock era breaks old cached hexbins for any window
+      // that spans changed months). Mode segment stays first so a
+      // stale-while-revalidate hit always matches the active mode.
+      const cacheKey = `hexbins_v6:${mode}:${areaId}:${selectedDate.getFullYear()}-${
         selectedDate.getMonth() + 1
       }:w${week}:t${threshold}`;
 

@@ -159,11 +159,12 @@ class MobileMapService {
     required int threshold,
     String mode = 'month',
   }) =>
-      // v5: back to raw detection counts (map-level cross-flight clustering
-      // was rolled back — v4 entries hold item counts). Mirrors the web's
-      // hexbins_v5 key format exactly; mode segment comes FIRST so a
-      // stale-while-revalidate hit always matches the active mode.
-      'hexbins_v5:$mode:$areaId:${selectedDate.year}-${selectedDate.month}:w$week:t$threshold';
+      // v6: timestamps were re-derived from flight_date server-side (the
+      // insert-clock era's entries break hexbin windows for any month that
+      // changed). Mirrors the web's hexbins_v6 key format exactly; mode
+      // segment comes FIRST so a stale-while-revalidate hit always matches
+      // the active mode.
+      'hexbins_v6:$mode:$areaId:${selectedDate.year}-${selectedDate.month}:w$week:t$threshold';
 
   /// Result of a cache-then-network fetch. [fromCache] true means the payload
   /// came from sqflite (either because the network failed, or because it was

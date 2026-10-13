@@ -9,6 +9,7 @@ from models.image import Image, ProcessingStatus
 from models.detection import Detection
 from routes.helper.utils import FlightCreate, FlightResponse
 from services.gps_service import extract_gps, extract_dimensions
+from services.geo_assign import resolve_area_for_point
 from services.detection_service import process_image_upload
 from services.dbscan_service import cluster_points
 from services.mobile_service import MobileMapService
@@ -279,6 +280,7 @@ def _cluster_frames(frames: list[dict]) -> list[dict]:
     return clusters
 
 
+
 @router.post("/upload-batch")
 @limiter.limit("10/minute")
 async def upload_flight_batch(
@@ -329,6 +331,38 @@ async def upload_flight_batch(
             "width": width,
             "height": height,
         })
+
+    # 1a. Auto-detect assignment area (Upload page "Auto-detect from GPS").
+    # The frontend omits area_id for "auto", which used to commit the flight
+    # with area_id NULL and let TrashLogs show "Unassigned sector" — despite
+    # every frame carrying EXIF GPS. Resolve the covering area per frame and
+    # pick the majority. Manual selection always wins when given; if no
+    # boundary covers any GPS point, stay UNASSIGNED (honest, surfaces
+    # boundary gaps) rather than guessing the nearest area.
+    if area_id is None:
+        tally: dict = {}
+        for frame in extracted_frames:
+            resolved_area = resolve_area_for_point(db, frame["lat"], frame["lng"])
+            if resolved_area is not None:
+                tally[resolved_area] = tally.get(resolved_area, 0) + 1
+        if tally:
+            detected_area = max(
+                tally.items(),
+                key=lambda item: (item[1], str(item[0].area_id)),  # count, then deterministic tie-break
+            )[0]
+            area_id = str(detected_area.area_id)
+            # The flight row was already committed with NULL above; update it
+            # in place so TrashLogs/hexbin routes see the real assignment.
+            flight.area_id = detected_area.area_id
+            db.add(flight)
+            db.commit()
+            logger.info(
+                "Auto-detected area %s for flight %s (from %d/%d GPS frames)",
+                detected_area.area_name,
+                flight_id,
+                tally[detected_area],
+                len(files),
+            )
 
     # 1b. Content-hash dedup (Stage 0). A frame whose bytes already exist in
     # a past flight — or earlier in this same batch — is pulled out BEFORE

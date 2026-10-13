@@ -16,6 +16,12 @@ class Report {
   /// reports — consumers use this to tag "Synced" vs "Pending sync".
   final DateTime? syncedAt;
 
+  /// Client-generated idempotency key. Made once when the report is created
+  /// and persisted in the outbox, so every server retry (SyncService,
+  /// session-expiry queueing, offline queue) carries the SAME key — the
+  /// backend dedupes on it instead of inserting a duplicate row.
+  final String? clientReportId;
+
   Report({
     this.id,
     this.reportId,
@@ -30,6 +36,7 @@ class Report {
     this.createdAt,
     this.status,
     this.syncedAt,
+    this.clientReportId,
   });
 
   /// --- EXISTING SQL CODES ---
@@ -43,6 +50,7 @@ class Report {
       'area_id': areaId,
       'local_photo_path': localPhotoPath,
       'description': description,
+      'client_report_id': clientReportId,
     };
   }
 
@@ -60,6 +68,7 @@ class Report {
       // Ledger rows carry synced_at (row was uploaded); outbox rows don't
       // have the column, so this is what tags pending vs synced in Profile.
       syncedAt: map['synced_at'] != null ? DateTime.tryParse(map['synced_at'] as String) : null,
+      clientReportId: map['client_report_id'] as String?,
     );
   }
 

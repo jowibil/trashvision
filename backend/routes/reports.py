@@ -11,6 +11,7 @@ from typing import Optional, List
 from geoalchemy2 import WKTElement
 from geoalchemy2.shape import to_shape
 from routes.helper.utils import ReportPublic, BulkDeleteRequest
+from services.geo_assign import resolve_area_for_point
 
 router = APIRouter()
 
@@ -27,6 +28,7 @@ async def submit_report(
     latitude: float = Form(...),
     longitude: float = Form(...),
     area_id: Optional[str] = Form(None),
+    client_report_id: Optional[str] = Form(None),
     photo: UploadFile = File(None),
     description: Optional[str] = Form(None),
     db: Session = Depends(get_db),
@@ -37,6 +39,35 @@ async def submit_report(
     # client never supplies it (web/mobile alike; user_id is not a form field).
     # Mobile's offline outbox also stores a client-side user_id for display
     # only; the server value is authoritative here.
+    client_uuid = uuid.UUID(client_report_id) if client_report_id else None
+
+    # Auto-assign area: mobile submits never send one, so every report used
+    # to land with area_id NULL and the mobile map's per-area community pin
+    # query (GET /reports/?area_id=) never matched them. The point-in-polygon
+    # resolver attaches the covering boundary area; reports outside every
+    # drawn boundary honestly stay NULL (no pin, no silent guess).
+    resolved_area_id = None
+    if area_id:
+        resolved_area_id = uuid.UUID(area_id)
+    else:
+        resolved_area = resolve_area_for_point(db, latitude, longitude)
+        if resolved_area is not None:
+            resolved_area_id = resolved_area.area_id
+
+    # Idempotency guard: the mobile outbox resends the same report (same
+    # client UUID) after a lost/crashed submit, otherwise a crash after
+    # commit produced duplicate rows (2026-10-14: 2 reports became 4 after
+    # a server restart). The check runs BEFORE the photo upload so a retry
+    # does not re-land the image on Cloudinary either.
+    if client_uuid:
+        existing = (
+            db.query(Report)
+            .filter(Report.client_report_id == client_uuid)
+            .first()
+        )
+        if existing:
+            return existing
+
     photo_url = None
     if photo:
         photo_url = await upload_image(photo)
@@ -47,7 +78,8 @@ async def submit_report(
         waste_type=waste_type,
         geom=WKTElement(geom_point, srid=4326),
         user_id=user.user_id,
-        area_id=uuid.UUID(area_id) if area_id else None,
+        client_report_id=client_uuid,
+        area_id=resolved_area_id,
         photo_url=photo_url,
         description=description,
         timestamp=datetime.now(timezone.utc),
@@ -57,9 +89,12 @@ async def submit_report(
     db.commit()
     db.refresh(report)
 
-    report.latitude = latitude
-    report.longitude = longitude
-
+    # Report.latitude/longitude (and reporter_name) are read-only @property
+    # getters derived from geom / the user relationship — assigning to them
+    # raised "property has no setter" right after commit, so every POST
+    # returned a 500 even though the row was saved. The properties already
+    # compute the coordinates from the geometry that was just written, so
+    # nothing needs to be set here.
     return report
 
 @router.get("/", response_model=List[ReportPublic])

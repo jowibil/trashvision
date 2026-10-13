@@ -125,16 +125,20 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     });
     if (areas.isNotEmpty) {
       await _fetchMapData(areas.first.areaId);
-      await _fetchReportPins(areas.first.areaId);
+      // Web-parity community layer: pins are area-agnostic now (all verified
+      // reports render, like the web map), so they are fetched once here and
+      // NOT re-fetched on every area switch — _selectArea only fetches that
+      // area's hexbins.
+      await _fetchReportPins();
     }
   }
 
-  /// Verified community report pins for the area (cache-then-network).
+  /// Verified community report pins (cache-then-network, area-agnostic).
   /// Deliberately quiet on failure: no full-width banner for a secondary
   /// layer — the toggle in the controls panel shows a small offline icon.
-  Future<void> _fetchReportPins(String areaId) async {
+  Future<void> _fetchReportPins() async {
     try {
-      final result = await MobileMapService.getReportPinsCached(areaId);
+      final result = await MobileMapService.getReportPinsCached();
       if (!mounted) return;
       setState(() {
         reportPins = result.data!;
@@ -201,7 +205,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     _closeDrawer();
     _animatedMove(LatLng(area.centerLatitude, area.centerLongitude), 15);
     _fetchMapData(area.areaId);
-    _fetchReportPins(area.areaId);
+    // Report pins stay put — one area-agnostic upload, no per-area refetch.
   }
 
   void _onFilterChanged() {

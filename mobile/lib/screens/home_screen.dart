@@ -1,10 +1,14 @@
 import 'package:TrashVision/widgets/bottom_nav.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
 // import 'report_screen.dart';
+import '../helper/database_helper.dart';
 import '../helper/gps_helper.dart';
 import '../services/api_service.dart';
+import '../widgets/connectivity_status.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +31,13 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _totalDetections;
   int? _hotspotZones;
   List<int> _weeklyTrends = [];
+
+  // Offline-first: the last successful /logs/summary response is persisted
+  // in the generic map_cache store (same cache-then-network pattern the map
+  // screen uses), so an offline user sees last-known numbers instead of a
+  // blank dashboard. _fromCache marks stale provenance for the tokenation.
+  static const String _logsSummaryCacheKey = 'logs_summary_v1';
+  bool _fromCache = false;
 
   // App-wide unified style tokens matching user_profile specs
   static const Color primaryColor = Color(0xFF005D90);
@@ -74,47 +85,95 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Applies a /logs/summary payload (fresh or cached) into the
+  /// tile/chart state. Response shape confirmed against
+  /// backend/routes/logs.py's get_dashboard_summary(): total_detections
+  /// (int), weekly_trends (flat list of 7 ints, Mon to Sun),
+  /// hotspot_zones (list of {id, name, date, severity} maps).
+  void _applySummary(Map<String, dynamic> summary, {required bool fromCache}) {
+    // FIX: previously expected weekly_trends as [{day/label, count/value}]
+    // and discarded every entry since the backend actually returns a flat
+    // list of ints (one count per weekday, Mon to Sun) — the chart
+    // silently stayed empty even with real data.
+    final rawTrends = summary['weekly_trends'];
+    final trends = <int>[];
+    if (rawTrends is List) {
+      for (final entry in rawTrends) {
+        trends.add(entry is num ? entry.round() : 0);
+      }
+    }
+
+    final rawHotspots = summary['hotspot_zones'];
+    final hotspotCount = rawHotspots is List ? rawHotspots.length : null;
+
+    _totalDetections = summary['total_detections'] is int ? summary['total_detections'] as int : null;
+    _hotspotZones = hotspotCount;
+    _weeklyTrends = trends;
+    _fromCache = fromCache;
+  }
+
   /// FIX (audit #10): replaces the hardcoded dashboard numbers with a real
-  /// fetch. Response shape confirmed against backend/routes/logs.py's
-  /// get_dashboard_summary(): total_detections (int), weekly_trends
-  /// (flat list of 7 ints, Mon to Sun), hotspot_zones (list of
-  /// {id, name, date, severity} maps).
+  /// fetch from GET /logs/summary via ApiService.getLogsSummary().
+  ///
+  /// Offline-first (cache-then-network, same pattern as the map screen):
+  /// the last successful response is persisted in map_cache, applied
+  /// immediately if present (stale, "Cached"), then revalidated against
+  /// the network; on success the tiles flip back to "Live". A network
+  /// failure with no cache renders the honest N/A state — never
+  /// unhealthy-looking empty data.
   Future<void> _loadAnalytics() async {
     if (mounted) setState(() => _analyticsLoading = true);
     try {
-      final summary = await ApiService().getLogsSummary();
-      if (summary == null) {
-        if (mounted) setState(() => _analyticsLoading = false);
-        return;
-      }
-
-      // FIX: previously expected weekly_trends as [{day/label, count/value}]
-      // and discarded every entry since the backend actually returns a flat
-      // list of ints (one count per weekday) — the chart silently stayed
-      // empty even with real data.
-      final rawTrends = summary['weekly_trends'];
-      final trends = <int>[];
-      if (rawTrends is List) {
-        for (final entry in rawTrends) {
-          trends.add(entry is num ? entry.round() : 0);
+      // Stale-on-open: show cached numbers instantly if we have them.
+      Map<String, dynamic>? cached;
+      final raw = await DatabaseHelper.instance.getMapCache(_logsSummaryCacheKey);
+      if (raw != null) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic>) cached = decoded;
+        } catch (_) {
+          cached = null; // corrupt entry — ignore, the network path re-writes it
         }
       }
+      if (cached != null && mounted) {
+        _applySummary(cached, fromCache: true);
+        setState(() => _analyticsLoading = false);
+      }
 
-      final rawHotspots = summary['hotspot_zones'];
-      final hotspotCount = rawHotspots is List ? rawHotspots.length : null;
-
-      if (mounted) {
-        setState(() {
-          _totalDetections = summary['total_detections'] is int ? summary['total_detections'] as int : null;
-          _hotspotZones = hotspotCount;
-          _weeklyTrends = trends;
-          _analyticsLoading = false;
-        });
+      // Revalidate in the background; success flips the tiles to "Live".
+      final summary = await ApiService().getLogsSummary();
+      if (summary != null) {
+        await DatabaseHelper.instance.putMapCache(
+          _logsSummaryCacheKey,
+          jsonEncode(summary),
+        );
+        // Keep the cache bounded; areas_v1 and the dashboard summary
+        // survive eviction (same guards the map fetches apply to areas_v1).
+        await DatabaseHelper.instance.trimMapCache(keep: {'areas_v1', _logsSummaryCacheKey});
+        if (mounted) {
+          _applySummary(summary, fromCache: false);
+          setState(() => _analyticsLoading = false);
+        }
+      } else if (cached == null && mounted) {
+        // Network failed AND no cache: render the honest empty state.
+        setState(() => _analyticsLoading = false);
       }
     } catch (e) {
       debugPrint("Analytics load error: $e");
       if (mounted) setState(() => _analyticsLoading = false);
     }
+  }
+
+  /// Chip provenance for the metric tiles: "Cached" replaces "Live" when
+  /// the numbers came from the on-device map_cache (offline or failed
+  /// refresh). The weekly chart card carries the matching caption.
+  String _trendChipLabel() {
+    if (_analyticsLoading) return "...";
+    return _fromCache ? "Cached" : "Live";
+  }
+
+  Color _trendChipColor(Color liveColor) {
+    return _fromCache ? textMutedColor : liveColor;
   }
 
   void handleLogout() async {
@@ -199,6 +258,11 @@ class _HomeScreenState extends State<HomeScreen> {
               letterSpacing: 0.5,
             ),
           ),
+        ),
+        const SizedBox(height: 10),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: ConnectivityStatusChip(),
         ),
       ],
     );
@@ -301,8 +365,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     : (_totalDetections?.toString() ?? "N/A"),
                 label: "Total Detections",
                 icon: Icons.delete_outline,
-                trendColor: Colors.green,
-                trendText: _analyticsLoading ? "..." : "Live",
+                trendColor: _trendChipColor(Colors.green),
+                trendText: _trendChipLabel(),
                 loading: _analyticsLoading,
               ),
             ),
@@ -314,8 +378,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     : (_hotspotZones?.toString() ?? "N/A"),
                 label: "Hotspot Zones",
                 icon: Icons.warning_amber_outlined,
-                trendColor: primaryColor,
-                trendText: _analyticsLoading ? "..." : "Live",
+                trendColor: _trendChipColor(primaryColor),
+                trendText: _trendChipLabel(),
                 loading: _analyticsLoading,
               ),
             ),
@@ -348,6 +412,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                 ],
               ),
+              // Honest provenance: a cached payload isn't "live" — say so
+              // on the surface, whether the device is offline or the
+              // refresh simply failed.
+              if (!_analyticsLoading && _fromCache)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    "Live data unavailable — showing cached data",
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.amber[800]),
+                  ),
+                ),
               const SizedBox(height: 24),
 
               if (_analyticsLoading)

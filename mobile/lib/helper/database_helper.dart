@@ -27,7 +27,9 @@ class DatabaseHelper {
     // until they reconnected.
     // v4: adds map_cache — durable JSON cache of map API responses (areas,
     // hexbins) so the map opens offline with stale data (offline-first).
-    return await openDatabase(path, version: 4, onCreate: _createDB, onUpgrade: _upgradeDB);
+    // v5: adds client_report_id (idempotency key) to report_outbox +
+    // report_ledger, so outbox retries can't create server-side duplicates.
+    return await openDatabase(path, version: 5, onCreate: _createDB, onUpgrade: _upgradeDB);
   }
 
   static const String _ledgerTableSql = '''CREATE TABLE report_ledger (
@@ -40,7 +42,8 @@ class DatabaseHelper {
       local_photo_path TEXT,
       description TEXT,
       created_at TIMESTAMP,
-      synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      client_report_id TEXT
     );''';
 
   Future _createDB(Database db, int version) async {
@@ -54,7 +57,8 @@ class DatabaseHelper {
       area_id TEXT,
       local_photo_path TEXT,
       description TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      client_report_id TEXT
     );''');
     await db.execute(_ledgerTableSql);
   }
@@ -68,6 +72,19 @@ class DatabaseHelper {
     }
     if (oldVersion < 4) {
       await db.execute(_mapCacheTableSql);
+    }
+    if (oldVersion < 5) {
+      // v5: idempotency key for outbox retries. Also backfills already-
+      // queued rows with a fresh UUID so their first retry still carries a
+      // key. Old keyless ledger rows just stay null — they already synced.
+      await db.execute('ALTER TABLE report_outbox ADD COLUMN client_report_id TEXT;');
+      await db.execute('ALTER TABLE report_ledger ADD COLUMN client_report_id TEXT;');
+      final uhex = "lower(hex(randomblob(16)))";
+      final uuidSql =
+          "substr($uhex,1,8)-" "substr($uhex,9,4)-" "substr($uhex,13,4)-" "substr($uhex,17,4)-" "substr($uhex,21,12)";
+      await db.execute(
+        "UPDATE report_outbox SET client_report_id = ($uuidSql) WHERE client_report_id IS NULL;",
+      );
     }
   }
 

@@ -35,13 +35,17 @@ architectures. Understand which side you're editing before changing anything.
 - Sector drawer: `DraggableScrollableSheet` (snap 0.34/0.85) on narrow screens —
   the panel list must use the sheet's `scrollController` (drag-the-list-to-move
   contract, `SectorPanel.sheetContent`). Wide screens keep the animated side panel.
-- Community layer: verified report pins via
-  `MobileMapService.getReportPinsCached(areaId)` (cache key `reports_v1:{areaId}`,
-  `GET /reports/?status=verified&area_id=`), visible zoom >= 16, `showReports`
-  toggle in the controls panel. It is a SECONDARY layer: fetch failures are quiet
-  (`cloud_off` icon in the panel), never a full-screen banner. Markers are real
-  widgets, so pin taps win the gesture arena over the hex hit-notifier — a pin tap
-  must not open the sector drawer.
+- Community layer (2026-10, web parity): verified report pins via
+  `MobileMapService.getReportPinsCached()` — UNFILTERED
+  `GET /reports/?status=verified&limit=200`, cache key `reports_v1:all`.
+  The old per-area `&area_id=` query was retired: submissions historically
+  carried no area_id, so it permanently matched nothing. Pins render from
+  lat/lng regardless of the selected area (exactly what the web map does),
+  fetched once per map load — NOT re-fetched on area switches. Visible
+  zoom >= 16, `showReports` toggle in the controls panel. It is a SECONDARY
+  layer: fetch failures are quiet (`cloud_off` icon in the panel), never a
+  full-screen banner. Markers are real widgets, so pin taps win the gesture
+  arena over the hex hit-notifier — a pin tap must not open the sector drawer.
 - Basemap tiles render through `MapOfflineTileCache` (see skill:
   trashvision-offline-first). Never swap the TileLayer back to a default
   `NetworkTileProvider()` without a caching provider.
@@ -117,7 +121,7 @@ coloring or a second K factor.
 | `GET /flights/areas/{id}/hexbins` | web | server hexbins + total/latest stats (Heavy Lifter); 60/min rate limit |
 | `POST /flights/areas/{id}/images/batch` | web | on-demand drawer details by detection ids |
 | `GET /flights/areas/{id}/collection` | web (zoom>=18 only) | raw detections, windowed, lazy-loaded |
-| `GET /reports/?status=verified` | mobile map (adds `&area_id=`), web map (unfiltered) | community pins layer (mobile caches per area) |
+| `GET /reports/?status=verified` | mobile map (unfiltered, `reports_v1:all`), web map (unfiltered) | community pins layer (web parity 2026-10) |
 
 Auth: map reads are PUBLIC via `require_public()` (product decision 2026-10 —
 the web portal browses logged-out via "Open Forecast"): no token = anonymous

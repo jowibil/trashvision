@@ -28,6 +28,12 @@ class Report(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"))
     area_id = Column(UUID(as_uuid=True), ForeignKey("areas.area_id"), nullable=True)
 
+    # Idempotency key: the mobile offline outbox generates a UUID per report
+    # and resends it on every sync retry, so a crash-after-commit on the
+    # server (or an answer lost in transit) can no longer produce duplicate
+    # reports — POST /reports/ returns the existing row instead of re-inserting.
+    client_report_id = Column(UUID(as_uuid=True), unique=True, nullable=True)
+
     user = relationship("User", back_populates="reports")
     area = relationship("Area", back_populates="reports")
     

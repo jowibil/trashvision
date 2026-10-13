@@ -185,8 +185,11 @@ class HexBin {
 }
 
 /// A verified community report pin for the map's community layer. Parsed
-/// from GET /reports/?status=verified&area_id=... (backend/routes/reports.py
-/// get_all_reports). toJson is symmetric with fromJson — the offline map
+/// from the unfiltered GET /reports/?status=verified list (backend/
+/// routes/reports.py get_all_reports) — web parity, 2026-10: the old
+/// per-area &area_id= query matched nothing because submissions carried no
+/// area_id, so the web's lat/lng-driven approach is what mobile does now.
+/// toJson is symmetric with fromJson — the offline map
 /// cache persists these verbatim (mobile_map_service.getReportPinsCached).
 class ReportPin {
   final String reportId;

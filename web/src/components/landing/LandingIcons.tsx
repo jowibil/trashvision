@@ -57,7 +57,7 @@ export const features: Feature[] = [
   {
     icon: FileText,
     title: "Automated Reports",
-    description: "Generate PDF environmental impact reports and cleanup request orders with a single click.",
+    description: "Generate Excel environmental impact reports and cleanup request orders with a single click.",
   },
 ];
 

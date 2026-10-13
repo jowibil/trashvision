@@ -17,6 +17,8 @@ class UserProfileScreen extends StatefulWidget {
   State<UserProfileScreen> createState() => _UserProfileScreenState();
 }
 
+enum _LedgerFilter { all, pending, synced }
+
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final storage = const FlutterSecureStorage();
 
@@ -26,6 +28,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   
   List<Report> _submittedReports = [];
   bool _isLoading = true;
+
+  /// Ledger view switch: All / Pending / Synced. Pending rows never reached
+  /// the server (still in report_outbox), synced rows live in report_ledger
+  /// or came from the API.
+  _LedgerFilter _ledgerFilter = _LedgerFilter.all;
 
   @override
   void initState() {
@@ -96,7 +103,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       logs = await DatabaseHelper.instance.getAllReportsByUserIdMerged(_userId!);
     } else {
       try {
-        logs = await ApiService().getUserReports(_userId!);
+        final serverReports = await ApiService().getUserReports(_userId!);
+
+        // Keep genuinely pending outbox rows visible while online too: they
+        // are the only ones the user can swipe-delete (server rows already
+        // reached the backend and must be managed on the admin side). A row
+        // only leaves the outbox once SyncService confirms the upload, so
+        // "pending" stays honest here. Sorted newest-first on top of the
+        // server history. (Transient duplicates can only occur for rows
+        // submitted before the client_report_id era — those are exactly the
+        // stranded ones the user deletes by hand.)
+        final pendingLocal = await DatabaseHelper.instance.getReportsByUserId(_userId!);
+        pendingLocal.sort((a, b) {
+          final aTime = a.createdAt ?? DateTime(0);
+          final bTime = b.createdAt ?? DateTime(0);
+          return bTime.compareTo(aTime);
+        });
+
+        logs = [...pendingLocal, ...serverReports];
       } catch (e) {
         logs = await DatabaseHelper.instance.getAllReportsByUserIdMerged(_userId!);
       }
@@ -270,10 +294,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  // Pending rows (report_outbox) have syncedAt == null; ledger rows always
-  // carry it. Server-fetched rows never have it either, but those are by
-  // definition already on the server.
-  int get _pendingCount => _submittedReports.where((r) => r.syncedAt == null).length;
+  // Pending = still local-only: no synced_at (never archived into the
+  // ledger) AND no server reportId (never returned by the API). Server-
+  // fetched rows lack synced_at but exist remotely, so they count as synced.
+  int get _pendingCount => _submittedReports
+      .where((r) => r.syncedAt == null && r.reportId == null)
+      .length;
   int get _syncedCount => _submittedReports.length - _pendingCount;
 
   /// Amber tile shown only while reports await upload — makes the offline
@@ -285,6 +311,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       icon: LucideIcons.clock,
       color: Colors.black.withValues(alpha: 0.15),
     );
+  }
+
+  /// Derived view of the ledger honouring the All/Pending/Synced switch.
+  /// Same "still local-only" predicate as the chip: a row carrying the
+  /// server reportId is by definition synced, so filtering on syncedAt
+  /// alone wrongly filed every server-fetched row under Pending.
+  List<Report> get _filteredReports {
+    switch (_ledgerFilter) {
+      case _LedgerFilter.pending:
+        return _submittedReports
+            .where((r) => r.syncedAt == null && r.reportId == null)
+            .toList();
+      case _LedgerFilter.synced:
+        return _submittedReports
+            .where((r) => r.syncedAt != null || r.reportId != null)
+            .toList();
+      case _LedgerFilter.all:
+        return _submittedReports;
+    }
   }
 
   Widget _buildHistoryPane() {
@@ -308,6 +353,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       );
     }
 
+    final filtered = _filteredReports;
+
     return RefreshIndicator(
       // Pull-to-refresh re-runs the merged outbox+ledger query so the sync
       // mix (and the pending count) is current without leaving the screen.
@@ -315,20 +362,98 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       color: const Color(0xFF005D90),
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        itemCount: _submittedReports.length,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        // Slot 0 is the filter switch; one extra slot shows a per-filter
+        // empty message instead of a blank pane.
+        itemCount: 1 + filtered.length + (filtered.isEmpty ? 1 : 0),
         itemBuilder: (context, index) {
-          return _buildReportCardNode(_submittedReports[index]);
+          if (index == 0) return _buildLedgerFilterRow(filtered.length);
+          if (filtered.isEmpty) return _buildFilterEmptyMessage();
+          return _buildDismissibleReportNode(filtered[index - 1]);
         },
       ),
     );
   }
 
-  /// Amber "Pending sync" chip for outbox rows, neutral "Synced" chip for
-  /// ledger rows — the offline visibility contract: the user can always tell
-  /// which of their reports haven't reached the server yet.
+  /// All / Pending / Synced switch, styled to match the ledger cards
+  /// (slate for neutral, brand blue when selected — same palette the sync
+  /// chips use below).
+  Widget _buildLedgerFilterRow(int visibleCount) {
+    Widget chip(_LedgerFilter f, String label, int count) {
+      final selected = _ledgerFilter == f;
+      return GestureDetector(
+        onTap: () => setState(() => _ledgerFilter = f),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF005D90) : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? const Color(0xFF005D90) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Text(
+            count == visibleCount ? label : "$label · $count",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: selected ? Colors.white : const Color(0xFF64748B),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              children: [
+                chip(_LedgerFilter.all, "All", _submittedReports.length),
+                chip(_LedgerFilter.pending, "Pending", _pendingCount),
+                chip(_LedgerFilter.synced, "Synced", _syncedCount),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterEmptyMessage() {
+    final message = _ledgerFilter == _LedgerFilter.pending
+        ? "No pending reports — everything is synced."
+        : "No synced reports yet — pending ones upload automatically.";
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+      ),
+      child: Center(
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8)),
+        ),
+      ),
+    );
+  }
+
+  /// Amber "Pending sync" chip for local rows that never reached the
+  /// server, neutral "Synced" chip for ledger rows AND server-fetched rows.
+  /// A row carrying reportId (the server UUID) exists on the server BY
+  /// DEFINITION — fromJson can't restore synced_at literals, so judging by
+  /// syncedAt alone mislabeled every server row as "Pending sync" (bug seen
+  /// 2026-10-14: admin-rejected reports showed as undeletable pendings).
+  /// Pending = no server UUID and never archived into the local ledger.
   Widget _buildSyncStateChip(Report report) {
-    final isPending = report.syncedAt == null;
+    final isPending = report.syncedAt == null && report.reportId == null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -355,6 +480,98 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ],
       ),
     );
+  }
+
+  /// Pending (unsynced) cards are swipeable to delete — they are still
+  /// strictly local (report_outbox), so removing them can't lose server
+  /// data. Synced cards are never dismissible; the delete affordance only
+  /// exists for rows that haven't reached the server yet.
+  Widget _buildDismissibleReportNode(Report report) {
+    final isPending = report.syncedAt == null && report.id != null;
+    if (!isPending) return _buildReportCardNode(report);
+
+    return Dismissible(
+      key: ValueKey("outbox-report-${report.id}"),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDeletePending(report),
+      onDismissed: (_) => _deletePendingReport(report),
+      background: _buildDeleteBackground(),
+      child: _buildReportCardNode(report),
+    );
+  }
+
+  Widget _buildDeleteBackground() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.red.shade400,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: const Icon(LucideIcons.trash2, color: Colors.white, size: 22),
+    );
+  }
+
+  Future<bool> _confirmDeletePending(Report report) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Delete pending report?",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF005D90)),
+        ),
+        content: const Text(
+          "This report hasn't reached the server yet. Deleting removes it from your device permanently.",
+          style: TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel", style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _deletePendingReport(Report report) async {
+    try {
+      await DatabaseHelper.instance.deleteReport(report.id!);
+
+      // The bundled local photo is a picker temp/cache file owned by this
+      // pending report only; remove it best-effort so storage doesn't linger.
+      if (report.localPhotoPath != null && File(report.localPhotoPath!).existsSync()) {
+        try {
+          await File(report.localPhotoPath!).delete();
+        } catch (_) {
+          // best-effort
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _submittedReports.removeWhere((r) => r.id == report.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Pending report deleted.")),
+        );
+      }
+    } catch (e) {
+      debugPrint("Delete pending report failed: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't delete the report. Try again.")),
+        );
+      }
+    }
   }
 
   Widget _buildReportCardNode(Report report) {

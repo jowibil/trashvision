@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:uuid/uuid.dart';
 import '../models/report_model.dart';
 import 'package:image_picker/image_picker.dart';
 // import 'package:path_provider/path_provider.dart';
@@ -32,6 +33,11 @@ class _ReportScreenState extends State<ReportScreen> {
 
   String? userId;
   String? _capturedImagePath;
+
+  // Guard against double submission: _submit awaits the network
+  // (uploadReport), so a second tap while it runs would create a duplicate
+  // report. The flag also drives the button's disabled/loading state.
+  bool _isSubmitting = false;
 
   String selectedWasteType = 'plastic';
 
@@ -217,6 +223,7 @@ Future<void> _pickImage() async {
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) return;
     if (_selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Could not get location. Enable GPS.")),
@@ -246,6 +253,12 @@ Future<void> _pickImage() async {
       }
     }
 
+    setState(() => _isSubmitting = true);
+
+    // Client-generated idempotency key: created ONCE here, persisted with
+    // the report (outbox/ledger), and resent on every server attempt so a
+    // retry (session expiry, server restart, lost response) can never be
+    // double-counted by the backend. Matches POST /reports/ dedup check.
     final newReport = Report(
       wasteType: selectedWasteType,
       latitude: _selectedLocation!.latitude,
@@ -253,6 +266,7 @@ Future<void> _pickImage() async {
       userId: userId!,
       description: _descController.text,
       localPhotoPath: _capturedImagePath,
+      clientReportId: const Uuid().v4(),
 
     );
 
@@ -315,6 +329,10 @@ Future<void> _pickImage() async {
       );
 
       Navigator.pushReplacementNamed(context, '/home');
+    } finally {
+      // Always release the guard, whatever happened above, so the button
+      // recovers if the user stays on this screen after an error.
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -569,23 +587,35 @@ Future<void> _pickImage() async {
       width: double.infinity,
       height: 55,
       child: ElevatedButton(
-        onPressed: _submit,
+        // Disabled + shows a spinner while _submit is in flight, so the
+        // double-tap guard is visible feedback rather than a silent no-op.
+        onPressed: _isSubmitting ? null : _submit,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF005D90),
+          disabledBackgroundColor: const Color(0xFF005D90).withValues(alpha: 0.6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
           elevation: 5,
           shadowColor: Colors.blueAccent.withValues(alpha: 0.3),
         ),
-        child: const Text(
-          "Submit Report",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        child: _isSubmitting
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            : const Text(
+                "Submit Report",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }

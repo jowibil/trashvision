@@ -28,6 +28,13 @@ class ApiService {
       request.fields['user_id'] = report.userId;
       request.fields['description'] = report.description;
 
+      // Idempotency key: the backend dedupes on it, so a retry after a
+      // lost response or server restart returns the original report
+      // instead of a second row.
+      if (report.clientReportId != null) {
+        request.fields['client_report_id'] = report.clientReportId!;
+      }
+
       // Add the photo
       if (report.localPhotoPath != null) {
         request.files.add(await http.MultipartFile.fromPath('photo', report.localPhotoPath!));

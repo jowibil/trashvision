@@ -92,12 +92,19 @@ class MobileMapService {
         .toList();
   }
 
-  /// Cache-then-network fetch for VERIFIED community report pins of one
-  /// area (the map's community layer — secondary to the hexbin layer, so
+  /// Cache-then-network fetch for ALL VERIFIED community report pins
+  /// (the map's community layer — secondary to the hexbin layer, so
   /// callers treat a no-cache failure as "layer unavailable", never as a
   /// whole-screen error).
-  static Future<CacheResult<List<ReportPin>>> getReportPinsCached(String areaId) async {
-    final cacheKey = 'reports_v1:$areaId';
+  ///
+  /// 2026-10 web-parity change: the layer used to be per-area
+  /// (GET /reports/?status=verified&area_id=...) and silently matched
+  /// nothing because submissions carried no area_id. The web map has always
+  /// fetched the unfiltered verified list and rendered pins straight from
+  /// lat/lng, so mobile now does the same: one area-agnostic fetch
+  /// (reports_v1:all), rendered regardless of the selected area.
+  static Future<CacheResult<List<ReportPin>>> getReportPinsCached() async {
+    const cacheKey = 'reports_v1:all';
 
     List<ReportPin>? parsedCache;
     final cached = await DatabaseHelper.instance.getMapCache(cacheKey);
@@ -115,7 +122,6 @@ class MobileMapService {
       final uri = Uri.parse('${AppConfig.reportsBaseUrl}/').replace(
         queryParameters: {
           'status': 'verified',
-          'area_id': areaId,
           'limit': '200',
         },
       );

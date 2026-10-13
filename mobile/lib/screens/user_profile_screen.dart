@@ -9,6 +9,7 @@ import '../helper/database_helper.dart';
 import '../services/api_service.dart';
 import '../models/report_model.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/connectivity_status.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -231,6 +232,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          // Offline/online indicator — mirrors the same connectivity_plus
+          // state SyncService gates on, styled for the dark hero surface.
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: ConnectivityStatusChip(onDarkSurface: true),
           ),
           const SizedBox(height: 20),
           _buildMetricTile(

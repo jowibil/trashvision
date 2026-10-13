@@ -287,6 +287,17 @@ Future<void> _pickImage() async {
         if (!mounted) return;
 
         if (status == 200 || status == 201) {
+          // FIX (2026-10-14, "ledger empty after going offline"): a direct
+          // online upload never touched the local DB, so reports submitted
+          // while online existed ONLY on the server — the Profile ledger
+          // (report_outbox + report_ledger) came up empty as soon as the
+          // device went offline. Archive into report_ledger here, exactly
+          // like SyncService does after it uploads a queued report. The
+          // outbox delete inside moveReportToLedger is a no-op because this
+          // report was never queued (id is null).
+          await DatabaseHelper.instance.moveReportToLedger(newReport);
+
+          if (!mounted) return; // re-guard: moveReportToLedger is an async gap
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Report submitted successfully!")),
           );

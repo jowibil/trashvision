@@ -1,14 +1,48 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
-import { Calendar, MapPin, User, X } from "lucide-react";
+import { Calendar, MapPin, Sparkles, User, X } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import type { Report } from "../../services/hooks/useReports";
+import { AnnotatedImage } from "./AnnotatedImage";
+import api from "../../api/axios";
+import type { AxiosError } from "axios";
 
 interface ReportDetailModalProps {
   report: Report | null;
   onClose: () => void;
 }
+
+/** One raw YOLO box from GET /reports/{id} (backend wire shape). */
+interface ReportDetection {
+  waste_type: string;
+  confidence_score: number;
+  bbox_x1: number;
+  bbox_y1: number;
+  bbox_x2: number;
+  bbox_y2: number;
+}
+
+/**
+ * Detail-on-demand payload: the backend detail shape (ReportPublic +
+ * detections + analysis_status). Declared standalone rather than extending
+ * the list-row `Report` so the two contract shapes can't merge by accident:
+ * the wire field is `waste_type`-named boxes, NOT the map's Detection tuple.
+ */
+interface ReportDetail {
+  report_id: string;
+  waste_type: string;
+  photo_url: string | null;
+  description: string | null;
+  status: string;
+  analysis_status: string;
+  detections: ReportDetection[];
+}
+
+// Per-report_id cache: reopening a modal is instant, navigating back and
+// forth never re-fetches (list responses don't carry detections — the detail
+// fetch is required per design §6.2).
+const detailCache = new Map<string, ReportDetail>();
 
 const modalStatusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending review", className: "bg-orange-100 text-orange-700" },
@@ -28,8 +62,40 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 }) => {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [fullResLoaded, setFullResLoaded] = useState(false);
+  // Detail fetch: null while in flight, ReportDetail once cached/fetched.
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
 
   const open = report !== null;
+  const reportId = report?.report_id;
+
+  useEffect(() => {
+    if (!open || !reportId) {
+      setDetail(null);
+      return;
+    }
+    setFullResLoaded(false); // fresh report → re-gate the skeleton
+    const cached = detailCache.get(reportId);
+    if (cached) {
+      setDetail(cached);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<ReportDetail>(`/reports/${reportId}`)
+      .then((response) => {
+        if (cancelled) return;
+        detailCache.set(reportId, response.data);
+        setDetail(response.data);
+      })
+      .catch((error: AxiosError) => {
+        // Stay silent: the modal still renders the list-row baseline photo;
+        // an unreachable API shouldn't toast-spam the viewer.
+        console.error("Failed to fetch report detail:", error.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, reportId]);
 
   // Escape-to-close + body scroll lock, only while open.
   useEffect(() => {
@@ -53,6 +119,17 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const lat = report.latitude ?? 0;
   const lng = report.longitude ?? 0;
   const hasCoords = lat !== 0 || lng !== 0;
+
+  // The four analysis states (design §6.2). Before the detail fetch resolves
+  // the list-row baseline photo shows with no state note; a confirmed
+  // 'pending' or 'failed' shows the "AI analysis unavailable" note inline.
+  const analysisStatus = detail?.analysis_status ?? null;
+  const detailDetections = detail?.detections ?? [];
+  const hasBoxes =
+    analysisStatus === "completed" && detailDetections.length > 0;
+  const isRunning = analysisStatus === "running";
+  const showUnavailableNote =
+    analysisStatus === "failed" || analysisStatus === "pending";
 
   return createPortal(
     <div
@@ -103,21 +180,64 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Full-resolution photo */}
+          {/* Full-resolution photo + AI analysis states (design §6.2) */}
           <div className="relative rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
-            {!fullResLoaded && (
+            {!fullResLoaded && report.photo_url && (
               <div className="absolute inset-0 animate-pulse flex items-center justify-center">
                 <MapPin className="text-slate-300" size={32} />
               </div>
             )}
-            <img
-              src={report.photo_url}
-              alt={report.waste_type || "Report photo"}
-              className={`w-full max-h-[46dvh] object-contain transition-opacity duration-300 ease-out ${
-                fullResLoaded ? "opacity-100" : "opacity-0"
-              }`}
-              onLoad={() => setFullResLoaded(true)}
-            />
+            {report.photo_url ? (
+              hasBoxes ? (
+                <AnnotatedImage
+                  imageUrl={report.photo_url}
+                  alt="Verified report photo with detected waste"
+                  annotations={detailDetections.map((d) => ({
+                    label: d.waste_type,
+                    confidence: d.confidence_score,
+                    bbox: [d.bbox_x1, d.bbox_y1, d.bbox_x2, d.bbox_y2] as [
+                      number,
+                      number,
+                      number,
+                      number,
+                    ],
+                  }))}
+                  onImageLoad={() => setFullResLoaded(true)}
+                  imageClassName={`max-h-[46dvh] cursor-default ${
+                    fullResLoaded ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              ) : (
+                <img
+                  src={report.photo_url}
+                  alt={report.waste_type || "Report photo"}
+                  className={`w-full max-h-[46dvh] object-contain transition-opacity duration-300 ease-out ${
+                    fullResLoaded ? "opacity-100" : "opacity-0"
+                  }`}
+                  onLoad={() => setFullResLoaded(true)}
+                />
+              )
+            ) : (
+              <div className="h-48 flex items-center justify-center">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  No image available for this report
+                </span>
+              </div>
+            )}
+
+            {isRunning && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-xs text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md">
+                <Sparkles size={12} className="animate-pulse" />
+                AI analysis running…
+              </div>
+            )}
+
+            {showUnavailableNote && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-xs text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md opacity-90">
+                <Sparkles size={12} className="text-slate-400" />
+                AI analysis unavailable
+              </div>
+            )}
           </div>
 
           {/* Description — never clamped here */}

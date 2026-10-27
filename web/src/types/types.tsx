@@ -146,6 +146,10 @@ export type PollutionCategory = "Very high" | "High" | "Moderate" | "Low" | "Ver
 
 export interface HexbinProperties {
   pointIds: string[];
+  /** Per-type counts straight from the server hexbin tile (waste_type →
+   *  count); renders the drawer summary strip before details resolve.
+   *  Undefined on stale/cached tiles — the strip simply hides. */
+  type_counts?: Record<string, number>;
   images?: string[];
   types?: string[];
   x1s?: number[];

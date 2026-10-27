@@ -6,6 +6,9 @@ import { Eye } from "lucide-react";
 import { EyeOff } from "lucide-react";
 import { Lock } from "lucide-react";
 import toast from "react-hot-toast";
+// Decode the currently stored token so a denied login can wipe stale
+// credentials left by it (see onAuthSubmit's non-admin branch).
+import { getUserFromToken } from "../../services/tokenHelper";
 
 // Hoisted: static config that never depends on component state/props.
 const NAV_LINKS = [
@@ -62,17 +65,36 @@ export default function Navbar() {
       const { access_token, user } = response.data;
       const { role, name } = user;
 
-      localStorage.setItem("token", access_token);
-      localStorage.setItem("role", role);
-      localStorage.setItem("user_name", name);
-
-      setShowAdminHint(false);
-      setLoginAttempts(0);
-
+      // Persist credentials ONLY after the role check passes. Writing them
+      // first made a denied community login leak its username into public
+      // portal views (Dashboard header reads user_name || "Guest") and kept
+      // the axios interceptor sending the non-admin token.
       if (role.toLowerCase() === "admin") {
+        localStorage.setItem("token", access_token);
+        localStorage.setItem("role", role);
+        localStorage.setItem("user_name", name);
+
+        setShowAdminHint(false);
+        setLoginAttempts(0);
+        setEmail("");
+        setPassword("");
+
         toast.success(`Welcome, ${name}`);
         navigate("/portal");
       } else {
+        // Denied: also clear any stored credentials belonging to this SAME
+        // (non-admin) account so it doesn't linger from a previous attempt,
+        // while an unrelated, still-valid admin session stays intact.
+        const storedUser = getUserFromToken();
+        if (storedUser?.name === name) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("role");
+          localStorage.removeItem("user_name");
+        }
+
+        setEmail("");
+        setPassword("");
+
         toast.error("Access Denied.");
       }
     } catch (error: any) {
@@ -84,6 +106,11 @@ export default function Navbar() {
         setLoginAttempts((prev) => prev + 1);
         toast.error(error.response?.data?.detail || "Login failed");
       }
+
+      // Failed attempt: empty the form so denied/rejected credentials
+      // don't sit in the fields.
+      setEmail("");
+      setPassword("");
     } finally {
       setLoading(false);
     }

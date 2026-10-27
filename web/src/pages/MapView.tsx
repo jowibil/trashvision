@@ -22,17 +22,16 @@ import { classifyCci, hexbinTilesToFeatureCollection, DRONE_K_FACTOR, CCI_LEGEND
 import api from "../api/axios";
 import { SectorDrawer } from "../components/ui/aside";
 import { MapOverlays } from "../components/ui/mapOverlays";
+import { AnnotatedImage } from "../components/shared/AnnotatedImage";
 import L from "leaflet";
 import type { PollutionCategory } from "../types/types";
 
 /**
  * Detection preview: the raw drone frame with every YOLO bounding box drawn
- * on top. Boxes live in one SVG whose viewBox is the image's native pixel
- * space with `preserveAspectRatio="xMidYMid meet"` — the same letterboxing
- * the `object-contain` img applies — so they stay glued to the objects at
- * any rendered size, with no clientWidth scaling state to keep fresh (the
- * old approach drifted on resize). Click still exports the annotated frame
- * via canvas (unchanged).
+ * on top. The overlay itself is the shared AnnotatedImage (same letterboxing
+ * approach — SVG viewBox in native pixels over the object-contain img); this
+ * wrapper keeps only the MapView-specific canvas "open in new tab" export
+ * (design D8: the component stays a pure overlay renderer).
  */
 function ImageWithBoundingBoxes({
   imageUrl,
@@ -42,12 +41,6 @@ function ImageWithBoundingBoxes({
   detections: any[];
 }) {
   const imgRef = useRef<HTMLImageElement | null>(null);
-  // Native pixel size, read once on load: the SVG viewBox needs it. Purely
-  // view state — no scaling math survives.
-  const [nativeSize, setNativeSize] = useState<{
-    w: number;
-    h: number;
-  } | null>(null);
 
   const openInferenceInNewTab = () => {
     const baseImg = imgRef.current;
@@ -134,87 +127,26 @@ function ImageWithBoundingBoxes({
       onClick={openInferenceInNewTab}
       className="relative w-full max-h-95 overflow-hidden rounded-2xl bg-slate-950 flex items-center justify-center border border-slate-200 cursor-zoom-in group select-none"
     >
-      <img
-        ref={(el) => {
-          imgRef.current = el;
-          // Cached images can finish loading before React attaches onLoad;
-          // recover the native size here so boxes never stay hidden.
-          if (el?.complete && el.naturalWidth) {
-            setNativeSize(
-              (prev) => prev ?? { w: el.naturalWidth, h: el.naturalHeight },
-            );
-          }
-        }}
-        src={imageUrl}
-        crossOrigin="anonymous"
-        onLoad={(e) =>
-          setNativeSize({
-            w: e.currentTarget.naturalWidth,
-            h: e.currentTarget.naturalHeight,
-          })
-        }
-        className="w-full h-auto object-contain max-h-95 group-hover:opacity-90 transition-opacity"
+      <AnnotatedImage
+        imageUrl={imageUrl}
         alt="Inference Canvas"
+        crossOrigin
+        imgRef={imgRef}
+        annotations={
+          detections
+            .filter((det) => det.bbox && det.bbox[0] !== undefined)
+            .map((det) => ({
+              label: det.label,
+              confidence: det.confidence,
+              bbox: det.bbox as [number, number, number, number],
+            }))
+        }
+        imageClassName="max-h-95 group-hover:opacity-90 transition-opacity pointer-events-none"
       />
 
       <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 bg-slate-900/90 backdrop-blur-xs text-white px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-opacity flex items-center gap-1.5 pointer-events-none shadow-md">
         <Maximize2 size={11} /> Open image in new tab
       </div>
-
-      {/* Same-letterbox overlay: viewBox = native pixels, so x/y map 1:1 to
-          the model's coordinate space at any rendered size, and
-          non-scaling-stroke keeps borders 2px on screen. */}
-      {nativeSize && detections.length > 0 && (
-        <svg
-          className="absolute inset-0 h-full w-full pointer-events-none"
-          viewBox={`0 0 ${nativeSize.w} ${nativeSize.h}`}
-          preserveAspectRatio="xMidYMid meet"
-          aria-hidden="true"
-        >
-          {detections.map((det, idx) => {
-            if (!det.bbox || det.bbox[0] === undefined) return null;
-            const [x1, y1, x2, y2] = det.bbox;
-            const width = Math.max(0, x2 - x1);
-            const height = Math.max(0, y2 - y1);
-
-            return (
-              <g key={idx}>
-                <rect
-                  x={x1}
-                  y={y1}
-                  width={width}
-                  height={height}
-                  fill="rgba(239, 68, 68, 0.1)"
-                  stroke="#EF4444"
-                  strokeWidth="2"
-                  vectorEffect="non-scaling-stroke"
-                />
-                <text
-                  x={x1 + 5}
-                  y={y1 > 14 ? y1 - 4 : y1 + 12}
-                  fill="#FFFFFF"
-                  fontSize="12"
-                  fontWeight="900"
-                  className="font-sans uppercase tracking-tight select-none"
-                  style={{
-                    paintOrder: "stroke",
-                    stroke: "#000000",
-                    strokeWidth: "2.5px",
-                  }}
-                >
-                  {(det.label || "waste").replace(/_/g, " ")}{" "}
-                  {Math.round(
-                    ((det.confidence ?? 0) > 1
-                      ? det.confidence / 100
-                      : det.confidence ?? 0) * 100,
-                  )}
-                  %
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      )}
     </div>
   );
 }
@@ -502,6 +434,10 @@ export default function Maps() {
   const onEachReport = (feature: any, layer: any) => {
     layer.on({
       click: (e: any) => {
+        // Report pins carry no detections in the list payload (GET /reports
+        // is deliberately light — detections live on the detail endpoint),
+        // so boxes are attached below by the report-detail effect. That
+        // effect keys off isUserReport, set in useReports' feature props.
         setSelectedItem({
           id: feature.properties.id,
           type: feature.properties.type,
@@ -509,12 +445,78 @@ export default function Maps() {
           description: feature.properties.description,
           reporter: feature.properties.reporter,
           detections: [],
+          isUserReport: feature.properties.isUserReport ?? true,
         });
         const { lat, lng } = e.latlng;
         e.target._map.setView([lat, lng], 19);
       },
     });
   };
+
+  // Verified-report pins: fetch GET /reports/{id} for the model's boxes
+  // (report_inference_service runs at verification and persists per-box
+  // rows). Same behavior as the Reports page modal; drone-detail clicks set
+  // isUserReport and never trigger this.
+  const selectedReportId: string | undefined = selectedItem?.isUserReport
+    ? selectedItem?.id
+    : undefined;
+  useEffect(() => {
+    if (!selectedReportId) return;
+    let cancelled = false;
+    api
+      .get(`/reports/${selectedReportId}`)
+      .then((response) => {
+        if (cancelled) return;
+        const raw = (response.data?.detections ?? []) as
+          Array<{
+            waste_type: string;
+            confidence_score: number;
+            bbox_x1: number;
+            bbox_y1: number;
+            bbox_x2: number;
+            bbox_y2: number;
+          }>;
+        const detections = raw.map((d) => ({
+          label: d.waste_type,
+          confidence: d.confidence_score,
+          bbox: [
+            d.bbox_x1,
+            d.bbox_y1,
+            d.bbox_x2,
+            d.bbox_y2,
+          ] as [number, number, number, number],
+        }));
+        const analysisStatus = response.data?.analysis_status ?? "pending";
+        // Same honest-note parity as the mobile sheet: clean photos said NO
+        // boxes is a valid result; failed/running/pending explain themselves.
+        const analysisNote =
+          analysisStatus === "completed"
+            ? detections.length > 0
+              ? null
+              : "No trash detected in the photo."
+            : analysisStatus === "running"
+              ? "AI analysis running…"
+              : "AI analysis unavailable.";
+        setSelectedItem((prev: any) =>
+          prev && prev.isUserReport && prev.id === selectedReportId
+            ? {
+                ...prev,
+                detections,
+                analysisStatus,
+                description: analysisNote
+                  ? `${prev.description || ""} — ${analysisNote}`.trim()
+                  : prev.description,
+              }
+            : prev,
+        );
+      })
+      .catch((error) => {
+        console.error("Failed to fetch report detail:", error?.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedReportId]);
 
   const visiblePins = useMemo(() => {
     const points = rawCollection ?? [];

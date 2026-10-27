@@ -156,6 +156,27 @@ export default function DroneUploadUI() {
       // SKIPPED server-side and never re-processed.
       const { representatives_queued = 0, duplicates_skipped = 0, already_uploaded = 0 } =
         (res.data ?? {}) as { representatives_queued?: number; duplicates_skipped?: number; already_uploaded?: number };
+
+      // EXIF-date aid: the camera's own capture dates are surfaced against
+      // the flight date the admin typed. A mismatch DOESN'T change what was
+      // stored (the entered flight date still drives every map window) —
+      // this is purely a heads-up that the form date may be a typo, since a
+      // batch landing in the wrong W1–W4 window silently skews that cell's
+      // CCI. Long duration so the operator can read it after a long upload.
+      const exifDates = (res.data?.exif_capture_dates ?? {}) as Record<string, number>;
+      const exifMismatch = (res.data?.exif_date_mismatch_count ?? 0) as number;
+      const enteredFlightDate = res.data?.flight_date as string | undefined;
+      if (exifMismatch > 0) {
+        const mismatchLabels = Object.entries(exifDates)
+          .filter(([exifDate]) => exifDate !== enteredFlightDate)
+          .slice(0, 2)
+          .map(([exifDate, count]) => `${exifDate} ×${count}`)
+          .join(", ");
+        toast.error(
+          `EXIF date check: ${exifMismatch} frame${exifMismatch === 1 ? "" : "s"} say ${mismatchLabels}, but the flight date entered was ${enteredFlightDate}. Your entered date still applies — if it's a typo, delete and re-upload this flight.`,
+          { duration: 10000 }
+        );
+      }
       if (already_uploaded > 0) {
         toast.success(
           `Flight queued — ${representatives_queued} new frames analyzed, ${already_uploaded} already-uploaded image${already_uploaded === 1 ? "" : "s"} skipped`

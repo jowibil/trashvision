@@ -1,13 +1,13 @@
 import 'package:TrashVision/widgets/bottom_nav.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
 // import 'report_screen.dart';
 import '../helper/database_helper.dart';
 import '../helper/gps_helper.dart';
 import '../services/api_service.dart';
+import '../widgets/alert_card.dart';
 import '../widgets/connectivity_status.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -217,6 +217,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildQuickActionGrid(),
             const SizedBox(height: 28),
             _buildAnalyticsSection(),
+            const SizedBox(height: 28),
+            const AlertsCard(),
           ],
         ),
       ),
@@ -297,6 +299,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 14),
+        // Chat assistant (brief Task 4): CCia, same endpoint the web widget
+        // uses. pushNamed (not pushReplacement) so back returns to Home.
+        _buildActionCard(
+          icon: Icons.forum_outlined,
+          title: "Ask Assistant",
+          color: Colors.teal[600]!,
+          onTap: () => Navigator.pushNamed(context, '/chat'),
         ),
       ],
     );

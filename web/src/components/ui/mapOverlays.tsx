@@ -58,7 +58,7 @@ export const MapOverlays = ({
   return (
     <>
       {!drawerOpen ? (
-        <div className="absolute top-6 right-6 z-[400] w-64 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white">
+        <div className="absolute top-2.5 right-2.5 sm:top-6 sm:right-6 z-[400] w-56 sm:w-64 bg-white/90 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-xl border border-white">
           {/* View switch: segmented pill control, same visual language as
               the week chips and the mobile MapPanel toggles. */}
           <div className="flex mb-3 p-0.5 bg-slate-100 rounded-xl">
@@ -113,11 +113,11 @@ export const MapOverlays = ({
       ) : null}
 
       <div
-        className={`absolute bottom-6 left-6 z-[400] transition-opacity duration-300 ${
+        className={`absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-6 sm:left-6 sm:right-auto z-[400] transition-opacity duration-300 ${
           drawerOpen ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
       >
-        <div className="bg-slate-900/95 text-white p-4 rounded-3xl shadow-2xl backdrop-blur-lg border border-white/10 w-80">
+        <div className="bg-slate-900/95 text-white p-4 rounded-3xl shadow-2xl backdrop-blur-lg border border-white/10 w-full sm:w-80">
           <div className="flex justify-between items-center mb-4">
             <button
               type="button"

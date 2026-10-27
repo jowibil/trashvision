@@ -165,12 +165,12 @@ class MobileMapService {
     required int threshold,
     String mode = 'month',
   }) =>
-      // v6: timestamps were re-derived from flight_date server-side (the
-      // insert-clock era's entries break hexbin windows for any month that
-      // changed). Mirrors the web's hexbins_v6 key format exactly; mode
-      // segment comes FIRST so a stale-while-revalidate hit always matches
-      // the active mode.
-      'hexbins_v6:$mode:$areaId:${selectedDate.year}-${selectedDate.month}:w$week:t$threshold';
+      // v7: tiles now carry per-type counts (type_counts) for the sector
+      // panel's summary strip — v6 entries lack the field. Mirrors the web's
+      // hexbins_v7 key format exactly (lockstep, AGENTS.md ground rule);
+      // mode segment comes FIRST so a stale-while-revalidate hit always
+      // matches the active mode.
+      'hexbins_v7:$mode:$areaId:${selectedDate.year}-${selectedDate.month}:w$week:t$threshold';
 
   /// Result of a cache-then-network fetch. [fromCache] true means the payload
   /// came from sqflite (either because the network failed, or because it was

@@ -39,17 +39,15 @@ class _ReportScreenState extends State<ReportScreen> {
   // report. The flag also drives the button's disabled/loading state.
   bool _isSubmitting = false;
 
-  String selectedWasteType = 'plastic';
+  // Waste classification is no longer user-selected: the real classification
+  // comes from the YOLO pipeline when an admin VERIFIES the report
+  // (backend services/report_inference_service.py — report_detections rows,
+  // and reports.waste_type is then refreshed from the top detection).
+  // The API contract still requires a waste_type value on POST, so we send
+  // this neutral placeholder instead.
+  static const String selectedWasteType = 'unclassified';
 
   final TextEditingController _descController = TextEditingController();
-
-  final List<String> wasteTypes = [
-    'plastic',
-    'metal',
-    'glass',
-    'styrofoam',
-    'composite_packaging',
-  ];
 
   @override
   void initState() {
@@ -372,40 +370,6 @@ Future<void> _pickImage() async {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPhotoCard(),
-            const SizedBox(height: 25),
-            const Text(
-              "Select Waste Classification Type",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: selectedWasteType,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.grey[100],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              items: wasteTypes.map((String type) {
-                return DropdownMenuItem<String>(
-                  value: type,
-                  child: Text(
-                    type.replaceAll('_', ' ').toUpperCase(),
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    selectedWasteType = newValue;
-                  });
-                }
-              },
-            ),
             const SizedBox(height: 25),
             _buildLocationCard(),
             const SizedBox(height: 25),

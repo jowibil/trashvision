@@ -577,8 +577,8 @@ export default function Info() {
                 Based on <strong className="text-slate-700">litter density per hex cell</strong> —
                 detections divided by the cell&apos;s real geodesic area, times{" "}
                 {DRONE_K_FACTOR}. Both platforms classify cells on the same
-                bands: the web map via <code className="text-slate-600">classifyCci</code>,
-                the phone app via <code className="text-slate-600">theme.dart getCciColor</code>
+                bands: the web map via <strong className="text-slate-900">classifyCci</strong>,
+                the phone app via <strong className="text-slate-900">theme.dart getCciColor</strong>
                 — same thresholds, same colors, different label wording:
               </p>
               <ul className="mt-3 space-y-2 list-none" role="list">
@@ -613,7 +613,7 @@ export default function Info() {
 
         {/* Reconciliation — every number here is runnable arithmetic on the
             real formula and served thresholds. */}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 md:p-8">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 md:p-8 text-justify">
           <h3 className="text-sm font-bold text-slate-800">
             Why a Critical alert can sit on a calm-looking map
           </h3>
@@ -655,7 +655,7 @@ export default function Info() {
       </section>
 
       {/* ── Where the numbers come from ──────────────────────────────────── */}
-      <section id="sources" aria-labelledby="sources-heading" className="scroll-mt-4">
+      <section id="sources" aria-labelledby="sources-heading" className="scroll-mt-4 text-justify">
         <SectionHeading id="sources-heading">Where the numbers come from</SectionHeading>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
           <p>

@@ -1,14 +1,23 @@
-fastapi
-uvicorn
-sqlalchemy
-alembic
-psycopg2-binary
-pydantic-settings
-passlib[bcrypt]
-python-jose[cryptography]
-python-multipart
-pillow
-piexif
-ultralytics
-cloudinary
-google-genai
+# Pinned to the versions the target environment actually runs (verified via
+# pip freeze in the project venv). Unpinned requirements let a fresh server
+# install drifted versions of ultralytics/pillow/fastapi and break inference
+# or the API at deploy time.
+fastapi==0.135.3
+uvicorn==0.44.0
+pydantic==2.13.0
+pydantic-settings==2.13.1
+sqlalchemy==2.0.49
+alembic==1.18.4
+psycopg2-binary==2.9.11
+geoalchemy2==0.19.0
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.26
+slowapi==0.1.9
+pillow==12.2.0
+piexif==1.1.3
+ultralytics==8.4.37
+cloudinary==1.44.1
+google-genai==2.20.0
+numpy==2.4.4
+requests==2.33.1

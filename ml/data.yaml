@@ -6,7 +6,7 @@ test: images/test
 nc: 5
 names:
   - composite_packaging
-  - plastic
-  - metal
   - glass
+  - metal
+  - plastic
   - styrofoam

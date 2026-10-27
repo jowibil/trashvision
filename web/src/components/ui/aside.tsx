@@ -35,7 +35,9 @@ interface SelectedDetection {
   description: string;
   detections: {
     label: string;
-    confidence: number;
+    /** Optional: real confidences only. No fake fallback — genuinely missing
+     * values render "–", not a made-up score (design §6.3). */
+    confidence?: number;
     bbox: [number, number, number, number];
   }[];
 }
@@ -80,7 +82,9 @@ interface DetectionCardProps {
   id: string;
   imgUrl?: string;
   wasteType: string;
-  confidence: number;
+  /** Genuinely missing scores render "–" — never a fake fallback number
+   * (design §6.3; the old `?? 0.85` invented 85% confidences). */
+  confidence?: number;
   x1: number;
   y1: number;
   x2: number;
@@ -155,7 +159,10 @@ const DetectionCard = memo(function DetectionCard({
           </div>
         )}
         <div className="absolute top-2 right-2 bg-[#005D90]/80 px-2 py-1 rounded text-[10px] font-black text-white uppercase">
-          {Math.round(confidence * 100)}% Conf.
+          {confidence != null && Number.isFinite(confidence
+          )
+            ? `${Math.round(confidence * 100)}% Conf.`
+            : "–"}
         </div>
       </div>
 
@@ -326,7 +333,7 @@ export const SectorDrawer = memo(function SectorDrawer({
 
             {/* Algorithm note (brief Task 2 #1): the hexagon counts come from
                 the pipeline's 2-stage DBSCAN dedup, not raw YOLO output. */}
-            <p className="mt-3 text-[10px] font-medium text-slate-400 leading-relaxed">
+            <p className="pt-3 text-[10px] font-medium text-slate-400 leading-relaxed">
               Counts are DBSCAN-deduplicated detections — overlapping YOLO boxes of the same
               object are merged before they reach this sector.
             </p>
@@ -414,8 +421,7 @@ export const SectorDrawer = memo(function SectorDrawer({
                                 wasteType={item.wasteType}
                                 confidence={
                                   detail?.confidence ??
-                                  props.confidence_scores?.[idx] ??
-                                  0.85
+                                  props.confidence_scores?.[idx]
                                 }
                                 x1={detail?.bbox[0] ?? props.x1s?.[idx] ?? 0}
                                 y1={detail?.bbox[1] ?? props.y1s?.[idx] ?? 0}

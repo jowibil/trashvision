@@ -38,19 +38,40 @@ class AreaCreate(BaseModel):
     description: Optional[str] = None
     
 
+class ReportDetectionPublic(BaseModel):
+    """One raw YOLO box for a verified report's photo (wire shape shared by
+    PATCH /reports/{id}/status and GET /reports/{id} — design §5)."""
+    waste_type: str
+    confidence_score: float
+    bbox_x1: float
+    bbox_y1: float
+    bbox_x2: float
+    bbox_y2: float
+
+
 class ReportPublic(BaseModel):
     report_id: uuid.UUID
     waste_type: str
     description: Optional[str]
     photo_url: Optional[str] 
     status: str
+    # Per-report YOLO analysis state; 'pending' also covers pre-existing
+    # verified reports with no backfill (design D11).
+    analysis_status: str = "pending"
     timestamp: datetime
     reporter_name: str       
     latitude: float          
     longitude: float       
     class Config:
         from_attributes = True 
-        
+
+
+class ReportDetailResponse(ReportPublic):
+    """GET /reports/{id}: ReportPublic + embedded detections (detail-on-demand,
+    design §5.2 — list endpoints never carry detections)."""
+    detections: List[ReportDetectionPublic] = []
+
+
 class BulkDeleteRequest(BaseModel):
     report_ids: List[UUID]
 

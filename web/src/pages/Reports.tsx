@@ -95,13 +95,13 @@ const CommunityReportsPage: React.FC = () => {
   }, [reports]);
 
   return (
-    <div className="min-h-[100dvh] w-full p-6 md:p-10">
-      <div className="max-w-350 mx-auto mb-12 text-left px-4">
+    <div className="min-h-[100dvh] w-full p-4 sm:p-6 md:p-10">
+      <div className="max-w-350 mx-auto mb-8 sm:mb-12 text-left px-0 sm:px-4">
         <h3 className="text-3xl font-black text-[#005D90] tracking-tight mb-2">Community Reports</h3>
         <p className="text-slate-500 text-sm font-medium">Citizen-submitted debris reports, verified by the TrashVision team.</p>
       </div>
 
-      <div className="max-w-350 mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-start px-4">
+      <div className="max-w-350 mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-start px-0 sm:px-4">
         <div className="lg:col-span-8 space-y-6">
           {loading ? (
             <div className="flex justify-center p-20 animate-pulse text-slate-400 font-bold uppercase tracking-widest">
@@ -157,7 +157,7 @@ const CommunityReportsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex-1 p-6 flex flex-col justify-between text-left">
+                    <div className="p-4 sm:p-6 flex-1 flex flex-col justify-between text-left min-w-0">
                       <div>
                         <div className="flex justify-between items-center flex-wrap gap-2">
                           <div className="flex items-center gap-2">
@@ -177,7 +177,7 @@ const CommunityReportsPage: React.FC = () => {
                       </div>
 
                       <div>
-                        <div className="grid grid-cols-2 gap-8 mt-6 border-y border-slate-50 py-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mt-4 sm:mt-6 border-y border-slate-50 py-4 sm:py-6">
                           <div className="space-y-1">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                               <MapPin size={12} className="text-[#005D90]" /> Location

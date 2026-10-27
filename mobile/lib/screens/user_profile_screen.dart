@@ -582,6 +582,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  /// Card headline. Reports carry no user-picked classification anymore —
+  /// the type only becomes real once an admin verifies and the model
+  /// classifies the photo (reports.waste_type is refreshed from
+  /// report_detections on verify). Until then the placeholder reads
+  /// 'unclassified', which means nothing to a citizen, so show a short
+  /// report id instead.
+  String _wasteLabel(Report report) {
+    if (report.wasteType.toLowerCase() != 'unclassified') {
+      return report.wasteType.replaceAll('_', ' ').toUpperCase();
+    }
+    final id = report.reportId ?? report.id?.toString();
+    if (id != null && id.isNotEmpty) {
+      final short = id.length > 8 ? id.substring(0, 8) : id;
+      return 'Report #${short.toUpperCase()}';
+    }
+    return 'Report #—';
+  }
+
   Widget _buildReportCardNode(Report report) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -644,10 +662,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            report.wasteType.replaceAll('_', ' ').toUpperCase(),
+                            _wasteLabel(report),
                             style: const TextStyle(
-                              fontSize: 12, 
-                              fontWeight: FontWeight.w900, 
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
                               color: Color(0xFF005D90),
                               overflow: TextOverflow.ellipsis,
                             ),

@@ -3,7 +3,7 @@ from sqlalchemy import func
 from models.trash_log import TrashLog
 from models.detection import Detection
 from models.report import Report
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 def update_trash_logs(db: Session, area_id: str = None):
@@ -27,8 +27,8 @@ def update_trash_logs(db: Session, area_id: str = None):
         Report.waste_type,
         Report.area_id,
         func.count(Report.report_id).label("rep_count"),
-        func.min(Report.created_at).label("oldest_rep"),
-        func.max(Report.created_at).label("newest_rep")
+        func.min(Report.timestamp).label("oldest_rep"),
+        func.max(Report.timestamp).label("newest_rep")
     ).filter(Report.status == "verified").group_by(Report.waste_type, Report.area_id)
 
     if area_id:

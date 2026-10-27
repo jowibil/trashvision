@@ -126,8 +126,14 @@ class HexBin {
   }
 
   /// DETECTION ids in this cell (current backend contract). The drawer's
-  /// tap flow resolves these via POST /images/batch {detection_ids: [...]}. 
+  /// tap flow resolves these via POST /images/batch {detection_ids: [...]}.
   final List<String> detectionIds;
+
+  /// Per-type counts (waste_type → count), jsonb-aggregated server-side.
+  /// Sums to [count]; powers the sector panel's instant summary strip (no
+  /// batch round-trip). Empty map on legacy/cached-v6 payloads — the strip
+  /// then derives nothing and group counts come from loaded batch images.
+  final Map<String, int> typeCounts;
 
   /// Legacy: IMAGE ids from pre-fix backends. Kept so the app still works
   /// against an un-updated server; the service sends whichever is present.
@@ -139,6 +145,7 @@ class HexBin {
     required this.imageIds,
     required this.count,
     this.hexAreaM2,
+    this.typeCounts = const {},
   }) {
     double sumLat = 0;
     double sumLng = 0;
@@ -168,6 +175,14 @@ class HexBin {
           : <String>[],
       count: json['count'] as int,
       hexAreaM2: (json['hex_area_m2'] as num?)?.toDouble(),
+      // Counts may arrive as num (json ints decode to int, but cached
+      // payloads round-tripped through toJson are already ints — coerce
+      // defensively so one malformed entry never kills a whole tile).
+      typeCounts: json['type_counts'] is Map
+          ? (json['type_counts'] as Map).map(
+              (k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0),
+            )
+          : const <String, int>{},
     );
   }
 
@@ -180,6 +195,7 @@ class HexBin {
     'detection_ids': detectionIds,
     'image_ids': imageIds,
     'count': count,
+    'type_counts': typeCounts,
     'hex_area_m2': hexAreaM2,
   };
 }

@@ -9,6 +9,7 @@ import { FileClock } from "lucide-react";
 import { CheckSquare } from "lucide-react";
 import { CloudUpload } from "lucide-react";
 import { ClipboardList } from "lucide-react";
+import { Info } from "lucide-react";
 import { SettingsIcon } from "lucide-react";
 import { LogOut } from "lucide-react";
 import { Home } from "lucide-react";
@@ -39,10 +40,21 @@ const MENU_ITEMS: MenuItem[] = [
   { name: "Drone Upload", path: "/portal/upload", icon: <CloudUpload size={20} />, minRole: ROLES.ADMIN },
   { name: "Area Boundary", path: "/portal/draw", icon: <PenBoxIcon size={20} />, minRole: ROLES.ADMIN },
   { name: "Trash Logs", path: "/portal/logs", icon: <ClipboardList size={20} />, minRole: ROLES.GUEST },
+  { name: "Info", path: "/portal/info", icon: <Info size={20} />, minRole: ROLES.GUEST },
   { name: "Settings", path: "/portal/settings", icon: <SettingsIcon size={20} />, minRole: ROLES.ADMIN },
 ];
 
-export default function Sidebar() {
+// Responsive shell: the sidebar is hidden below `md` (AppLayout renders a
+// hamburger + this component inside an off-canvas drawer instead). Without
+// this, the fixed 256px column eats most of a Mobile-S viewport and squishes
+// every page's content down to ~64px.
+interface SidebarProps {
+  className?: string;
+  /** Called after any drawer nav action so AppLayout can close the overlay. */
+  onNavigate?: () => void;
+}
+
+export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -81,7 +93,7 @@ export default function Sidebar() {
     <aside
       className={`bg-[#EFF4FF] border-r border-slate-200 flex flex-col h-dvh sticky top-0 transition-all duration-300 ${
         isCollapsed ? "w-20" : "w-64"
-      }`}
+      } ${className}`}
     >
       <div
         className={`p-4 border-b border-slate-100 flex items-center transition-all ${
@@ -132,6 +144,7 @@ export default function Sidebar() {
             key={item.name}
             to={item.path}
             end={item.end ?? false}
+            onClick={() => onNavigate?.()}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white hover:shadow-sm ${
                 isActive
@@ -151,7 +164,10 @@ export default function Sidebar() {
         {showLogout ? (
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => {
+              onNavigate?.();
+              handleLogout();
+            }}
             disabled={loading}
             className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all disabled:opacity-50 ${
               isCollapsed ? "justify-center px-2" : ""
@@ -164,7 +180,10 @@ export default function Sidebar() {
         ) : (
           <button
             type="button"
-            onClick={goHome}
+            onClick={() => {
+              onNavigate?.();
+              goHome();
+            }}
             className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all ${
               isCollapsed ? "justify-center px-2" : ""
             }`}

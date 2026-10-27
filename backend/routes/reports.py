@@ -10,8 +10,12 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from geoalchemy2 import WKTElement
 from geoalchemy2.shape import to_shape
-from routes.helper.utils import ReportPublic, BulkDeleteRequest
+from routes.helper.utils import ReportPublic, BulkDeleteRequest, ReportDetailResponse
 from services.geo_assign import resolve_area_for_point
+from services.report_inference_service import (
+    run_report_analysis,
+    report_detection_payloads,
+)
 
 router = APIRouter()
 
@@ -24,7 +28,12 @@ router = APIRouter()
 
 @router.post("/", response_model=ReportPublic)
 async def submit_report(
-    waste_type: str = Form(...),
+    # waste_type is no longer client-authored: the real classification is the
+    # YOLO model's job (runs at verification, report_inference_service.py).
+    # The column stays NOT NULL so we still persist a value — the mobile form
+    # sends this neutral placeholder, and map-pin labels / TrashLog rollups
+    # read this same column until verification refreshes it from the model.
+    waste_type: str = Form("unclassified"),
     latitude: float = Form(...),
     longitude: float = Form(...),
     area_id: Optional[str] = Form(None),
@@ -34,18 +43,9 @@ async def submit_report(
     db: Session = Depends(get_db),
     user=Depends(require_role("guest")),
 ):
-    # FIX (NameError): the handler referenced an undefined `user_id`, so every
-    # POST /reports/ died with a 500. The reporter is the JWT's user — the
-    # client never supplies it (web/mobile alike; user_id is not a form field).
-    # Mobile's offline outbox also stores a client-side user_id for display
-    # only; the server value is authoritative here.
+
     client_uuid = uuid.UUID(client_report_id) if client_report_id else None
 
-    # Auto-assign area: mobile submits never send one, so every report used
-    # to land with area_id NULL and the mobile map's per-area community pin
-    # query (GET /reports/?area_id=) never matched them. The point-in-polygon
-    # resolver attaches the covering boundary area; reports outside every
-    # drawn boundary honestly stay NULL (no pin, no silent guess).
     resolved_area_id = None
     if area_id:
         resolved_area_id = uuid.UUID(area_id)
@@ -53,12 +53,7 @@ async def submit_report(
         resolved_area = resolve_area_for_point(db, latitude, longitude)
         if resolved_area is not None:
             resolved_area_id = resolved_area.area_id
-
-    # Idempotency guard: the mobile outbox resends the same report (same
-    # client UUID) after a lost/crashed submit, otherwise a crash after
-    # commit produced duplicate rows (2026-10-14: 2 reports became 4 after
-    # a server restart). The check runs BEFORE the photo upload so a retry
-    # does not re-land the image on Cloudinary either.
+            
     if client_uuid:
         existing = (
             db.query(Report)
@@ -183,7 +178,7 @@ def get_reports_by_user(
             
     return response_payload
 
-@router.get("/{report_id}", response_model=ReportPublic)
+@router.get("/{report_id}", response_model=ReportDetailResponse)
 def get_report(
     report_id: str,
     db: Session = Depends(get_db),
@@ -201,6 +196,9 @@ def get_report(
         lat = geom.y
         lng = geom.x
         
+    # Detail-on-demand: detections are embedded ONLY here, never in the list
+    # endpoints (design §5.2). Public read — the modal fetches this while the
+    # viewer is logged out.
     return {
         "report_id": report.report_id,
         "waste_type": report.waste_type,
@@ -209,9 +207,12 @@ def get_report(
         "photo_url": report.photo_url,
         "description": report.description,
         "status": report.status,
+        "analysis_status": report.analysis_status or "pending",
         "timestamp": report.timestamp,
         "latitude": lat,
         "longitude": lng,
+        "reporter_name": report.reporter_name,
+        "detections": report_detection_payloads(db, report.report_id),
     }
 
 @router.patch("/{report_id}/status")
@@ -228,8 +229,37 @@ def update_report_status(
         raise HTTPException(status_code=404, detail="Report not found")
     report.status = status
     db.commit()
-    db.refresh(report)
-    return {"message": "success", "new_status": report.status}
+
+    # Verified → run YOLO analysis on the photo (design §5.1). Sync under a
+    # semaphore today; the execute_analysis seam makes the async swap later
+    # mechanical. Inference failures NEVER demote the report: the PATCH stays
+    # 200 and 'analysis_status' reports the outcome ('failed' → admin toasts,
+    # UI shows 'AI analysis unavailable').
+    detections = []
+    if status == "verified":
+        analysis_status = run_report_analysis(db, report_id)
+        detections = report_detection_payloads(db, report_id)
+
+        # The model is now the authoritative classifier: replace the
+        # submission placeholder with the highest-confidence detection's class
+        # so map-pin labels and TrashLog rollups (log_service groups verified
+        # Report.waste_type) reflect what the photo actually contains.
+        # Zero boxes (clean photo) or a failed run leave the placeholder — no
+        # fabricated classification (D3: analysis never gates verification).
+        if detections:
+            best = max(detections, key=lambda d: d["confidence_score"])
+            report.waste_type = best["waste_type"]
+            db.commit()
+    else:
+        analysis_status = report.analysis_status or "pending"
+
+    # Existing web client reads only 'new_status' → additive, non-breaking.
+    return {
+        "message": "success",
+        "new_status": report.status,
+        "analysis_status": analysis_status,
+        "detections": detections,
+    }
 
 @router.delete("/bulk")
 def bulk_delete_reports(

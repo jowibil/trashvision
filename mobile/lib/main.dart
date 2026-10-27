@@ -14,6 +14,7 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/report_screen.dart';
 import 'screens/mapview.dart';
+import 'screens/chat_screen.dart';
 import 'screens/user_profile_screen.dart';
 
 void main() async {
@@ -130,6 +131,7 @@ void initState() {
         '/map': (context) => const MapView(),
         '/report': (context) => const ReportScreen(),
         '/profile': (context) => const UserProfileScreen(),
+        '/chat': (context) => const ChatScreen(),
       },
     );
   }

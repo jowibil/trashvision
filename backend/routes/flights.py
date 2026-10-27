@@ -11,7 +11,7 @@ from routes.helper.utils import FlightCreate, FlightResponse
 from services.gps_service import extract_gps, extract_dimensions
 from services.geo_assign import resolve_area_for_point
 from services.detection_service import process_image_upload
-from services.dbscan_service import cluster_points
+from services.dbscan_service import cluster_points, STAGE_A_EPS_METERS, DBSCAN_MIN_SAMPLES
 from services.mobile_service import MobileMapService
 from dependency import require_public
 from typing import Optional, List, Dict
@@ -263,7 +263,11 @@ def _cluster_frames(frames: list[dict]) -> list[dict]:
     cannot be placed spatially.
     """
     geotagged = [f for f in frames if f["lat"] is not None and f["lng"] is not None]
-    clusters = cluster_points(geotagged, eps_meters=3.0, min_samples=1) if geotagged else []
+    clusters = (
+        cluster_points(geotagged, eps_meters=STAGE_A_EPS_METERS, min_samples=DBSCAN_MIN_SAMPLES)
+        if geotagged
+        else []
+    )
 
     for idx, frame in enumerate(frames):
         if frame["lat"] is None or frame["lng"] is None:

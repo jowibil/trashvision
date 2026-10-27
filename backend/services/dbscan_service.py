@@ -5,6 +5,16 @@ from typing import List, Dict, Any
 
 EARTH_RADIUS_METERS = 6371000.0
 
+# Stage A neighborhood radius (meters): frames whose camera GPS points are
+# closer than this share a cluster (conditions where documented on the Info
+# page and served numerically by routes/info.py from this constant).
+STAGE_A_EPS_METERS = 3.0
+
+# Both DBSCAN stages run with min_samples=1 (every point is a cluster or a
+# member — spread as a single 'noise' singleton), so nothing is ever dropped
+# by clustering; dedup is represented, not discarded.
+DBSCAN_MIN_SAMPLES = 1
+
 def cluster_points(points: List[Dict[str, Any]], eps_meters: float, min_samples: int = 1) -> List[Dict[str, Any]]:
     
     

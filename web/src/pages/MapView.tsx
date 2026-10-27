@@ -18,39 +18,13 @@ import { Calendar } from "lucide-react";
 import { X } from "lucide-react";
 import { RefreshCcw as RefreshCw} from "lucide-react";
 import { Maximize2 } from "lucide-react";
-import { classifyCci, hexbinTilesToFeatureCollection, DRONE_K_FACTOR } from "../services/hooks/useHexbins";
+import { classifyCci, hexbinTilesToFeatureCollection, DRONE_K_FACTOR, CCI_LEGEND_ITEMS, getCciColor } from "../services/hooks/useHexbins";
 import api from "../api/axios";
 import { SectorDrawer } from "../components/ui/aside";
 import { MapOverlays } from "../components/ui/mapOverlays";
 import L from "leaflet";
 import type { PollutionCategory } from "../types/types";
 
-// Hoisted: static legend data, previously rebuilt as a fresh array literal
-// on every render inside the footer JSX.
-const CCI_LEGEND_ITEMS = [
-  { label: "Very low", category: "Very low", desc: "≤ 2" },
-  { label: "Low", category: "Low", desc: "2 - 5" },
-  { label: "Moderate", category: "Moderate", desc: "5 - 10" },
-  { label: "High", category: "High", desc: "10 - 20" },
-  { label: "Very high", category: "Very high", desc: "> 20" },
-] as const;
-
-export const getCciColor = (category?: PollutionCategory | string): string => {
-  switch (category) {
-    case "Very low":
-      return "#10b981"; // Em Green
-    case "Low":
-      return "#3b82f6"; // Blue
-    case "Moderate":
-      return "#f59e0b"; // Yellow
-    case "High":
-      return "#f97316"; // Orange
-    case "Very high":
-      return "#ef4444"; // Red
-    default:
-      return "#94a3b8"; // Slate Gray
-  }
-};
 /**
  * Detection preview: the raw drone frame with every YOLO bounding box drawn
  * on top. Boxes live in one SVG whose viewBox is the image's native pixel
@@ -471,19 +445,38 @@ export default function Maps() {
   }, [currentArea, totalDetections]);
 
   const areaStatus = useMemo(() => {
-  const category = areaMetrics.category; // Returns PollutionCategory
-  const hexColor = getCciColor(category);
+    const category = areaMetrics.category; // Returns PollutionCategory
+    const hexColor = getCciColor(category);
 
-  return {
-    label: category.toUpperCase(),
-    color: hexColor,
-    style: {
+    // The chip leads with WHAT the survey saw (detection count + polygon size)
+    // and puts the CCI verdict second: at drone scales the raw CCI number is
+    // always tiny (size-normalized, spec algorithm_equations.md §2.2), so a
+    // CCI-only chip reads "all green" no matter how many items were found.
+    const areaKm2 = areaMetrics.totalAreaM2 / 1_000_000;
+    const areaLabel =
+      areaKm2 >= 1
+        ? `${areaKm2.toFixed(2)} km²`
+        : `${(areaMetrics.totalAreaM2 / 10_000).toFixed(2)} ha`;
+    const cciLabel =
+      areaMetrics.overallCci < 1
+        ? areaMetrics.overallCci.toFixed(2)
+        : areaMetrics.overallCci.toFixed(1);
+
+    return {
+      label: category.toUpperCase(),
       color: hexColor,
-      backgroundColor: `${hexColor}1A`, // 10% tint
-      borderColor: `${hexColor}40`,     // 25% tint
-    },
-  };
-}, [areaMetrics]);
+      primary:
+        areaMetrics.totalAreaM2 > 0
+          ? `${totalDetections.toLocaleString()} detections · ${areaLabel}`
+          : "Select an area",
+      secondary: `● CCI ${cciLabel} · ${category.toUpperCase()}`,
+      style: {
+        color: hexColor,
+        backgroundColor: `${hexColor}1A`, // 10% tint
+        borderColor: `${hexColor}40`,     // 25% tint
+      },
+    };
+  }, [areaMetrics, totalDetections]);
 
 
   const handleAreaSelect = (area: any) => {
@@ -535,9 +528,9 @@ export default function Maps() {
 
   return (
     <div className="h-dvh w-full max-w-7xl flex flex-col overflow-hidden bg-[#fcfcfc]">
-      <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-8 sticky top-0 mt-5 bg-[#fcfcfc]">
-        <div className="flex flex-col text-left">
-          <h3 className="text-3xl font-black text-[#005D90] tracking-tight">
+      <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-4 sm:px-8 sticky top-0 mt-2 sm:mt-5 bg-[#fcfcfc]">
+        <div className="flex flex-col text-left min-w-0">
+          <h3 className="text-xl sm:text-3xl font-black text-[#005D90] tracking-tight truncate">
             Waste Detection Map
           </h3>
           <div className="flex items-center gap-1.5">
@@ -549,7 +542,7 @@ export default function Maps() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-black">
+          <div className="hidden sm:flex items-center gap-2 text-black">
             <Calendar size={14} strokeWidth={2.5} />
             <p className="text-sm font-bold uppercase tabular-nums">
               {new Date().toLocaleDateString("en-US", {
@@ -564,7 +557,7 @@ export default function Maps() {
 
       <main className="flex flex-1 overflow-hidden relative">
         <div
-          className={`relative h-137.5 flex-1 m-4 rounded-3xl overflow-hidden border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
+          className={`relative h-137.5 flex-1 m-2 sm:m-4 rounded-3xl overflow-hidden border-2 sm:border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
         >
           <MapContainer
             ref={setMap}
@@ -687,18 +680,18 @@ export default function Maps() {
             )}
           </MapContainer>
 
-          <div className="absolute top-4 left-20 z-1000 flex items-center gap-2">              <button
+          <div className="absolute top-3 left-14 sm:top-4 sm:left-20 z-1000 flex items-center gap-2">              <button
                 type="button"
                 onClick={() => refetch()}
                 aria-label="Refresh detections for this area"
-                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90]"
+                className="flex items-center gap-2 px-2.5 sm:px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90]"
               >
               {loading ? (
                 <div className="animate-spin h-3 w-3 border-2 border-[#005D90] border-t-transparent rounded-full" />
               ) : (
                 <RefreshCw size={14} className="text-[#005D90]" />
               )}
-              <span className="text-[10px] font-black text-[#005D90] uppercase tracking-widest">
+              <span className="hidden sm:inline text-[10px] font-black text-[#005D90] uppercase tracking-widest">
                 Refresh Area
               </span>
             </button>
@@ -745,9 +738,10 @@ export default function Maps() {
         />
       </main>
 
-      {/* FOOTER LEGEND MATRIX */}
-      <footer className="flex flex-row justify-between items-stretch gap-4 p-4 w-full z-1003">
-        <div className="bg-[#005D90] p-4 rounded-2xl flex-[1.5] relative">
+      {/* FOOTER LEGEND MATRIX — stacks vertically below lg: two side-by-side
+          cards don't fit a Mobile-S viewport and squish the CCI legend. */}
+      <footer className="flex flex-col lg:flex-row justify-between items-stretch gap-4 p-2 sm:p-4 w-full z-1003">
+        <div className="bg-[#005D90] p-3 sm:p-4 rounded-2xl lg:flex-[1.5] relative">
           <div className="flex items-center justify-between mb-2 border-b border-blue-400/30 pb-2">
             <div className="flex items-center gap-3">
               <h3 className="text-xs font-black text-blue-200 uppercase tracking-widest">
@@ -758,10 +752,16 @@ export default function Maps() {
                 {currentArea?.area_name || "Select Area"}
               </p>
             </div>
-            <div
-              className={`text-xs font-bold ${areaStatus.color} bg-white px-2 py-0.5 rounded-full`}
-            >
-              ● {areaStatus.label}
+            <div className="text-right leading-tight">
+              <p className="text-xs font-bold text-white uppercase tracking-wide tabular-nums">
+                {areaStatus.primary ?? areaStatus.label}
+              </p>
+              <p
+                className="text-[10px] font-bold uppercase tracking-wide tabular-nums"
+                style={{ color: areaStatus.color }}
+              >
+                {areaStatus.secondary ?? `● ${areaStatus.label}`}
+              </p>
             </div>
           </div>
           <div className="relative" ref={searchRef}>
@@ -801,16 +801,16 @@ export default function Maps() {
           </div>
         </div>
 
-        <div className="bg-[#fcfcfc] border border-slate-200 p-4 rounded-2xl shadow-sm flex-2 flex items-center justify-evenly">
-          <div className="text-left">
-            <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
+        <div className="bg-[#fcfcfc] border border-slate-200 p-3 sm:p-4 rounded-2xl shadow-sm lg:flex-2 flex flex-wrap items-center justify-center sm:justify-evenly gap-x-6 gap-y-2">
+          <div className="text-center sm:text-left">
+            <h3 className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
               Clean Coast Index
             </h3>
-            <p className="text-xs font-bold text-slate-500 uppercase">
+            <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase">
               Density-weighted severity scale
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             {CCI_LEGEND_ITEMS.map((item) => (
               <div key={item.category} className="flex flex-col items-center">
                 <div className="flex items-center gap-1.5 mb-0.5">

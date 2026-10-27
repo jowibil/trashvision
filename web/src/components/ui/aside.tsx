@@ -1,5 +1,5 @@
 // web/src/components/ui/aside.tsx
-import { memo, useEffect, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useState, type CSSProperties } from "react";
 
 // Direct path imports instead of the lucide-react barrel export.
 import { X } from "lucide-react";
@@ -7,8 +7,10 @@ import { Shield } from "lucide-react";
 import { AlertTriangle } from "lucide-react";
 import { CheckCircle } from "lucide-react";
 import { Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { Layers } from "lucide-react";
 
-import { getCciColor } from "../../pages/MapView";
+import { getCciColor } from "../../services/hooks/useHexbins";
 import type { HexbinProperties } from "../../types/types";
 import type { SectorDetection } from "../../services/hooks/useAreaHexbins";
 
@@ -18,6 +20,10 @@ interface SectorFeature {
 
 interface StatusBadge {
   label: string;
+  /** Survey-wide detections + polygon size, shown above the CCI verdict (MapView footer chip). */
+  primary?: string;
+  /** One-line CCI verdict, e.g. "● CCI 0.35 · VERY LOW". */
+  secondary?: string;
   style: CSSProperties;
 }
 
@@ -50,9 +56,12 @@ const FALLBACK_STATUS_STYLE: CSSProperties = {
   borderColor: "#f1f5f9",
 };
 
-// Skeleton cap: a huge sector could hold hundreds of ids — the drawer shows
-// ~4 cards at once, so a dozen pulsing placeholders is plenty.
-const SKELETON_CARD_COUNT = 12;
+// Cards visible in an expanded waste-type group before "Show more".
+const GROUP_PAGE_SIZE = 4;
+
+// Skeleton cap: with grouped accordion sections a handful of pulsing
+// placeholders is plenty.
+const SKELETON_CARD_COUNT = 4;
 
 /** Loading placeholder shaped exactly like a DetectionCard (Tailwind pulse). */
 const SkeletonCard = memo(function SkeletonCard() {
@@ -158,6 +167,31 @@ const DetectionCard = memo(function DetectionCard({
   );
 });
 
+interface ResolvedDetection {
+  id: string;
+  wasteType: string;
+  detail?: SectorDetection;
+  fallbackIndex: number;
+}
+
+interface WasteGroup {
+  wasteType: string;
+  items: ResolvedDetection[];
+}
+
+/** Number of initially-visible cards per group, keyed by group name. */
+type VisibleCounts = Record<string, number>;
+
+// Ordering contract for the summary chip strip AND the accordion groups, so
+// counts, chips and groups always tell the same story: worst (most frequent)
+// type first, alphabetical tiebreak. Using the SAME comparator for the
+// server counts dict and the grouped details keeps them aligned even when a
+// cached payload or a detail entry is missing.
+function compareGroups(a: { name: string; count: number }, b: { name: string; count: number }) {
+  if (b.count !== a.count) return b.count - a.count;
+  return a.name.localeCompare(b.name);
+}
+
 export const SectorDrawer = memo(function SectorDrawer({
   isOpen,
   onClose,
@@ -180,10 +214,70 @@ export const SectorDrawer = memo(function SectorDrawer({
       }
     : areaStatus;
 
+  // Summary strip source: the server tile's per-type counts (available the
+  // instant the hex is clicked — no batch round-trip). Sorted worst-first;
+  // ties alphabetical, the same order the groups render in.
+  const typeCounts = useMemo(() => {
+    const raw = selectedSector?.properties?.type_counts;
+    if (!raw) return null;
+    return (Object.entries(raw) as [string, number][])
+      .map(([name, count]) => ({ name, count: Number(count) }))
+      .sort(compareGroups);
+  }, [selectedSector?.properties?.type_counts]);
+
+  // Group the sector's detections per waste type. Every pointId becomes
+  // exactly one item (type from its batch detail, falling back to the
+  // legacy per-index property arrays the old flat list used), so group item
+  // totals can never disagree with the chip strip about how many detections
+  // live in this hex.
+  const groups = useMemo<WasteGroup[]>(() => {
+    if (sectorDetections === undefined) return [];
+    const pointIds = selectedSector?.properties?.pointIds ?? [];
+    const byId = new Map(
+      (sectorDetections ?? []).map((d) => [d.detection_id, d] as const),
+    );
+    const props = selectedSector?.properties;
+    const grouped = new Map<string, ResolvedDetection[]>();
+    pointIds.forEach((id, index) => {
+      const detail = byId.get(id);
+      const wasteType =
+        detail?.type ?? props?.types?.[index] ?? "Unclassified Waste";
+      const list = grouped.get(wasteType) ?? [];
+      list.push({ id, wasteType, detail, fallbackIndex: index });
+      grouped.set(wasteType, list);
+    });
+    return Array.from(grouped.entries())
+      .map(([name, items]) => ({ wasteType: name, items }))
+      .sort(
+        (a, b) =>
+          compareGroups(
+            { name: a.wasteType, count: a.items.length },
+            { name: b.wasteType, count: b.items.length },
+          ),
+      );
+  }, [sectorDetections, selectedSector]);
+
+  // Accordion state: every group starts COLLAPSED (brief decision — the old
+  // flat list was an unbounded scroll) and an expanded group reveals
+  // GROUP_PAGE_SIZE cards with a "Show more" pill for the rest. State is
+  // keyed by group name and reset whenever the drawer's sector changes.
+  const pointIdsKey = (selectedSector?.properties?.pointIds ?? []).join(",");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [visibleCounts, setVisibleCounts] = useState<VisibleCounts>({});
+  useEffect(() => {
+    setOpenGroups({});
+    setVisibleCounts({});
+  }, [pointIdsKey]);
+
   return (
     <aside
-      className={`w-96 bg-[#fcfcfc] border-l border-zinc-900/10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)] z-[1002] flex flex-col transition-transform duration-300 transform ${
-        isOpen ? "translate-x-0" : "translate-x-full absolute right-0 h-full"
+      className={`bg-[#fcfcfc] border-l border-zinc-900/10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)] z-[1002] flex flex-col transition-transform duration-300 transform w-full sm:w-96 ${
+        // Mobile: always an off-canvas full-width overlay (a static 384px
+        // flex child would overflow a 320px viewport). sm+: docks beside
+        // the map, shrinking it via MapView's mr-0 handling.
+        isOpen
+          ? "translate-x-0 absolute inset-y-0 right-0 sm:relative"
+          : "translate-x-full absolute right-0 h-full"
       }`}
     >
       {selectedSector ? (
@@ -229,45 +323,135 @@ export const SectorDrawer = memo(function SectorDrawer({
                 </div>
               </div>
             </div>
+
+            {/* Algorithm note (brief Task 2 #1): the hexagon counts come from
+                the pipeline's 2-stage DBSCAN dedup, not raw YOLO output. */}
+            <p className="mt-3 text-[10px] font-medium text-slate-400 leading-relaxed">
+              Counts are DBSCAN-deduplicated detections — overlapping YOLO boxes of the same
+              object are merged before they reach this sector.
+            </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {/* SUMMARY STRIP — per-type counts render instantly from the server
+              tile's type_counts, before any thumbnail/batch fetch resolves. */}
+          {typeCounts && typeCounts.length > 0 && (
+            <div className="px-6 pt-4">
+              <div className="flex flex-wrap gap-1.5">
+                {typeCounts.map(({ name, count }) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-full px-2.5 py-1 text-[10px] font-black text-slate-600 uppercase tracking-wide"
+                  >
+                    {name.replace(/_/g, " ")}
+                    <span className="text-[#005D90] tabular-nums">{count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {sectorDetections === undefined ? (
               // Details request still in flight: skeletons shaped like the
               // real cards (never fallback junk that pops into thumbnails).
               // MapView resolves failed batches to [] so this can't stick.
-              Array.from({ length: Math.min(SKELETON_CARD_COUNT, selectedSector.properties.pointIds.length || 1) }, (_, i) => (
-                <SkeletonCard key={`skeleton-${i}`} />
-              ))
+              Array.from(
+                { length: Math.min(SKELETON_CARD_COUNT, selectedSector.properties.pointIds.length || 1) },
+                (_, i) => <SkeletonCard key={`skeleton-${i}`} />,
+              )
             ) : (
-              selectedSector.properties.pointIds.map((id: string, index: number) => {
-                // Server hexbins carry only ids; per-detection details are
-                // resolved on demand (MapView batches them per sector click).
-                const detail = sectorDetections.find((d) => d.detection_id === id);
-                const imgUrl = detail?.file_url ?? selectedSector.properties.images?.[index];
-                const wasteType = detail?.type ?? selectedSector.properties.types?.[index] ?? "Unclassified Waste";
-                const confidencescore = detail?.confidence ?? selectedSector.properties.confidence_scores?.[index] ?? 0.85;
+              <>
+                {groups.map((group) => {
+                  const visible = visibleCounts[group.wasteType] ?? GROUP_PAGE_SIZE;
+                  const isOpenGroup = openGroups[group.wasteType] ?? false;
+                  return (
+                    <section
+                      key={group.wasteType}
+                      className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenGroups((prev) => ({
+                            ...prev,
+                            [group.wasteType]: !isOpenGroup,
+                          }))
+                        }
+                        aria-expanded={isOpenGroup}
+                        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-wide">
+                          <Layers size={13} className="text-[#005D90]" />
+                          {group.wasteType.replace(/_/g, " ")}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <span className="bg-blue-50 text-[#005D90] rounded-full px-2 py-0.5 text-[10px] font-black tabular-nums">
+                            {group.items.length}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            className={`text-slate-400 transition-transform duration-200 ${
+                              isOpenGroup ? "" : "-rotate-90"
+                            }`}
+                          />
+                        </span>
+                      </button>
 
-                const x1 = detail?.bbox[0] ?? selectedSector.properties.x1s?.[index] ?? 0;
-                const y1 = detail?.bbox[1] ?? selectedSector.properties.y1s?.[index] ?? 0;
-                const x2 = detail?.bbox[2] ?? selectedSector.properties.x2s?.[index] ?? 0;
-                const y2 = detail?.bbox[3] ?? selectedSector.properties.y2s?.[index] ?? 0;
+                      {isOpenGroup && (
+                        <div className="px-3 pb-3 space-y-2">
+                          {/* Collapsed-by-default groups reveal their first
+                              GROUP_PAGE_SIZE cards on expand ("Show more"
+                              loads the rest — no unbounded listing). */}
+                          {group.items.slice(0, visible).map((item) => {
+                            const detail = item.detail;
+                            const props = selectedSector.properties;
+                            const idx = item.fallbackIndex;
+                            return (
+                              <DetectionCard
+                                key={item.id}
+                                id={item.id}
+                                imgUrl={detail?.file_url ?? props.images?.[idx]}
+                                wasteType={item.wasteType}
+                                confidence={
+                                  detail?.confidence ??
+                                  props.confidence_scores?.[idx] ??
+                                  0.85
+                                }
+                                x1={detail?.bbox[0] ?? props.x1s?.[idx] ?? 0}
+                                y1={detail?.bbox[1] ?? props.y1s?.[idx] ?? 0}
+                                x2={detail?.bbox[2] ?? props.x2s?.[idx] ?? 0}
+                                y2={detail?.bbox[3] ?? props.y2s?.[idx] ?? 0}
+                                onItemSelect={onItemSelect}
+                              />
+                            );
+                          })}
 
-                return (
-                  <DetectionCard
-                    key={`${id}-${index}`}
-                    id={id}
-                    imgUrl={imgUrl}
-                    wasteType={wasteType}
-                    confidence={confidencescore}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    onItemSelect={onItemSelect}
-                  />
-                );
-              })
+                          {group.items.length > visible && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisibleCounts((prev) => ({
+                                  ...prev,
+                                  [group.wasteType]: visible + GROUP_PAGE_SIZE,
+                                }))
+                              }
+                              className="w-full text-center text-[11px] font-black text-[#005D90] uppercase tracking-widest py-2 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors"
+                            >
+                              Show more ({group.items.length - visible})
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+
+                {groups.length === 0 && (
+                  <p className="text-center text-xs text-slate-400 font-bold uppercase tracking-widest py-6">
+                    No detections in this sector.
+                  </p>
+                )}
+              </>
             )}
           </div>
         </>

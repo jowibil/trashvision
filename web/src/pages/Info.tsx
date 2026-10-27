@@ -33,9 +33,15 @@ const hexAreaM2 = (edgeM: number) => (3 * Math.sqrt(3) / 2) * edgeM * edgeM;
 
 function SectionHeading({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <h2 id={id} className="text-lg font-bold text-slate-800 tracking-tight">
-      {children}
-    </h2>
+    // opacity/animation resets guard against global heading styles (fade-in
+    // or low-contrast rules) that left these headings nearly invisible.
+    <h4
+      id={id}
+      className="flex items-center gap-3 text-xl font-bold text-slate-900 tracking-tight text-left opacity-100! animate-none!"
+    >
+      <span aria-hidden="true" className="h-6 w-1 shrink-0 rounded-full bg-[#005D90]" />
+      <span>{children}</span>
+    </h4>
   );
 }
 
@@ -84,10 +90,13 @@ export default function Info() {
     stageB != null ? stageB.gsd_factor * stageB.gsd_meters : null;
 
   return (
-    <div className="p-4 md:p-8 space-y-12 max-w-5xl text-slate-800">
-      <header className="max-w-[60ch]">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Info</h1>
-        <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+    <div className="p-4 md:p-8 space-y-14 max-w-5xl mx-auto text-left text-slate-800">
+      <header className="max-w-[64ch] border-b border-slate-200 pb-8">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#005D90]">Documentation</p>
+        <h4 className="mt-2 text-3xl md:text-4xl font-black text-slate-900 tracking-tight opacity-100! animate-none!">
+          Info
+        </h4>
+        <p className="text-sm md:text-base text-slate-600 mt-3 leading-relaxed">
           How TrashVision detects, de-duplicates and maps coastal waste — and which
           numbers decide an alert. Every threshold below is served by the API
           from the same constant the code computes with, or imported straight
@@ -95,12 +104,31 @@ export default function Info() {
           web map. Only display wording (chip tints, label names) is
           presentation.
         </p>
+        <nav aria-label="On this page" className="mt-5 flex flex-wrap gap-2">
+          {[
+            ["#overview", "Overview"],
+            ["#model", "Model"],
+            ["#dedup", "De-duplication"],
+            ["#cci", "Clean Coast Index"],
+            ["#rulers", "Rulers"],
+            ["#sources", "Sources"],
+            ["#limits", "Limits"],
+          ].map(([href, label]) => (
+            <a
+              key={href}
+              href={href}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-[#005D90] hover:text-[#005D90] transition-colors"
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
       </header>
 
       {/* ── Overview: from photo to alert, in four steps ─────────────────── */}
       <section id="overview" aria-labelledby="overview-heading" className="scroll-mt-4">
         <SectionHeading id="overview-heading">From photo to alert, in four steps</SectionHeading>
-        <ol className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 list-none">
+        <ol className="mt-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 list-none p-0 text-left">
           {[
             {
               title: "Survey",
@@ -126,16 +154,16 @@ export default function Info() {
             <li key={step.title}>
               <a
                 href={step.href}
-                className="block h-full rounded-2xl border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors"
+                className="block h-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-xs hover:border-[#005D90]/40 hover:shadow-sm transition"
               >
                 <span
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-[#005D90] text-xs font-bold text-white"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-[#005D90] text-xs font-bold text-white"
                   aria-hidden="true"
                 >
                   {i + 1}
                 </span>
-                <p className="mt-2 text-sm font-bold text-slate-800">{step.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">{step.body}</p>
+                <p className="mt-3 text-sm font-bold text-slate-900 text-left">{step.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600 text-left">{step.body}</p>
               </a>
             </li>
           ))}
@@ -153,9 +181,9 @@ export default function Info() {
           The model, and what it did <em>not</em> learn from
         </SectionHeading>
 
-        <div className="mt-4 rounded-2xl border border-zinc-900/10 bg-white shadow-xs">
+        <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-xs text-left">
           <div className="grid md:grid-cols-[1fr_auto] divide-y md:divide-y-0 md:divide-x divide-slate-200">
-            <div className="p-6 md:p-8">
+            <div className="p-6 md:p-8 flex flex-col items-start">
               <div className="flex items-center gap-2.5">
                 <ImageIcon size={18} className="text-[#005D90]" aria-hidden="true" />
                 <p className="text-sm font-semibold text-slate-700">
@@ -169,7 +197,7 @@ export default function Info() {
                 </div>
               ) : (
                 <>
-                  <p className="mt-3 text-5xl font-black text-slate-900 tabular-nums leading-none tracking-tight">
+                  <p className="mt-4 text-6xl font-black text-[#005D90] tabular-nums leading-none tracking-tight">
                     {fmt(dataset?.total_images)}
                   </p>
                   <p className="mt-4 text-xs text-slate-500 leading-relaxed max-w-[46ch]">
@@ -200,14 +228,14 @@ export default function Info() {
               )}
             </div>
 
-            <div className="p-6 md:p-8 md:w-72 md:bg-slate-50/60 md:rounded-r-2xl lg:w-64">
+            <div className="p-6 md:p-8 md:w-72 bg-slate-50/60 md:rounded-r-2xl flex flex-col items-start">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Not in training
               </p>
               {status === "loading" ? (
                 <Placeholder className="mt-3 w-16 h-8" />
               ) : (
-                <p className="mt-2 text-2xl font-black text-slate-600 tabular-nums leading-none">
+                <p className="mt-3 text-4xl font-black text-slate-700 tabular-nums leading-none">
                   {info ? fmt(info.verified_reports_contributed) : "—"}
                 </p>
               )}
@@ -235,8 +263,8 @@ export default function Info() {
         {/* Which data feeds which number (from the code: reports are stored
             and counted here only — the map, alerts and assistant all read
             from the detections pipeline). */}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 md:p-8">
-          <p className="text-sm font-bold text-slate-800">Which data feeds which number</p>
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 md:p-8 text-left">
+          <p className="text-sm font-bold text-slate-900">Which data feeds which number</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
@@ -281,7 +309,7 @@ export default function Info() {
           counting, so every number downstream — map, alerts, chatbot — is
           de-duplicated.
         </p>
-        <div className="mt-5 space-y-6">
+        <div className="mt-6 text-left">
           <div className="grid grid-cols-[auto_1fr] gap-x-5">
             <div className="flex flex-col items-center">
               <span
@@ -292,7 +320,7 @@ export default function Info() {
               </span>
               <span
                 className="w-px flex-1 my-1"
-                style={{ backgroundColor: "rgba(0, 93, 144, 0.12)" }}
+                style={{ backgroundColor: "rgba(0, 93, 144, 0.25)" }}
                 aria-hidden="true"
               />
             </div>
@@ -352,7 +380,7 @@ export default function Info() {
               <div className="rounded-lg border border-slate-200 p-2.5">
                 <dt className="text-slate-500">Radius</dt>
                 <dd className="mt-1 font-bold text-slate-700 tabular-nums">
-              {stageB ? `${fmt(stageB.gsd_factor)} × GSD` : "—"} ({fmt(stageBRadiusM)} m)
+                  {stageB ? `${fmt(stageB.gsd_factor)} × GSD (${fmt(stageBRadiusM)} m)` : "—"}
                 </dd>
               </div>
               <div className="rounded-lg border border-slate-200 p-2.5">
@@ -380,7 +408,7 @@ export default function Info() {
         <SectionHeading id="cci-heading">
           What the map colors mean: the Clean Coast Index
         </SectionHeading>
-        <div className="mt-4 rounded-2xl border border-zinc-900/10 bg-white shadow-xs p-6 md:p-8">
+        <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-xs p-6 md:p-8 text-left">
           <div className="space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
             <p>
               Each surveyed area is covered by an adaptive hex grid — cell size
@@ -390,7 +418,7 @@ export default function Info() {
                 : ""}
               , cells clipped to the boundary. For every cell:
             </p>
-            <p className="font-semibold text-slate-800">
+            <p className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 font-mono text-sm font-semibold text-slate-900">
               CCI = {DRONE_K_FACTOR} × detections ÷ cell area
             </p>
             <p>
@@ -494,7 +522,12 @@ export default function Info() {
               <p className="text-xs leading-relaxed text-slate-500">
                 Based on the <strong className="text-slate-700">all-time de-duplicated count of the whole drawn area</strong>:
               </p>
-              {bands.length > 0 ? (
+              {status === "loading" ? (
+                <div className="mt-3 space-y-2" aria-hidden="true">
+                  <Placeholder className="w-full h-8" />
+                  <Placeholder className="w-full h-8" />
+                </div>
+              ) : bands.length > 0 ? (
                 <ul className="mt-3 space-y-2 list-none" role="list">
                   {bands.map((band, i) => (
                     <li
@@ -513,10 +546,15 @@ export default function Info() {
                   ))}
                 </ul>
               ) : (
-                <div className="mt-3 space-y-2" aria-hidden="true">
-                  <Placeholder className="w-full h-8" />
-                  <Placeholder className="w-full h-8" />
-                </div>
+                // Ready (or fetched and failed) but the response carries no
+                // severity_bands — an old backend build. Say so instead of
+                // rendering unexplained skeleton bars.
+                <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-500">
+                  Threshold values unavailable — the deployed backend is an older
+                  build that doesn&apos;t serve them yet (needs a restart with the
+                  current code).{" "}
+                  {status === "error" ? "The API also didn&apos;t respond." : null}
+                </p>
               )}
               <p className="text-xs leading-relaxed text-slate-500 pt-2">
                 One shared threshold source drives the alert banner, the Trash

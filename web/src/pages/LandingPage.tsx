@@ -6,6 +6,7 @@ import heroBg from "@/assets/herobg.png";
 import { features, steps } from "../components/landing/LandingIcons";
 import FeatureCard from "../components/landing/FeatureCard";
 import { useNavigate } from "react-router-dom";
+import { useMlInfoState } from "../services/mlInfo";
 
 // Hoisted: pairs each feature index with its bento span/size for the
 // asymmetric layout below. Doesn't depend on props/state.
@@ -19,6 +20,9 @@ const FEATURE_LAYOUT: { span: string; size: "md" | "lg" }[] = [
 ];
 
 export default function Landing() {
+  // Only the numbers are shown here — no loading/error chrome. If this page
+  // ever needs that, destructure status/retry again (see Info.tsx usage).
+  const { info } = useMlInfoState();
   const navigate = useNavigate();
 
   return (
@@ -29,7 +33,7 @@ export default function Landing() {
       <section className="relative min-h-[95dvh] flex items-center pt-8 overflow-hidden" id="hero">
         <div className="absolute inset-0 w-full h-full overflow-hidden" style={{ zIndex: 0 }}>
           <img src={heroBg} alt="Ocean Background" className="w-full h-full object-cover object-bottom scale-110" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-b from-black/40 via-transparent to-transparent" />
         </div>
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
           <div className="grid lg:grid-cols-2 gap-12 items-center text-left">
@@ -43,7 +47,7 @@ export default function Landing() {
                   Now scales up progressively. */}
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight tracking-tight mb-4">
                 Protecting <br /> Coastlines with <br />
-                <span className="text-cyan-300">Real-Time Waste</span> Detection
+                <span className="text-cyan-300">Waste</span> Detection
               </h1>
               <p className="text-white/70 text-base sm:text-lg mb-8 max-w-md leading-relaxed">
                 TrashVision empowers local government units to detect, map, and respond to shoreline waste —
@@ -65,7 +69,7 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 leading-[0]">
+        <div className="absolute bottom-0 left-0 right-0 leading-0">
           <svg viewBox="0 0 1440 80" preserveAspectRatio="none" className="w-full h-16 md:h-24">
             <path d="M0 80L1440 80L1440 30Q1080 80 720 30Q360 -20 0 30Z" fill="white" />
           </svg>
@@ -114,6 +118,42 @@ export default function Landing() {
               <StepCard key={s.title} step={i + 1} {...s} />
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* HOW IT'S BUILT: two honest numbers from the same /info endpoint the
+          portal Info page uses. Deliberately quiet, DOM-static until numbers
+          resolve — no section entry animation. */}
+      <section className="py-20 bg-white" id="built">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h3 className="text-3xl sm:text-4xl font-bold text-gray-900 text-center mb-12">
+            How the Model Is Built
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="rounded-xl border border-slate-200 p-6 text-left">
+              <p className="text-4xl font-extrabold text-[#005D90] tabular-nums">
+                {info?.dataset ? info.dataset.total_images.toLocaleString() : "—"}
+              </p>
+              <p className="font-medium text-gray-900 mt-2 text-sm">Images the model was trained on</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Fixed at training time (Roboflow YOLOv8 export; 5 waste classes).
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-6 text-left">
+              <p className="text-4xl font-extrabold text-[#005D90] tabular-nums">
+                {info ? info.verified_reports_contributed.toLocaleString() : "—"}
+              </p>
+              <p className="font-medium text-gray-900 mt-2 text-sm">Verified reports contributed</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Counted live from the database — not used in training.
+              </p>
+            </div>
+          </div>
+          <p className="text-center text-sm text-gray-500 pt-4">
+            Detections are deduplicated in two DBSCAN passes before they are ever
+            counted, and map colors come from a density-based Clean Coast Index —
+            never from raw guesswork.
+          </p>
         </div>
       </section>
 

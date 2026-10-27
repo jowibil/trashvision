@@ -5,6 +5,10 @@ import '../helper/cloudinary_helper.dart';
 import '../models/mobile_map_models.dart';
 import 'skeleton.dart';
 
+/// Cards visible in an expanded type group before "Show more" (web parity:
+/// aside.tsx GROUP_PAGE_SIZE).
+const int kSectorGroupPageSize = 4;
+
 /// Wide-screen threshold: side panel at/above, bottom sheet below.
 const double kSectorPanelWideBreakpoint = 600;
 
@@ -117,6 +121,11 @@ class SectorPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(),
+            // Summary strip — per-type counts from the server tile
+            // (hex.typeCounts), rendering before any batch fetch resolves
+            // (brief Task 2 acceptance). Hidden on legacy/cached tiles that
+            // only carry ids.
+            if (hex.typeCounts.isNotEmpty) _typeChips(),
             const Hairline(),
             Expanded(child: _content(context)),
           ],
@@ -187,6 +196,56 @@ class SectorPanel extends StatelessWidget {
     );
   }
 
+  /// Instant per-type summary chips, worst (most frequent) type first.
+  /// Same ordering rule as the web drawer's chip strip so both platforms
+  /// read identically.
+  List<MapEntry<String, int>> get _sortedTypeCounts {
+    final entries = hex.typeCounts.entries.toList();
+    entries.sort((a, b) => b.value != a.value ? b.value - a.value : a.key.compareTo(b.key));
+    return entries;
+  }
+
+  Widget _typeChips() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (final entry in _sortedTypeCounts)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: primaryBlue.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text.rich(
+                TextSpan(
+                  text: '${entry.key.replaceAll('_', ' ').toUpperCase()}  ',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: inkMuted,
+                    letterSpacing: 0.5,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '${entry.value}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _content(BuildContext context) {
     if (loading) {
       // Shimmer placeholders shaped like the real tile rail — reads as
@@ -231,12 +290,27 @@ class SectorPanel extends StatelessWidget {
       );
     }
 
+    if (wide) {
+      // Grouped accordion list (brief Task 2 #4): thumbnails grouped per
+      // waste type, groups collapsed by default, first page per group plus
+      // a "Show more" row — replaced the paged vertical thumbnail rail.
+      return _GroupedTypeList(
+        images: drawerImages,
+        pendingCount: pendingCount,
+        loadingMore: loadingMore,
+        onLoadMore: onLoadMore,
+        onImageTap: onImageTap,
+        scrollController: scrollController,
+        bottomPadding: sheet ? MediaQuery.paddingOf(context).bottom + 12 : 12,
+      );
+    }
+
+    // Narrow fixed panel keeps the horizontal paged strip (a scrollable
+    // accordion inside the maxHeight:280 compartment reads as broken; the
+    // chips strip above already carries the grouping there).
     return ListView.builder(
-      // Vertical rail on the wide side panel + sheet, horizontal strip on
-      // the narrow fixed panel. In sheet mode the controller is the sheet's:
-      // scrolling the list is what drags the sheet between snap points.
       controller: scrollController,
-      scrollDirection: wide ? Axis.vertical : Axis.horizontal,
+      scrollDirection: Axis.horizontal,
       padding: EdgeInsets.fromLTRB(
         14,
         4,
@@ -322,8 +396,27 @@ class SectorPanel extends StatelessWidget {
   }
 
   Widget _thumbnailTile(DroneImage img) {
+    return _SectorThumbnailTile(img: img, onTap: () => onImageTap(img), wide: wide);
+  }
+}
+
+/// One sector thumbnail tile, extracted so the grouped list reuses the
+/// exact same Cloudinary thumbnail + badge treatment as the narrow rail.
+class _SectorThumbnailTile extends StatelessWidget {
+  final DroneImage img;
+  final VoidCallback onTap;
+  final bool wide;
+
+  const _SectorThumbnailTile({
+    required this.img,
+    required this.onTap,
+    required this.wide,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return _PressScale(
-      onTap: () => onImageTap(img),
+      onTap: onTap,
       child: Container(
         width: wide ? double.infinity : 100,
         height: wide ? 96 : double.infinity,
@@ -378,6 +471,243 @@ class SectorPanel extends StatelessWidget {
     );
   }
 }
+
+/// Grouped sector list (wide side panel + bottom sheet): thumbnails per
+/// waste type, every group COLLAPSED by default, an expanded group shows
+/// its first [kSectorGroupPageSize] tiles with a "Show more" row for the
+/// rest. Group ordering matches the summary chips: most items first,
+/// alphabetical tiebreak. In sheet mode [scrollController] is the sheet's
+/// controller (scrolling the list drags the sheet).
+class _GroupedTypeList extends StatefulWidget {
+  final List<DroneImage> images;
+  final int pendingCount;
+  final bool loadingMore;
+  final VoidCallback onLoadMore;
+  final ValueChanged<DroneImage> onImageTap;
+  final ScrollController? scrollController;
+  final double bottomPadding;
+
+  const _GroupedTypeList({
+    required this.images,
+    required this.pendingCount,
+    required this.loadingMore,
+    required this.onLoadMore,
+    required this.onImageTap,
+    this.scrollController,
+    this.bottomPadding = 12,
+  });
+
+  @override
+  State<_GroupedTypeList> createState() => _GroupedTypeListState();
+}
+
+class _GroupedTypeListState extends State<_GroupedTypeList> {
+  /// Accordion state, keyed by type so per-group paging survives toggling
+  /// other groups open/closed. Groups start collapsed (brief decision).
+  final Map<String, bool> _open = {};
+  final Map<String, int> _visible = {};
+
+  /// Groups the loaded images by type. Loaded batch items may lag the cell
+  /// total (paging), so group subtotals can be lower than the chips strip —
+  /// the chips are the server truth for the whole cell.
+  Map<String, List<DroneImage>> _grouped() {
+    final grouped = <String, List<DroneImage>>{};
+    for (final img in widget.images) {
+      final key = img.type ?? 'Unclassified';
+      grouped.putIfAbsent(key, () => []).add(img);
+    }
+    return grouped;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final grouped = _grouped();
+    final typeNames = grouped.keys.toList()
+      ..sort((a, b) {
+        final byCount = grouped[b]!.length.compareTo(grouped[a]!.length);
+        return byCount != 0 ? byCount : a.compareTo(b);
+      });
+
+    return ListView(
+      controller: widget.scrollController,
+      padding: EdgeInsets.fromLTRB(14, 4, 14, widget.bottomPadding),
+      children: [
+        for (final type in typeNames)
+          _TypeGroupSection(
+            typeName: type,
+            images: grouped[type]!,
+            open: _open[type] ?? false,
+            visible: _visible[type] ?? kSectorGroupPageSize,
+            onToggle: () => setState(() => _open[type] = !(_open[type] ?? false)),
+            onShowMore: () => setState(
+              () => _visible[type] = (_visible[type] ?? kSectorGroupPageSize) + kSectorGroupPageSize,
+            ),
+            onImageTap: widget.onImageTap,
+          ),
+        if (widget.pendingCount > 0) _pendingRow(),
+      ],
+    );
+  }
+
+  Widget _pendingRow() {
+    return GestureDetector(
+      onTap: widget.onLoadMore,
+      child: Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: primaryBlue.withValues(alpha: 0.05),
+          border: Border.all(color: primaryBlue.withValues(alpha: 0.15)),
+        ),
+        alignment: Alignment.center,
+        child: widget.loadingMore
+            // Shimmer instead of a spinner while the next page resolves.
+            ? const SkeletonBox(
+                width: 24,
+                height: 24,
+                radius: BorderRadius.all(Radius.circular(6)),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add_photo_alternate_outlined, color: primaryBlue, size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${widget.pendingCount} more pending',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: primaryBlue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _TypeGroupSection extends StatelessWidget {
+  final String typeName;
+  final List<DroneImage> images;
+  final bool open;
+  final int visible;
+  final VoidCallback onToggle;
+  final VoidCallback onShowMore;
+  final ValueChanged<DroneImage> onImageTap;
+
+  const _TypeGroupSection({
+    required this.typeName,
+    required this.images,
+    required this.open,
+    required this.visible,
+    required this.onToggle,
+    required this.onShowMore,
+    required this.onImageTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ink.withValues(alpha: 0.08)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: tappable to expand/collapse, count chip, chevron.
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      typeName.replaceAll('_', ' ').toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: primaryBlue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${images.length}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: primaryBlue,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: open ? 0 : -0.25,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: inkMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: Column(
+                children: [
+                  for (final img in images.take(visible))
+                    _SectorThumbnailTile(img: img, onTap: () => onImageTap(img), wide: true),
+                  if (images.length > visible)
+                    // "Show more" reveals the next page of THIS group —
+                    // no unbounded listing (brief Task 2 #3).
+                    GestureDetector(
+                      onTap: onShowMore,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: primaryBlue.withValues(alpha: 0.05),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Show more (${images.length - visible})',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: primaryBlue,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Press affordance shared by the panel's tappable tiles: the child scales
 
 /// Press affordance shared by the panel's tappable tiles: the child scales
 /// down 4% while pressed and springs back on release (transform-only motion).

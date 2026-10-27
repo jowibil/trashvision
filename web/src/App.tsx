@@ -13,6 +13,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MapView = lazy(() => import("./pages/MapView"));
 const TrashLogs = lazy(() => import("./pages/TrashLogs"));
+const Info = lazy(() => import("./pages/Info"));
 const Reports = lazy(() => import("./pages/Reports"));
 const AuthReport = lazy(() => import("./auth/AuthReport"));
 const Upload = lazy(() => import("./auth/Upload"));
@@ -56,6 +57,7 @@ function App() {
             <Route path="map" element={<MapView />} />
             <Route path="reports" element={<Reports />} />
             <Route path="logs" element={<TrashLogs />} />
+            <Route path="info" element={<Info />} />
 
             {/* ADMIN ONLY ROUTES */}
             <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>

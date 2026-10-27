@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import api from "../api/axios";
 import placeholder from "@/assets/herobg.png";
 import { useNavigate } from "react-router-dom";
+import InsightsBanner from "../components/shared/InsightsBanner";
 import type { DashboardStats } from "../types/types";
 
 // Hoisted: pure lookup data/functions that don't depend on component state
@@ -118,17 +119,22 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6 min-h-[100dvh] max-w-7xl">
-      <header className="h-20 border-b shadow-xs rounded-lg border-slate-200 bg-[#fcfcfc] px-8 shrink-0 flex items-center">
-        <div className="text-left">
-          <h3 className="text-3xl font-bold text-[#005D90] tracking-tight">Dashboard Overview</h3>
-          <p className="text-slate-500 font-medium text-sm">Welcome back, {userName}.</p>
+    <div className="space-y-4 sm:space-y-6 min-h-[100dvh] max-w-7xl px-4 sm:px-6">
+      <header className="h-16 sm:h-20 border-b shadow-xs rounded-lg border-slate-200 bg-[#fcfcfc] px-4 sm:px-8 shrink-0 flex items-center">
+        <div className="min-w-0">
+          <h3 className="text-2xl sm:text-3xl font-bold text-[#005D90] tracking-tight truncate">Dashboard Overview</h3>
+          <p className="text-slate-500 font-medium text-sm truncate">Welcome back, {userName}.</p>
         </div>
       </header>
 
+      {/* Critical-area alerts (brief Task 3d): unacknowledged insights
+          from GET /insights/, with inline acknowledge. Renders nothing
+          when there's nothing to act on. */}
+      <InsightsBanner />
+
       {/* METRIC CARDS — asymmetric 12-col split instead of 3 equal columns */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        <div className="md:col-span-5 bg-[#fcfcfc] p-6 rounded-2xl border border-zinc-900/10 shadow-xs">
+        <div className="md:col-span-5 bg-[#fcfcfc] p-4 sm:p-6 rounded-2xl border border-zinc-900/10 shadow-xs">
           <p className="text-[11px] text-left font-semibold text-[#00677D] uppercase tracking-wider">
             Total Detections
           </p>
@@ -138,7 +144,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="md:col-span-4 bg-[#fcfcfc] p-6 rounded-2xl border border-zinc-900/10 shadow-xs">
+        <div className="md:col-span-4 bg-[#fcfcfc] p-4 sm:p-6 rounded-2xl border border-zinc-900/10 shadow-xs">
           <p className="text-[11px] text-left font-semibold text-[#00677D] uppercase tracking-wider">
             Most Frequent Material
           </p>
@@ -151,7 +157,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="md:col-span-3 bg-[#fcfcfc] p-6 rounded-2xl border border-zinc-900/10 shadow-xs">
+        <div className="md:col-span-3 bg-[#fcfcfc] p-4 sm:p-6 rounded-2xl border border-zinc-900/10 shadow-xs">
           <p className="text-[11px] text-left font-semibold text-[#00677D] uppercase tracking-wider">
             Primary Hotspot Area
           </p>

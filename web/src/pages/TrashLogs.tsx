@@ -22,6 +22,7 @@ import { FileDown } from "lucide-react";
 import { useAreas } from "../services/hooks/useAreas";
 import type { Area } from "../services/hooks/useAreas";
 import type { DetectionRow, BoundingBox } from "../types/types";
+import { AnnotatedImage } from "../components/shared/AnnotatedImage";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 
@@ -99,12 +100,9 @@ const PERIOD_OPTIONS = [
 ];
 
 /**
- * Inspector image + boxes. The SVG uses the image's native pixel space as
- * its viewBox with `preserveAspectRatio="xMidYMid meet"`, stacked on the
- * `object-contain` image: both elements letterbox identically, so boxes stay
- * glued to the objects across resize/panel-width changes with zero manual
- * scaling (the old clientWidth-based scales broke on resize and were stale
- * across selections).
+ * Inspector image + boxes via the shared AnnotatedImage overlay (native-pixel
+ * SVG viewBox stacked on the `object-contain` image), keeping this page's
+ * stats grid as the footer slot.
  */
 const DetectionPreview = React.memo(({ log }: { log: DetectionRow }) => {
   const normalizedBoxes = useMemo<BoundingBox[]>(() => {
@@ -144,69 +142,30 @@ const DetectionPreview = React.memo(({ log }: { log: DetectionRow }) => {
     return boxes;
   }, [log]);
 
-  const nativeWidth = log.image_width || 640;
-  const nativeHeight = log.image_height || 640;
-
   return (
     <div className="space-y-4">
       <div className="relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 flex items-center justify-center min-h-60">
         {log.image_url ? (
-          <>
-            <img
-              src={log.image_url}
-              alt={`Aerial capture showing detected ${formatWasteTypeLabel(
-                log.waste_type,
-              )}`}
-              className="w-full h-auto max-h-100 object-contain select-none"
-              loading="lazy"
-            />
-            {normalizedBoxes.length > 0 && (
-              <svg
-                className="absolute inset-0 h-full w-full pointer-events-none"
-                viewBox={`0 0 ${nativeWidth} ${nativeHeight}`}
-                preserveAspectRatio="xMidYMid meet"
-                aria-hidden="true"
-              >
-                {normalizedBoxes.map((box, idx) => {
-                  const left = box.xmin;
-                  const top = box.ymin;
-                  const width = Math.max(0, box.xmax - box.xmin);
-                  const height = Math.max(0, box.ymax - box.ymin);
-                  return (
-                    <g key={idx}>
-                      <rect
-                        x={left}
-                        y={top}
-                        width={width}
-                        height={height}
-                        fill="none"
-                        stroke="#EF4444"
-                        strokeWidth="2"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      <text
-                        x={left + 4}
-                        y={top > 18 ? top - 4 : top + 14}
-                        fill="#FFFFFF"
-                        fontSize="12"
-                        fontWeight="900"
-                        className="font-sans tracking-wide select-none"
-                        style={{
-                          paintOrder: "stroke",
-                          stroke: "#000000",
-                          strokeWidth: "2.5px",
-                        }}
-                      >
-                        {formatWasteTypeLabel(
-                          box.label || log.waste_type,
-                        ).toUpperCase()}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
-          </>
+          <AnnotatedImage
+            imageUrl={log.image_url}
+            alt={`Aerial capture showing detected ${formatWasteTypeLabel(
+              log.waste_type,
+            )}`}
+            imageClassName="max-h-100"
+            annotations={
+              normalizedBoxes.length > 0
+                ? normalizedBoxes.map((box) => ({
+                    label: box.label || log.waste_type,
+                    bbox: [
+                      box.xmin,
+                      box.ymin,
+                      box.xmax,
+                      box.ymax,
+                    ] as [number, number, number, number],
+                  }))
+                : []
+            }
+          />
         ) : (
           <div className="text-slate-500 font-bold text-xs uppercase tracking-widest">
             No image available for this detection

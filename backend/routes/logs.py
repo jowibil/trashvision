@@ -7,6 +7,7 @@ from models.trash_log import TrashLog
 from models.detection import Detection
 from models.report import Report
 from models.area import Area
+from services.insights_service import severity_from_count
 
 from typing import Optional
 from datetime import timezone, datetime, timedelta
@@ -68,14 +69,10 @@ def get_dashboard_summary(
      .all()
 
     for zone in zones_query:
-        if zone.density > 50:
-            severity = "Critical"
-        elif zone.density > 20:
-            severity = "High"
-        elif zone.density > 5:
-            severity = "Medium"
-        else:
-            severity = "Low"
+        # Severity thresholds are defined ONCE in insights_service and shared
+        # with the automated alerts pipeline, so the Dashboard's hotspot
+        # badges and the alert messages can never disagree.
+        severity = severity_from_count(int(zone.density))
 
         formatted_date = zone.latest_activity.strftime("%B %d, %Y") if zone.latest_activity else "No Active Flight Data"
 

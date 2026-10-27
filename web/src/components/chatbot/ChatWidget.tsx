@@ -5,13 +5,8 @@ import { useChat } from "../../services/hooks/useChat";
 import ChatWindow from "./ChatWindow";
 import ChatInput from "./ChatInput";
 
-// Hoisted so the brand-color object isn't re-created on every render.
 const BRAND_BG_STYLE = { backgroundColor: "#005D90" };
 
-// Open/close is a CSS transition (grid-template-rows), not a keyframe mount
-// animation — the widget toggles frequently, so state transitions are the
-// right tool (animate skill). 200ms ease-out, in the prescription's
-// 150–250ms band, with prefers-reduced-motion opting out.
 const PANEL_TRANSITION_CSS = `
 .chat-panel {
   display: grid;
@@ -67,10 +62,12 @@ export default function ChatWidget() {
       {/* aria-hidden keeps the collapsed panel out of the tab order. */}
       <div className="chat-panel mb-4" data-open={isOpen} aria-hidden={!isOpen}>
         <div>
+          {/* Mobile-S guard: the panel otherwise keeps a fixed width and
+              overflows narrow viewports (floating panel is right-anchored). */}
           <div
             role="dialog"
             aria-label="TrashVision Assistant chat"
-            className="flex h-[500px] w-[360px] flex-col overflow-hidden rounded-2xl border border-zinc-900/10 bg-[#fcfcfc] shadow-2xl sm:w-[380px]"
+            className="flex h-[500px] w-[min(100vw-4rem,360px)] sm:w-[380px] flex-col overflow-hidden rounded-2xl border border-zinc-900/10 bg-[#fcfcfc] shadow-2xl"
           >
             <div className="flex items-center justify-between px-4 py-3.5 text-white" style={BRAND_BG_STYLE}>
               <div className="flex items-center gap-2.5">

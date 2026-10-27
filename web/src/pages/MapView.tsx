@@ -18,47 +18,20 @@ import { Calendar } from "lucide-react";
 import { X } from "lucide-react";
 import { RefreshCcw as RefreshCw} from "lucide-react";
 import { Maximize2 } from "lucide-react";
-import { classifyCci, hexbinTilesToFeatureCollection, DRONE_K_FACTOR } from "../services/hooks/useHexbins";
+import { classifyCci, hexbinTilesToFeatureCollection, DRONE_K_FACTOR, CCI_LEGEND_ITEMS, getCciColor } from "../services/hooks/useHexbins";
 import api from "../api/axios";
 import { SectorDrawer } from "../components/ui/aside";
 import { MapOverlays } from "../components/ui/mapOverlays";
+import { AnnotatedImage } from "../components/shared/AnnotatedImage";
 import L from "leaflet";
 import type { PollutionCategory } from "../types/types";
 
-// Hoisted: static legend data, previously rebuilt as a fresh array literal
-// on every render inside the footer JSX.
-const CCI_LEGEND_ITEMS = [
-  { label: "Very low", category: "Very low", desc: "≤ 2" },
-  { label: "Low", category: "Low", desc: "2 - 5" },
-  { label: "Moderate", category: "Moderate", desc: "5 - 10" },
-  { label: "High", category: "High", desc: "10 - 20" },
-  { label: "Very high", category: "Very high", desc: "> 20" },
-] as const;
-
-export const getCciColor = (category?: PollutionCategory | string): string => {
-  switch (category) {
-    case "Very low":
-      return "#10b981"; // Em Green
-    case "Low":
-      return "#3b82f6"; // Blue
-    case "Moderate":
-      return "#f59e0b"; // Yellow
-    case "High":
-      return "#f97316"; // Orange
-    case "Very high":
-      return "#ef4444"; // Red
-    default:
-      return "#94a3b8"; // Slate Gray
-  }
-};
 /**
  * Detection preview: the raw drone frame with every YOLO bounding box drawn
- * on top. Boxes live in one SVG whose viewBox is the image's native pixel
- * space with `preserveAspectRatio="xMidYMid meet"` — the same letterboxing
- * the `object-contain` img applies — so they stay glued to the objects at
- * any rendered size, with no clientWidth scaling state to keep fresh (the
- * old approach drifted on resize). Click still exports the annotated frame
- * via canvas (unchanged).
+ * on top. The overlay itself is the shared AnnotatedImage (same letterboxing
+ * approach — SVG viewBox in native pixels over the object-contain img); this
+ * wrapper keeps only the MapView-specific canvas "open in new tab" export
+ * (design D8: the component stays a pure overlay renderer).
  */
 function ImageWithBoundingBoxes({
   imageUrl,
@@ -68,12 +41,6 @@ function ImageWithBoundingBoxes({
   detections: any[];
 }) {
   const imgRef = useRef<HTMLImageElement | null>(null);
-  // Native pixel size, read once on load: the SVG viewBox needs it. Purely
-  // view state — no scaling math survives.
-  const [nativeSize, setNativeSize] = useState<{
-    w: number;
-    h: number;
-  } | null>(null);
 
   const openInferenceInNewTab = () => {
     const baseImg = imgRef.current;
@@ -160,87 +127,26 @@ function ImageWithBoundingBoxes({
       onClick={openInferenceInNewTab}
       className="relative w-full max-h-95 overflow-hidden rounded-2xl bg-slate-950 flex items-center justify-center border border-slate-200 cursor-zoom-in group select-none"
     >
-      <img
-        ref={(el) => {
-          imgRef.current = el;
-          // Cached images can finish loading before React attaches onLoad;
-          // recover the native size here so boxes never stay hidden.
-          if (el?.complete && el.naturalWidth) {
-            setNativeSize(
-              (prev) => prev ?? { w: el.naturalWidth, h: el.naturalHeight },
-            );
-          }
-        }}
-        src={imageUrl}
-        crossOrigin="anonymous"
-        onLoad={(e) =>
-          setNativeSize({
-            w: e.currentTarget.naturalWidth,
-            h: e.currentTarget.naturalHeight,
-          })
-        }
-        className="w-full h-auto object-contain max-h-95 group-hover:opacity-90 transition-opacity"
+      <AnnotatedImage
+        imageUrl={imageUrl}
         alt="Inference Canvas"
+        crossOrigin
+        imgRef={imgRef}
+        annotations={
+          detections
+            .filter((det) => det.bbox && det.bbox[0] !== undefined)
+            .map((det) => ({
+              label: det.label,
+              confidence: det.confidence,
+              bbox: det.bbox as [number, number, number, number],
+            }))
+        }
+        imageClassName="max-h-95 group-hover:opacity-90 transition-opacity pointer-events-none"
       />
 
       <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 bg-slate-900/90 backdrop-blur-xs text-white px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-opacity flex items-center gap-1.5 pointer-events-none shadow-md">
         <Maximize2 size={11} /> Open image in new tab
       </div>
-
-      {/* Same-letterbox overlay: viewBox = native pixels, so x/y map 1:1 to
-          the model's coordinate space at any rendered size, and
-          non-scaling-stroke keeps borders 2px on screen. */}
-      {nativeSize && detections.length > 0 && (
-        <svg
-          className="absolute inset-0 h-full w-full pointer-events-none"
-          viewBox={`0 0 ${nativeSize.w} ${nativeSize.h}`}
-          preserveAspectRatio="xMidYMid meet"
-          aria-hidden="true"
-        >
-          {detections.map((det, idx) => {
-            if (!det.bbox || det.bbox[0] === undefined) return null;
-            const [x1, y1, x2, y2] = det.bbox;
-            const width = Math.max(0, x2 - x1);
-            const height = Math.max(0, y2 - y1);
-
-            return (
-              <g key={idx}>
-                <rect
-                  x={x1}
-                  y={y1}
-                  width={width}
-                  height={height}
-                  fill="rgba(239, 68, 68, 0.1)"
-                  stroke="#EF4444"
-                  strokeWidth="2"
-                  vectorEffect="non-scaling-stroke"
-                />
-                <text
-                  x={x1 + 5}
-                  y={y1 > 14 ? y1 - 4 : y1 + 12}
-                  fill="#FFFFFF"
-                  fontSize="12"
-                  fontWeight="900"
-                  className="font-sans uppercase tracking-tight select-none"
-                  style={{
-                    paintOrder: "stroke",
-                    stroke: "#000000",
-                    strokeWidth: "2.5px",
-                  }}
-                >
-                  {(det.label || "waste").replace(/_/g, " ")}{" "}
-                  {Math.round(
-                    ((det.confidence ?? 0) > 1
-                      ? det.confidence / 100
-                      : det.confidence ?? 0) * 100,
-                  )}
-                  %
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      )}
     </div>
   );
 }
@@ -471,19 +377,38 @@ export default function Maps() {
   }, [currentArea, totalDetections]);
 
   const areaStatus = useMemo(() => {
-  const category = areaMetrics.category; // Returns PollutionCategory
-  const hexColor = getCciColor(category);
+    const category = areaMetrics.category; // Returns PollutionCategory
+    const hexColor = getCciColor(category);
 
-  return {
-    label: category.toUpperCase(),
-    color: hexColor,
-    style: {
+    // The chip leads with WHAT the survey saw (detection count + polygon size)
+    // and puts the CCI verdict second: at drone scales the raw CCI number is
+    // always tiny (size-normalized, spec algorithm_equations.md §2.2), so a
+    // CCI-only chip reads "all green" no matter how many items were found.
+    const areaKm2 = areaMetrics.totalAreaM2 / 1_000_000;
+    const areaLabel =
+      areaKm2 >= 1
+        ? `${areaKm2.toFixed(2)} km²`
+        : `${(areaMetrics.totalAreaM2 / 10_000).toFixed(2)} ha`;
+    const cciLabel =
+      areaMetrics.overallCci < 1
+        ? areaMetrics.overallCci.toFixed(2)
+        : areaMetrics.overallCci.toFixed(1);
+
+    return {
+      label: category.toUpperCase(),
       color: hexColor,
-      backgroundColor: `${hexColor}1A`, // 10% tint
-      borderColor: `${hexColor}40`,     // 25% tint
-    },
-  };
-}, [areaMetrics]);
+      primary:
+        areaMetrics.totalAreaM2 > 0
+          ? `${totalDetections.toLocaleString()} detections · ${areaLabel}`
+          : "Select an area",
+      secondary: `● CCI ${cciLabel} · ${category.toUpperCase()}`,
+      style: {
+        color: hexColor,
+        backgroundColor: `${hexColor}1A`, // 10% tint
+        borderColor: `${hexColor}40`,     // 25% tint
+      },
+    };
+  }, [areaMetrics, totalDetections]);
 
 
   const handleAreaSelect = (area: any) => {
@@ -509,6 +434,10 @@ export default function Maps() {
   const onEachReport = (feature: any, layer: any) => {
     layer.on({
       click: (e: any) => {
+        // Report pins carry no detections in the list payload (GET /reports
+        // is deliberately light — detections live on the detail endpoint),
+        // so boxes are attached below by the report-detail effect. That
+        // effect keys off isUserReport, set in useReports' feature props.
         setSelectedItem({
           id: feature.properties.id,
           type: feature.properties.type,
@@ -516,12 +445,78 @@ export default function Maps() {
           description: feature.properties.description,
           reporter: feature.properties.reporter,
           detections: [],
+          isUserReport: feature.properties.isUserReport ?? true,
         });
         const { lat, lng } = e.latlng;
         e.target._map.setView([lat, lng], 19);
       },
     });
   };
+
+  // Verified-report pins: fetch GET /reports/{id} for the model's boxes
+  // (report_inference_service runs at verification and persists per-box
+  // rows). Same behavior as the Reports page modal; drone-detail clicks set
+  // isUserReport and never trigger this.
+  const selectedReportId: string | undefined = selectedItem?.isUserReport
+    ? selectedItem?.id
+    : undefined;
+  useEffect(() => {
+    if (!selectedReportId) return;
+    let cancelled = false;
+    api
+      .get(`/reports/${selectedReportId}`)
+      .then((response) => {
+        if (cancelled) return;
+        const raw = (response.data?.detections ?? []) as
+          Array<{
+            waste_type: string;
+            confidence_score: number;
+            bbox_x1: number;
+            bbox_y1: number;
+            bbox_x2: number;
+            bbox_y2: number;
+          }>;
+        const detections = raw.map((d) => ({
+          label: d.waste_type,
+          confidence: d.confidence_score,
+          bbox: [
+            d.bbox_x1,
+            d.bbox_y1,
+            d.bbox_x2,
+            d.bbox_y2,
+          ] as [number, number, number, number],
+        }));
+        const analysisStatus = response.data?.analysis_status ?? "pending";
+        // Same honest-note parity as the mobile sheet: clean photos said NO
+        // boxes is a valid result; failed/running/pending explain themselves.
+        const analysisNote =
+          analysisStatus === "completed"
+            ? detections.length > 0
+              ? null
+              : "No trash detected in the photo."
+            : analysisStatus === "running"
+              ? "AI analysis running…"
+              : "AI analysis unavailable.";
+        setSelectedItem((prev: any) =>
+          prev && prev.isUserReport && prev.id === selectedReportId
+            ? {
+                ...prev,
+                detections,
+                analysisStatus,
+                description: analysisNote
+                  ? `${prev.description || ""} — ${analysisNote}`.trim()
+                  : prev.description,
+              }
+            : prev,
+        );
+      })
+      .catch((error) => {
+        console.error("Failed to fetch report detail:", error?.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedReportId]);
 
   const visiblePins = useMemo(() => {
     const points = rawCollection ?? [];
@@ -535,9 +530,9 @@ export default function Maps() {
 
   return (
     <div className="h-dvh w-full max-w-7xl flex flex-col overflow-hidden bg-[#fcfcfc]">
-      <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-8 sticky top-0 mt-5 bg-[#fcfcfc]">
-        <div className="flex flex-col text-left">
-          <h3 className="text-3xl font-black text-[#005D90] tracking-tight">
+      <header className="h-16 border-b border-slate-100 flex items-center justify-between z-1001 px-4 sm:px-8 sticky top-0 mt-2 sm:mt-5 bg-[#fcfcfc]">
+        <div className="flex flex-col text-left min-w-0">
+          <h3 className="text-xl sm:text-3xl font-black text-[#005D90] tracking-tight truncate">
             Waste Detection Map
           </h3>
           <div className="flex items-center gap-1.5">
@@ -549,7 +544,7 @@ export default function Maps() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-black">
+          <div className="hidden sm:flex items-center gap-2 text-black">
             <Calendar size={14} strokeWidth={2.5} />
             <p className="text-sm font-bold uppercase tabular-nums">
               {new Date().toLocaleDateString("en-US", {
@@ -564,7 +559,7 @@ export default function Maps() {
 
       <main className="flex flex-1 overflow-hidden relative">
         <div
-          className={`relative h-137.5 flex-1 m-4 rounded-3xl overflow-hidden border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
+          className={`relative h-137.5 flex-1 m-2 sm:m-4 rounded-3xl overflow-hidden border-2 sm:border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
         >
           <MapContainer
             ref={setMap}
@@ -687,18 +682,18 @@ export default function Maps() {
             )}
           </MapContainer>
 
-          <div className="absolute top-4 left-20 z-1000 flex items-center gap-2">              <button
+          <div className="absolute top-3 left-14 sm:top-4 sm:left-20 z-1000 flex items-center gap-2">              <button
                 type="button"
                 onClick={() => refetch()}
                 aria-label="Refresh detections for this area"
-                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90]"
+                className="flex items-center gap-2 px-2.5 sm:px-4 py-2 bg-white border-2 border-[#005D90] rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90]"
               >
               {loading ? (
                 <div className="animate-spin h-3 w-3 border-2 border-[#005D90] border-t-transparent rounded-full" />
               ) : (
                 <RefreshCw size={14} className="text-[#005D90]" />
               )}
-              <span className="text-[10px] font-black text-[#005D90] uppercase tracking-widest">
+              <span className="hidden sm:inline text-[10px] font-black text-[#005D90] uppercase tracking-widest">
                 Refresh Area
               </span>
             </button>
@@ -745,9 +740,10 @@ export default function Maps() {
         />
       </main>
 
-      {/* FOOTER LEGEND MATRIX */}
-      <footer className="flex flex-row justify-between items-stretch gap-4 p-4 w-full z-1003">
-        <div className="bg-[#005D90] p-4 rounded-2xl flex-[1.5] relative">
+      {/* FOOTER LEGEND MATRIX — stacks vertically below lg: two side-by-side
+          cards don't fit a Mobile-S viewport and squish the CCI legend. */}
+      <footer className="flex flex-col lg:flex-row justify-between items-stretch gap-4 p-2 sm:p-4 w-full z-1003">
+        <div className="bg-[#005D90] p-3 sm:p-4 rounded-2xl lg:flex-[1.5] relative">
           <div className="flex items-center justify-between mb-2 border-b border-blue-400/30 pb-2">
             <div className="flex items-center gap-3">
               <h3 className="text-xs font-black text-blue-200 uppercase tracking-widest">
@@ -758,10 +754,16 @@ export default function Maps() {
                 {currentArea?.area_name || "Select Area"}
               </p>
             </div>
-            <div
-              className={`text-xs font-bold ${areaStatus.color} bg-white px-2 py-0.5 rounded-full`}
-            >
-              ● {areaStatus.label}
+            <div className="text-right leading-tight">
+              <p className="text-xs font-bold text-white uppercase tracking-wide tabular-nums">
+                {areaStatus.primary ?? areaStatus.label}
+              </p>
+              <p
+                className="text-[10px] font-bold uppercase tracking-wide tabular-nums"
+                style={{ color: areaStatus.color }}
+              >
+                {areaStatus.secondary ?? `● ${areaStatus.label}`}
+              </p>
             </div>
           </div>
           <div className="relative" ref={searchRef}>
@@ -801,16 +803,16 @@ export default function Maps() {
           </div>
         </div>
 
-        <div className="bg-[#fcfcfc] border border-slate-200 p-4 rounded-2xl shadow-sm flex-2 flex items-center justify-evenly">
-          <div className="text-left">
-            <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
+        <div className="bg-[#fcfcfc] border border-slate-200 p-3 sm:p-4 rounded-2xl shadow-sm lg:flex-2 flex flex-wrap items-center justify-center sm:justify-evenly gap-x-6 gap-y-2">
+          <div className="text-center sm:text-left">
+            <h3 className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
               Clean Coast Index
             </h3>
-            <p className="text-xs font-bold text-slate-500 uppercase">
+            <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase">
               Density-weighted severity scale
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             {CCI_LEGEND_ITEMS.map((item) => (
               <div key={item.category} className="flex flex-col items-center">
                 <div className="flex items-center gap-1.5 mb-0.5">

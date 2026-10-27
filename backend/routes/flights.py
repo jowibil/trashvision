@@ -8,10 +8,10 @@ from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
 from models.detection import Detection
 from routes.helper.utils import FlightCreate, FlightResponse
-from services.gps_service import extract_gps, extract_dimensions
+from services.gps_service import extract_gps, extract_dimensions, extract_capture_date
 from services.geo_assign import resolve_area_for_point
 from services.detection_service import process_image_upload
-from services.dbscan_service import cluster_points
+from services.dbscan_service import cluster_points, STAGE_A_EPS_METERS, DBSCAN_MIN_SAMPLES
 from services.mobile_service import MobileMapService
 from dependency import require_public
 from typing import Optional, List, Dict
@@ -263,7 +263,11 @@ def _cluster_frames(frames: list[dict]) -> list[dict]:
     cannot be placed spatially.
     """
     geotagged = [f for f in frames if f["lat"] is not None and f["lng"] is not None]
-    clusters = cluster_points(geotagged, eps_meters=3.0, min_samples=1) if geotagged else []
+    clusters = (
+        cluster_points(geotagged, eps_meters=STAGE_A_EPS_METERS, min_samples=DBSCAN_MIN_SAMPLES)
+        if geotagged
+        else []
+    )
 
     for idx, frame in enumerate(frames):
         if frame["lat"] is None or frame["lng"] is None:
@@ -321,6 +325,10 @@ async def upload_flight_batch(
         temp_path, content_hash = _save_upload_to_temp(file)
         lat, lng = extract_gps(temp_path)
         width, height = extract_dimensions(temp_path)
+        # Upload-aid only — see extract_capture_date's docstring: the stored
+        # captured_at stays flight-date driven; this feeds a mismatch
+        # warning to the admin.
+        exif_date = extract_capture_date(temp_path)
         extracted_frames.append({
             "id": str(uuid.uuid4()),
             "file": file,
@@ -330,6 +338,7 @@ async def upload_flight_batch(
             "lng": lng,
             "width": width,
             "height": height,
+            "exif_date": exif_date,
         })
 
     # 1a. Auto-detect assignment area (Upload page "Auto-detect from GPS").
@@ -472,12 +481,30 @@ async def upload_flight_batch(
             os.remove(frame["temp_path"])
     db.commit()
 
+    # EXIF-date aid summary (additive response fields; aid only, see
+    # extract_capture_date). Distinct EXIF capture dates -> frame count, so
+    # the admin can see when a typed flight date disagrees with what the
+    # camera actually wrote.
+    exif_date_counts: dict[str, int] = {}
+    for frame in extracted_frames:
+        exif_date = frame.get("exif_date")
+        if exif_date:
+            exif_date_counts[exif_date] = exif_date_counts.get(exif_date, 0) + 1
+    flight_date_str = str(flight.flight_date)
+    exif_date_mismatch_count = sum(
+        count for exif_date, count in exif_date_counts.items()
+        if exif_date != flight_date_str
+    )
+
     return {
         "status": "success",
         "flight_id": flight_id,
         "pilot_name": pilot_name,
+        "flight_date": flight_date_str,
         "total_uploaded": len(files),
         "representatives_queued": len([img for img in processed_images if img.is_representative]),
         "duplicates_skipped": len([img for img in processed_images if not img.is_representative]),
-        "already_uploaded": len(already_uploaded_frames)
+        "already_uploaded": len(already_uploaded_frames),
+        "exif_capture_dates": exif_date_counts,
+        "exif_date_mismatch_count": exif_date_mismatch_count,
     }

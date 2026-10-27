@@ -18,6 +18,10 @@ export interface HexbinTile {
   polygon: [number, number][];
   detection_ids: string[];
   count: number;
+  /** Per-type counts (waste_type → count), jsonb_object_agg'd server-side.
+   *  Sums to `count`; powers the sector drawer's instant summary strip.
+   *  Absent on stale cached (v6) payloads — the strip simply hides. */
+  type_counts?: Record<string, number> | null;
   /** Geodesic cell area in m², computed server-side. */
   hex_area_m2: number | null;
 }
@@ -52,7 +56,7 @@ interface HexbinsResponse {
  * so a drag fires ONE request at the settled value, matching mobile.
  *
  * Offline-first (mirrors mobile's getHexBinsCached): every request key is
- * `hexbins_v6:{mode}:{areaId}:{year}-{month}:w{week}:t{threshold}` — the
+ * `hexbins_v7:{mode}:{areaId}:{year}-{month}:w{week}:t{threshold}` — the
  * exact format mobile uses for its sqflite map_cache. Cached payloads
  * render immediately (stale-while-revalidate) and the network result
  * replaces them; on network failure the cached/stale tiles stay on screen
@@ -81,11 +85,12 @@ export const useAreaHexbins = (
       setLoading(true);
 
       // Cache key mirrors mobile's _hexBinsCacheKey format exactly.
-      // v6: timestamps were re-derived from flight_date server-side (update
-      // from the insert-clock era breaks old cached hexbins for any window
-      // that spans changed months). Mode segment stays first so a
-      // stale-while-revalidate hit always matches the active mode.
-      const cacheKey = `hexbins_v6:${mode}:${areaId}:${selectedDate.getFullYear()}-${
+      // v7: tiles now carry per-type counts (type_counts) for the sector
+      // drawer's summary strip — v6 payloads lack the field, and every
+      // cached entry is versioned so stale ones never render without it.
+      // Mode segment stays first so a stale-while-revalidate hit always
+      // matches the active mode.
+      const cacheKey = `hexbins_v7:${mode}:${areaId}:${selectedDate.getFullYear()}-${
         selectedDate.getMonth() + 1
       }:w${week}:t${threshold}`;
 

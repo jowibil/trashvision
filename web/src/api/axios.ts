@@ -11,8 +11,23 @@ declare module 'axios' {
   }
 }
 
+// API root comes from the environment, never hard-coded: a built bundle
+// that still points at 127.0.0.1:8000 has every visitor's browser calling
+// their OWN localhost. Dev keeps a localhost fallback so the dev server
+// works with zero setup; a production (vite build) bundle without
+// VITE_API_URL fails loudly at startup rather than firing broken requests.
+const resolveBaseURL = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL?.trim();
+  if (envUrl) return envUrl.replace(/\/+$/, "");
+  if (import.meta.env.DEV) return "http://127.0.0.1:8000";
+  throw new Error(
+    "VITE_API_URL is not configured. Set it in web/.env (or at build time) " +
+      "before deploying the portal.",
+  );
+};
+
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: resolveBaseURL(),
 });
 
 api.interceptors.request.use((config) => {

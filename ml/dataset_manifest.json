@@ -1,0 +1,18 @@
+{
+  "source": "roboflow",
+  "export_format": "yolov8",
+  "version": "10",
+  "classes": [
+    "composite_packaging",
+    "glass",
+    "metal",
+    "plastic",
+    "styrofoam"
+  ],
+  "splits": {
+    "train": 2444,
+    "valid": 303,
+    "test": 304
+  },
+  "total_images": 3051
+}

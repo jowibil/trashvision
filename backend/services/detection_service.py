@@ -10,11 +10,21 @@ from ml.detect import trash_detector
 from models.detection import Detection
 from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
-from services.dbscan_service import cluster_points
+from services.dbscan_service import cluster_points, DBSCAN_MIN_SAMPLES
 from services.cloudinary_service import upload_drone_image
 from database import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+# Stage B neighborhood factor: boxes within 2.5× the ground sample distance
+# are the same physical object (documented on the Info page via
+# routes/info.py from this same constant).
+STAGE_B_GSD_FACTOR = 2.5
+
+# Default ground sample distance (meters per image pixel) when the caller
+# doesn't pass one — the same value the pipeline runs with, and the number
+# the Info page documents via routes/info.py.
+GSD_DEFAULT_METERS = 0.05
 
 
 def run_yolo_inference(
@@ -26,7 +36,7 @@ def run_yolo_inference(
     lat: float | None,
     lng: float | None,
     image_id: str | None = None,
-    gsd_meters: float = 0.05,
+    gsd_meters: float = GSD_DEFAULT_METERS,
 ):
     """
     Stage B Detection-Level DBSCAN Implementation.
@@ -73,9 +83,11 @@ def run_yolo_inference(
         # All raw boxes from one frame share the frame's GPS point, so the eps
         # is derived from the ground sample distance: boxes nearer than this
         # are treated as the same physical object.
-        eps_detection = 2.5 * gsd_meters
+        # STAGE_B_GSD_FACTOR: shared constant (routes/info.py documents it on
+        # the Info page from this same value).
+        eps_detection = STAGE_B_GSD_FACTOR * gsd_meters
         clustered_detections = cluster_points(
-            detection_points, eps_meters=eps_detection, min_samples=1
+            detection_points, eps_meters=eps_detection, min_samples=DBSCAN_MIN_SAMPLES
         )
 
     db_detections = []
@@ -160,6 +172,25 @@ def process_image_upload(
             lng=lng,
             image_id=image_id,
         )
+
+        # Critical-area alert trigger (brief Task 3a): after this frame's
+        # detections land, the affected area is re-evaluated with the SQL +
+        # template pipeline (no LLM). Cheap count queries; the dedup rule in
+        # insights_service keeps repeat runs from creating duplicate rows.
+        # Full sweeps over ALL areas run weekly from main.py's sweep thread.
+        if area_id:
+            try:
+                from models.area import Area
+                from services.insights_service import evaluate_area
+
+                area = db.get(Area, uuid.UUID(area_id))
+                if area is not None:
+                    evaluate_area(db, area)
+            except Exception:
+                db.rollback()
+                # Alerting must never fail the upload pipeline.
+                logger.exception("Alert evaluation failed (area %s)", area_id)
+
         logger.info("YOLO inference complete for %s (flight %s)", filename, flight_id)
 
     except Exception:

@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 # explode the payload and a huge one can't produce four mega-cells.
 # CCI is size-invariant (count / geodesic area), so per-area cell sizes never
 # skew colors — area(h) is computed per cell server-side.
-_HEX_EDGE_MIN_M = 25.0
-_HEX_EDGE_MAX_M = 1000.0
-_DEFAULT_EDGE_M = 150.0  # areas with no drawn boundary: keep the old fixed size
+HEX_EDGE_MIN_M = 25.0
+HEX_EDGE_MAX_M = 1000.0
+DEFAULT_EDGE_M = 150.0  # areas with no drawn boundary: keep the old fixed size
 _M_PER_DEG_LAT = 110_574.0
 _M_PER_DEG_LNG_EQUATOR = 111_320.0
 
@@ -55,10 +55,13 @@ _BOUNDARY_SELECT = """
 #                 up to the picked month, so the map never blanks past the
 #                 last flight month.
 # Both modes pin :year (accumulated does NOT cross year boundaries).
+# waste_type is carried through so each hex row can aggregate per-type
+# counts (drawer summary strip renders from tiles before any batch fetch).
 _DETECTIONS_CTE = """
     filtered_detections AS (
         SELECT
             d.detection_id,
+            d.waste_type,
             ST_SetSRID(ST_MakePoint(d.longitude, d.latitude), 4326) as pt_geom
         FROM detections d
         WHERE d.area_id = :area_id
@@ -72,6 +75,22 @@ _DETECTIONS_CTE = """
             AND (:mode_month = false OR :day_upper IS NULL
                  OR EXTRACT(DAY FROM d.timestamp) <= :day_upper)
     )
+"""
+
+
+# Per-type counts for one hex cell (correlated subquery — g.geom is the
+# GROUP BY key, so this is a legal aggregate-context reference). Counts are
+# over the SAME filtered_detections row set as COUNT(fi.detection_id), so
+# sum(type_counts) == count for every cell.
+_TYPE_COUNTS_COLUMN = """
+    (SELECT jsonb_object_agg(tc.waste_type, tc.cnt)
+     FROM (
+         SELECT fi2.waste_type AS waste_type, COUNT(*) AS cnt
+         FROM filtered_detections fi2
+         WHERE ST_Contains(g.geom, fi2.pt_geom)
+         GROUP BY fi2.waste_type
+     ) tc
+    ) AS type_counts
 """
 
 
@@ -150,9 +169,9 @@ class MobileMapService:
             width_m = (extent_row.maxx - extent_row.minx) * _M_PER_DEG_LNG_EQUATOR * math.cos(lat_mid_rad)
             height_m = (extent_row.maxy - extent_row.miny) * _M_PER_DEG_LAT
             edge_m = min(width_m, height_m) / 10
-            edge_m = max(_HEX_EDGE_MIN_M, min(edge_m, _HEX_EDGE_MAX_M))
+            edge_m = max(HEX_EDGE_MIN_M, min(edge_m, HEX_EDGE_MAX_M))
         else:
-            edge_m = _DEFAULT_EDGE_M
+            edge_m = DEFAULT_EDGE_M
         hex_size_deg = edge_m / _M_PER_DEG_LNG_EQUATOR
 
         if has_boundary:
@@ -181,6 +200,7 @@ class MobileMapService:
             SELECT
                 COUNT(fi.detection_id) as cell_count,
                 ARRAY_AGG(CAST(fi.detection_id AS TEXT)) as detection_ids,
+                {_TYPE_COUNTS_COLUMN},
                 ST_AsGeoJSON(ST_Intersection(g.geom, (SELECT geom FROM boundary))) as hex_geojson,
                 ST_Area(ST_Intersection(g.geom, (SELECT geom FROM boundary))::geography) as hex_area_m2
             FROM grid g
@@ -203,6 +223,7 @@ class MobileMapService:
             SELECT
                 COUNT(fi.detection_id) as cell_count,
                 ARRAY_AGG(CAST(fi.detection_id AS TEXT)) as detection_ids,
+                {_TYPE_COUNTS_COLUMN},
                 ST_AsGeoJSON(g.geom) as hex_geojson,
                 ST_Area(g.geom::geography) as hex_area_m2
             FROM grid g
@@ -238,6 +259,10 @@ class MobileMapService:
                     "polygon": raw_coords,
                     "detection_ids": row.detection_ids,
                     "count": row.cell_count,
+                    # Per-type counts, waste_type -> count (dict from the
+                    # jsonb aggregate). Sums to `count`; powers the drawer
+                    # summary strip which renders before thumbnails load.
+                    "type_counts": dict(row.type_counts) if row.type_counts else {},
                     # Geodesic cell area in m². Clients (web CCI math) use it
                     # directly instead of recomputing area locally.
                     "hex_area_m2": float(row.hex_area_m2) if row.hex_area_m2 is not None else None,

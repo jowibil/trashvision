@@ -21,18 +21,9 @@ class SyncService {
   Future<void> syncOutbox() async {
     if (_isSyncing) return;
 
-    // FIX: connectivity_plus v6's checkConnectivity() returns List<ConnectivityResult>,
-    // not a single ConnectivityResult. The old `== ConnectivityResult.none` comparison
-    // was always false, so this offline guard never actually fired.
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult.contains(ConnectivityResult.none)) return;
 
-    // FIX (Step 3): never iterate the outbox without a valid session.
-    // Previously an expired token meant every report failed 401 in a loop —
-    // burning battery/data on doomed requests while reports sat in the
-    // outbox with zero user feedback. (A 401 from an authenticated request
-    // also latches + redirects via ApiClient; this check avoids triggering
-    // that flow on a scheduled/connectivity sync at all.)
     final token = await ApiClient.authToken();
     if (token == null || JwtDecoder.isExpired(token)) return;
 
@@ -52,11 +43,6 @@ class SyncService {
         final success = status == 200 || status == 201;
 
         if (success) {
-          // FIX (audit #9 - "Offline profile ledger shows nothing"): this
-          // used to be deleteReport(), which erased all trace of a report
-          // the moment it synced. moveReportToLedger() archives it into
-          // report_ledger instead, so Profile can always show full
-          // history regardless of connectivity.
           await DatabaseHelper.instance.moveReportToLedger(report);
           synced++;
           debugPrint("Sync Engine: Report ${report.id} synced and moved to ledger.");

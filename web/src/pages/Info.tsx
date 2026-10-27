@@ -1,21 +1,20 @@
 // Portal Info page: honest ML documentation (dataset counts + algorithm
-// notes + the three severity rulers). Operate-mode product UI — restraint
+// notes + the two severity rulers). Operate-mode product UI — restraint
 // per .agents/design-skills-routing.md (no decorative motion, Tailwind
 // utilities only, inline styles solely for data-driven colors).
 //
-// Honesty contract: every band, threshold and color on this page is either
-//    (a) served by GET /info from the same backend constant that computes
-//        with it (severity bands, DBSCAN stage params, hex sizing), or
-//    (b) imported directly from the web implementation (CCI bands, colors,
-//        K factor — services/hooks/useHexbins.ts, shared with MapView).
-// The one exception (phone-map count bands, mirrored from mobile theme.dart)
-// is labeled as such where it appears. No number is re-typed without a note.
+// Honesty contract: every threshold on this page is either (a) served by
+// GET /info from the same backend constant that computes with it (severity
+// bands, DBSCAN stage params, hex sizing), or (b) imported directly from
+// the web implementation (CCI bands, colors, K factor —
+// services/hooks/useHexbins.ts, shared with MapView; the phone app runs the
+// same CCI in mobile theme.dart). No threshold is re-typed. UI label
+// wording quoted from the apps is copy, not thresholds.
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
   Image as ImageIcon,
   Map as MapIcon,
-  Smartphone,
 } from "lucide-react";
 import {
   CCI_LEGEND_ITEMS,
@@ -45,24 +44,14 @@ function Placeholder({ className = "" }: { className?: string }) {
   return <span aria-hidden="true" className={`block h-5 rounded bg-slate-100 ${className}`} />;
 }
 
-// Presentation for the severity names served by the API (chip tint only —
-// thresholds always come from the response).
+// Presentation tint for the severity names served by the API (thresholds
+// always come from the response; this is styling only).
 const SEVERITY_CHIP: Record<string, string> = {
   Critical: "bg-red-100 text-red-700",
   High: "bg-orange-100 text-orange-700",
   Medium: "bg-amber-100 text-amber-700",
   Low: "bg-green-100 text-green-700",
 };
-
-// Mobile-app count bands, mirrored from mobile/lib/config/theme.dart
-// (getDensityColor/getDensityLabel: >10 Crit, >5 High, >2 Mid). Dart can't be
-// imported here, so the page says so — this is the one hand-mirrored value.
-const PHONE_COUNT_BANDS = [
-  { label: "Crit", threshold: "more than 10" },
-  { label: "High", threshold: "more than 5" },
-  { label: "Mid", threshold: "more than 2" },
-  { label: "Low", threshold: "2 or fewer" },
-] as const;
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -100,10 +89,11 @@ export default function Info() {
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Info</h1>
         <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
           How TrashVision detects, de-duplicates and maps coastal waste — and which
-          numbers decide an alert. Every band, threshold and color below is served
-          by the API from the same constant the code computes with, or imported
-          straight from the implementation. The page does not re-type numbers —
-          the one exception (the phone map's bands) says so where it appears.
+          numbers decide an alert. Every threshold below is served by the API
+          from the same constant the code computes with, or imported straight
+          from the implementation; the phone app runs the same CCI ruler as the
+          web map. Only display wording (chip tints, label names) is
+          presentation.
         </p>
       </header>
 
@@ -454,11 +444,11 @@ export default function Info() {
       {/* ── Three rulers ─────────────────────────────────────────────────── */}
       <section id="rulers" aria-labelledby="rulers-heading" className="scroll-mt-4">
         <SectionHeading id="rulers-heading">
-          Different rulers for different questions: alerts, the web map, the phone map
+          Different rulers for different questions: area totals vs per-cell density
         </SectionHeading>
         <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
-          Three surfaces read three different measures. The table says where you&apos;ll
-          meet each one; the cards below give each ruler&apos;s bands.
+          Two measures, three surfaces. The table says where you&apos;ll meet
+          each one; the cards below give each ruler&apos;s bands.
         </p>
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 overflow-x-auto">
@@ -482,27 +472,18 @@ export default function Info() {
               </tr>
               <tr>
                 <th scope="row" className="py-2 pr-4 font-medium text-slate-700">
-                  Web map hexagons
+                  Web map hexagons and phone map cells
                 </th>
                 <td className="py-2 pr-4 text-slate-600">
-                  Litter density per cell (CCI — size-invariant)
+                  Litter density per cell (CCI — size-invariant; one scale on both platforms)
                 </td>
                 <td className="py-2 text-slate-600">Very low → Very high</td>
-              </tr>
-              <tr>
-                <th scope="row" className="py-2 pr-4 font-medium text-slate-700">
-                  Phone map cells
-                </th>
-                <td className="py-2 pr-4 text-slate-600">
-                  Plain detection count per drawn cell
-                </td>
-                <td className="py-2 text-slate-600">Crit / High / Mid</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Ruler 1: alerts (thresholds served by the API) */}
           <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-xs">
             <header className="flex items-center gap-2.5 px-5 pt-5 pb-3">
@@ -545,18 +526,22 @@ export default function Info() {
             </div>
           </div>
 
-          {/* Ruler 2: web map CCI (thresholds/colors from useHexbins) */}
+          {/* Ruler 2: the maps — both platforms run the same CCI ruler
+              (web: useHexbins classifyCci/getCciColor; phone: theme.dart
+              getCciColor/getCciLabel — same thresholds, same colors). */}
           <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-xs">
             <header className="flex items-center gap-2.5 px-5 pt-5 pb-3">
               <MapIcon size={16} className="text-[#005D90]" aria-hidden="true" />
-              <h3 className="text-sm font-bold text-slate-800">Web map hexagons</h3>
+              <h3 className="text-sm font-bold text-slate-800">Web &amp; phone map hexagons</h3>
             </header>
             <div className="px-5 pb-5">
               <p className="text-xs leading-relaxed text-slate-500">
                 Based on <strong className="text-slate-700">litter density per hex cell</strong> —
                 detections divided by the cell&apos;s real geodesic area, times{" "}
-                {DRONE_K_FACTOR}. The labels below are the exact bands{" "}
-                <code className="text-slate-600">classifyCci</code> assigns:
+                {DRONE_K_FACTOR}. Both platforms classify cells on the same
+                bands: the web map via <code className="text-slate-600">classifyCci</code>,
+                the phone app via <code className="text-slate-600">theme.dart getCciColor</code>
+                — same thresholds, same colors, different label wording:
               </p>
               <ul className="mt-3 space-y-2 list-none" role="list">
                 {CCI_LEGEND_ITEMS.map((band) => (
@@ -571,51 +556,18 @@ export default function Info() {
                       aria-hidden="true"
                     />
                     <span className="text-xs font-bold text-slate-700">{band.label}</span>
-                    <span className="text-xs text-slate-600 tabular-nums ml-auto">
-                      {band.desc}
+                    <span className="text-xs text-slate-500 ml-auto tabular-nums">
+                      CCI {band.desc}
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="text-xs leading-relaxed text-slate-500 pt-2">
-                Density, not the total: at typical cell sizes the map almost
-                always reads &ldquo;Very low&rdquo; — see the worked example above.
-              </p>
-            </div>
-          </div>
-
-          {/* Ruler 3: phone map plain counts (mirrored from theme.dart —
-              labeled, since Dart can't be imported here) */}
-          <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-xs">
-            <header className="flex items-center gap-2.5 px-5 pt-5 pb-3">
-              <Smartphone size={16} className="text-[#005D90]" aria-hidden="true" />
-              <h3 className="text-sm font-bold text-slate-800">
-                Phone map cells
-                <span className="ml-2 align-middle rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 normal-case tracking-normal">
-                  mirrored from the mobile app
-                </span>
-              </h3>
-            </header>
-            <div className="px-5 pb-5">
-              <ul className="mt-3 space-y-2 list-none" role="list">
-                {PHONE_COUNT_BANDS.map((band) => (
-                  <li
-                    key={band.label}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2"
-                  >
-                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider min-w-10">
-                      {band.label}
-                    </span>
-                    <span className="text-xs text-slate-600 tabular-nums ml-auto">
-                      {band.threshold} detections
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs leading-relaxed text-slate-500 pt-2">
-                A plain count per drawn area cell — the four bands above are the
-                one hand-mirrored ruler on this page (source:{" "}
-                <code className="text-slate-600">mobile/lib/config/theme.dart</code>).
+                The phone app shows the same bands under its own names — VERY
+                CLEAN, CLEAN, MODERATE, DIRTY, EXTREMELY DIRTY — with the raw
+                count beside them in the sector panel. Density, not the total:
+                at typical cell sizes the map almost always reads &ldquo;Very low&rdquo; —
+                see the worked example above.
               </p>
             </div>
           </div>

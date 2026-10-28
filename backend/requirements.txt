@@ -13,6 +13,11 @@ psycopg2-binary==2.9.11
 geoalchemy2==0.19.0
 shapely==2.1.2
 passlib[bcrypt]==1.7.4
+# argon2 backend for passlib: existing user hashes are ARGON2 (CryptContext
+# hashes them there), not bcrypt — without argon2-cffi the container 500s on
+# any login attempt that reaches hash verification
+# (MissingBackendError: argon2: no backends available).
+argon2-cffi==25.1.0
 python-jose[cryptography]==3.5.0
 python-multipart==0.0.31
 slowapi==0.1.9

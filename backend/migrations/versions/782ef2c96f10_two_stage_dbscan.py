@@ -30,11 +30,16 @@ def upgrade() -> None:
                existing_type=sa.UUID(),
                nullable=False)
                
-    # Drop legacy PostGIS/Image-level columns on detections
-    op.drop_index(op.f('idx_detections_geom'), table_name='detections', postgresql_using='gist')
-    op.drop_index(op.f('idx_detections_spatial_geom'), table_name='detections', postgresql_using='gist')
-    op.drop_constraint(op.f('detections_image_id_fkey'), 'detections', type_='foreignkey')
-    op.drop_constraint(op.f('detections_user_id_fkey'), 'detections', type_='foreignkey')
+    # Drop legacy PostGIS/Image-level columns on detections.
+    # IF EXISTS (single round of schema surgery, 2026-10-28): idx_detections_spatial_geom
+    # predates the migration system — no revision in this chain ever creates it,
+    # so a FRESH database (Neon production, 2026-10-28) hit "index does not exist"
+    # and aborted the whole chain. Databases that already ran this revision keep
+    # the old behaviour (stamp unchanged, body only re-read on fresh runs).
+    op.execute("DROP INDEX IF EXISTS idx_detections_geom")
+    op.execute("DROP INDEX IF EXISTS idx_detections_spatial_geom")
+    op.execute("ALTER TABLE detections DROP CONSTRAINT IF EXISTS detections_image_id_fkey")
+    op.execute("ALTER TABLE detections DROP CONSTRAINT IF EXISTS detections_user_id_fkey")
     op.drop_column('detections', 'user_id')
     op.drop_column('detections', 'image_id')
     op.drop_column('detections', 'geom')

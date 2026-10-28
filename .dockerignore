@@ -1,0 +1,25 @@
+# Keep the Fly build context tiny: only the two trees the backend image
+# actually needs (see Dockerfile). Everything else — web/, mobile/, dataset,
+# venvs, git — would otherwise be uploaded to the Fly builder on every deploy.
+
+*
+!backend/
+!ml/
+
+# Inside the two included trees, strip local dev state:
+backend/venv
+backend/temp
+backend/test
+backend/__pycache__
+backend/.env
+backend/.env.example
+ml/venv
+ml/dataset
+ml/runs
+ml/results
+ml/__pycache__
+ml/detection_results.json
+ml/try_detection.py
+
+**/__pycache__
+**/*.pyc

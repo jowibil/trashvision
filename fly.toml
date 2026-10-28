@@ -1,0 +1,47 @@
+# fly.io deploy config for the TrashVision backend (FastAPI + in-process
+# YOLOv8). Mutate via the normally-named secrets (DATABASE_URL, SECRET_KEY,
+# CLOUDINARY_*, SMTP_*, GEMINI_*, CORS_ORIGINS, SENTRY_DSN) — never bake them
+# here or into the image.
+
+app = "trashvision-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  # Runs on a fresh machine from the new image BEFORE the app machine swaps
+  # in. Database migrations go through the Neon UNPOOLED URL (pooled
+  # pgbouncer connections choke long-running DDL); falls back to the app
+  # DATABASE_URL when DATABASE_URL_UNPOOLED is not set. Dead machine keeps
+  # the SWEEP/temp threads from ever starting during a migration window.
+  release_command = "sh -c 'cd /app/backend && DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" alembic upgrade head'"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep the machine alive: the weekly critical-area sweep, the hourly
+  # temp reaper and background Stage-B drone workers all live in-process,
+  # and drone upload streams are sizeable — a stop/start cycle would drop
+  # them mid-inference. Scale UP handles bursts instead (see [[vm]]).
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+  processes = ["app"]
+
+# Host-mounted volume for routes/flights.py frame staging
+# (services/temp_cleanup_service resolves it to /app/backend/temp).
+# Ephemeral disk would work, but a volume survives OOM restarts mid-batch
+# and gives the reaper room for large drone streams.
+[[mounts]]
+  source = "trashvision_temp"
+  destination = "/app/backend/temp"
+  # GB; created by `fly volumes create trashvision_temp --size 3` — this key
+  # only takes effect when the volume is provisioned automatically.
+  initial_size = 3
+  processes = ["app"]

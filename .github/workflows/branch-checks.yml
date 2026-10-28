@@ -1,0 +1,58 @@
+# Merge-issue checks for the promotion flow dev -> feature-branch -> main.
+# Runs on every push to feature-branch and on PRs targeting feature-branch or
+# main. Cheap on purpose: dependency-install + import for the backend (catches
+# production dep drift, e.g. the argon2-cffi login 500) and a strict
+# typecheck+build for the portal.
+name: Branch checks
+
+on:
+  push:
+    branches: [feature-branch]
+  pull_request:
+    branches: [feature-branch, main]
+
+jobs:
+  backend:
+    name: Backend imports cleanly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned deps
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Import app (needs dummy secrets)
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          SECRET_KEY: ci-dummy
+          CLOUDINARY_CLOUD_NAME: ci
+          CLOUDINARY_API_KEY: ci
+          CLOUDINARY_API_SECRET: ci
+          SMTP_EMAIL: ci@example.com
+          SMTP_PASSWORD: ci
+          GEMINI_API_KEY: ci
+          GEMINI_MODEL_NAME: gemini-dummy
+        run: python -c "import sys; sys.path.insert(0, 'backend'); import main"
+      - name: Clean check (no generated files committed)
+        run: python -m compileall backend ml -q
+
+  web:
+    name: Web typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: npm ci
+      - name: Build (tsc -b && vite build)
+        working-directory: web
+        env:
+          VITE_API_URL: https://trashvision-api.fly.dev
+        run: npm run build

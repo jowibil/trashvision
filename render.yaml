@@ -57,3 +57,7 @@ services:
         value: HS256
       - key: PYTHON_VERSION
         value: "3.11.9"
+      # Ultralytics warns & falls back to /tmp when its default dir (~/.config)
+      # isn't writable; pinning it removes the noise (and keeps settings stable).
+      - key: YOLO_CONFIG_DIR
+        value: /tmp/Ultralytics

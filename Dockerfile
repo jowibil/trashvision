@@ -37,4 +37,8 @@ WORKDIR /app/backend
 # (SWEEP_ENABLED must be on exactly one process; YOLO inference is
 # already semaphore-bounded, so extra workers add RAM for nothing).
 EXPOSE 8080
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+# --proxy-headers honoured via --forwarded-allow-ips='*': fly terminates TLS
+# and forwards plain HTTP, so without this uvicorn sees scheme "http" and
+# FastAPI's trailing-slash 307s emit http:// Location headers — browsers
+# refuse to follow those from the HTTPS portal (mixed-content block).
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]

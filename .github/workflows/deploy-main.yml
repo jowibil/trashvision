@@ -1,0 +1,73 @@
+# Production deploy: main is prod. Pushes to main ship what merged --
+# backend to Fly Machines, portal to Cloudflare Pages. Each job only runs
+# when its own tree changed, so an API-only fix doesn't rebuild the portal.
+name: Deploy main
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Fly — backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Did the backend tree change?
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'ml/**'
+              - 'Dockerfile'
+              - 'fly.toml'
+              - '.dockerignore'
+      - if: steps.changes.outputs.backend == 'true'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - if: steps.changes.outputs.backend == 'true'
+        name: Deploy backend to Fly
+        run: flyctl deploy --remote-only --app trashvision-api --config fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  web:
+    name: Cloudflare Pages — portal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Did the portal tree change?
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            web:
+              - 'web/**'
+      - if: steps.changes.outputs.web == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - if: steps.changes.outputs.web == 'true'
+        name: Install
+        working-directory: web
+        run: npm ci
+      - if: steps.changes.outputs.web == 'true'
+        name: Build (tsc -b && vite build)
+        working-directory: web
+        env:
+          VITE_API_URL: https://trashvision-api.fly.dev
+        run: npm run build
+      - if: steps.changes.outputs.web == 'true'
+        name: Deploy portal to Cloudflare Pages
+        working-directory: web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler@4 pages deploy dist --project-name trashvision --branch main

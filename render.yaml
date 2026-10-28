@@ -1,0 +1,59 @@
+# Render Blueprint for the TrashVision backend.
+# Deploy via "New -> Blueprint" in the Render dashboard, or keep wiring the
+# service by hand with these values. DB is Neon (managed separately) — the
+# DATABASE_URL / DATABASE_URL_UNPOOLED syncs come from .env.local. Sentry DSN
+# is created in the Sentry dashboard; unset SENTRY_DSN keeps Sentry fully
+# disabled (init is skipped), so this file deploys green before that exists.
+# scale: --workers 1 is load-bearing (see AGENTS.md & main.py sweep comment):
+# the weekly sweep daemon and the in-memory slowapi limiter assume one process.
+services:
+  - type: web
+    name: trashvision-api
+    runtime: python
+    plan: starter          # free tier sleeps after 15min idle (YOLO cold start ~10-20s)
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: sh -c 'if [ -n "$DATABASE_URL_UNPOOLED" ]; then DATABASE_URL=$DATABASE_URL_UNPOOLED python -m alembic upgrade head; else python -m alembic upgrade head; fi'   # Neon best practice: migrations on the direct (unpooled) URL
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # Secrets/DSN/CORS are filled in the dashboard; this list documents shape.
+      - key: DATABASE_URL
+        sync: false        # Neon POOLED url for the app runtime
+      - key: DATABASE_URL_UNPOOLED
+        sync: false        # Neon direct url; preDeploy swaps it in for migrations
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+      - key: CORS_ORIGINS
+        sync: false        # the Pages portal origin(s), comma-separated
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_EMAIL
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL_NAME
+        value: gemini-2.5-flash
+      - key: SWEEP_ENABLED
+        value: "True"
+      - key: TEMP_CLEANER_ENABLED
+        value: "True"
+      - key: TEMP_FILE_MAX_AGE_HOURS
+        value: "24"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "43200"
+      - key: ALGORITHM
+        value: HS256
+      - key: PYTHON_VERSION
+        value: "3.11.9"

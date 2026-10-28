@@ -18,5 +18,10 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     last_login = Column(DateTime(timezone=True))
+    # Pre-Deployment Checklist (security/sessions): set on every password
+    # change; get_current_user rejects tokens whose `iat` predates it, so a
+    # password reset invalidates all previously issued sessions (JWTs live up
+    # to 30 days otherwise). NULL = never changed since deployment → no check.
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
 
     reports = relationship("Report", back_populates="user")

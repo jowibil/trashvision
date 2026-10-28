@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from database import get_db
-from dependency import require_role, require_public
+from dependency import require_role, require_public, limiter
 from models.report import Report
 from models.user import User
 from services.cloudinary_service import upload_image
@@ -19,15 +19,23 @@ from services.report_inference_service import (
 
 router = APIRouter()
 
-# SECURITY: GET / (community feed read) is PUBLIC per product decision
-# 2026-10 — the web Reports page is browsable logged-out via "Open Forecast".
-# Everything else still requires a valid JWT: submit is guest-level (the app's
+# SECURITY: GET / (community feed read) and GET /{report_id} (detail, incl.
+# YOLO boxes) are PUBLIC per product decision # 2026-10 — the web portal's
+# Reports page and map-pin popups are browsable logged-out via "Open
+# Forecast". Anonymous detail reads report "Community Citizen" as reporter;
+# authenticated reads keep the real name. Everything else still requires a
+# valid JWT: submit is guest-level (the app's
 # core community-reporting flow), status changes and bulk deletes are
 # admin-only (web AuthReport page). User-specific report history keeps a
 # mandatory JWT — it is inherently personal data.
 
 @router.post("/", response_model=ReportPublic)
+# SECURITY (audit 2026-10-28): the citizen-write hot path had NO rate limit —
+# one account could flood the feed/map and Cloudinary storage with unlimited
+# reports. 5/minute per IP is well above real usage but stops bulk spam.
+@limiter.limit("5/minute")
 async def submit_report(
+    request: Request,
     # waste_type is no longer client-authored: the real classification is the
     # YOLO model's job (runs at verification, report_inference_service.py).
     # The column stays NOT NULL so we still persist a value — the mobile form
@@ -44,16 +52,28 @@ async def submit_report(
     user=Depends(require_role("guest")),
 ):
 
-    client_uuid = uuid.UUID(client_report_id) if client_report_id else None
+    # SECURITY (Pre-Deployment Checklist): server-side input validation —
+    # coordinates bounded to the map's domain, UUIDs parsed into clean 400s
+    # (they previously surfaced as uncaught ValueError → 500), and a
+    # description cap so one request can't blob the feed.
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise HTTPException(status_code=400, detail="Latitude/longitude out of range")
+    try:
+        client_uuid = uuid.UUID(client_report_id) if client_report_id else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+    try:
+        resolved_area_id = uuid.UUID(area_id) if area_id else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+    if description and len(description) > 2000:
+        raise HTTPException(status_code=400, detail="Description too long (max 2000 characters)")
 
-    resolved_area_id = None
-    if area_id:
-        resolved_area_id = uuid.UUID(area_id)
-    else:
+    if resolved_area_id is None:
         resolved_area = resolve_area_for_point(db, latitude, longitude)
         if resolved_area is not None:
             resolved_area_id = resolved_area.area_id
-            
+
     if client_uuid:
         existing = (
             db.query(Report)
@@ -145,14 +165,30 @@ def get_all_reports(
 @router.get("/user/{user_id}", response_model=List[ReportPublic])
 def get_reports_by_user(
     user_id: str,
+    # PAGE-SIZE (checklist/performance): mirrors get_all_reports — 200 default
+    # ceiling that matches the mobile map layer's explicit request, explicit
+    # smaller limits allowed. The endpoint had NO cap before perfection.
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _user=Depends(require_role("guest")),
+    user=Depends(require_role("guest")),
 ):
+    try:
+        target_user_id = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    # SECURITY (checklist/authorization): report history is personal data —
+    # a guest may only read their own history; admins may read anyone's.
+    # (test-the-authority box: a normal user cannot reach another user's data.)
+    if user.role.lower() != "admin" and user.user_id != target_user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     query_results = db.query(Report, User.name).join(
         User, Report.user_id == User.user_id
     ).filter(
-        Report.user_id == uuid.UUID(user_id)
-    ).order_by(Report.timestamp.desc()).all()
+        Report.user_id == target_user_id
+    ).order_by(Report.timestamp.desc()).limit(limit).offset(offset).all()
     
     response_payload = []
     for report, user_name in query_results:
@@ -182,7 +218,7 @@ def get_reports_by_user(
 def get_report(
     report_id: str,
     db: Session = Depends(get_db),
-    _user=Depends(require_role("guest")),
+    viewer=Depends(require_public("guest")),
 ):
     report = db.query(Report).filter(
         Report.report_id == uuid.UUID(report_id)
@@ -198,7 +234,10 @@ def get_report(
         
     # Detail-on-demand: detections are embedded ONLY here, never in the list
     # endpoints (design §5.2). Public read — the modal fetches this while the
-    # viewer is logged out.
+    # viewer is logged out (require_public: anonymous OK, guests+ checked).
+    # Anonymous viewers get the same "Community Citizen" anonymization the
+    # public list applies; authenticated viewers keep the real reporter name
+    # (admin detail view historically relied on it).
     return {
         "report_id": report.report_id,
         "waste_type": report.waste_type,
@@ -211,7 +250,7 @@ def get_report(
         "timestamp": report.timestamp,
         "latitude": lat,
         "longitude": lng,
-        "reporter_name": report.reporter_name,
+        "reporter_name": report.reporter_name if viewer else "Community Citizen",
         "detections": report_detection_payloads(db, report.report_id),
     }
 

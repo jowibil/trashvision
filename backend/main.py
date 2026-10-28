@@ -27,6 +27,23 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
 )
+
+# Pre-Deployment Checklist (transport & headers): hardening this service can
+# apply safely at the app level — the API serves only JSON and Swagger docs,
+# nothing here is meant to be framed or embedded. HTTPS, HSTS and the portal
+# page's real CSP belong to the reverse proxy / static hosting layer, where
+# pages with map tiles and Cloudinary images are served.
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+    )
+    return response
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])

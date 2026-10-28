@@ -16,7 +16,10 @@ router = APIRouter()
 
 
 @router.post("/register")
-def register(data: RegisterRequest, db: Session = Depends(get_db)):
+# SECURITY (audit 2026-10-28): unrate-limited registration allowed mass fake
+# account creation; 3/minute per IP is plenty for real sign-ups.
+@limiter.limit("3/minute")
+def register(request: Request, data: RegisterRequest, db: Session = Depends(get_db)):
     return register_user(db, data.name, data.email, data.password, role="community")
 
 @router.post("/login", response_model=LoginResponse)
@@ -29,18 +32,31 @@ def get_all_users(db: Session = Depends(get_db), admin = Depends(require_role("a
     return db.query(User).all()
 
 @router.post("/forgot-password")
+# SECURITY (audit 2026-10-28): this endpoint triggers a real SMTP send per
+# call, so an unlimited loop is an email-bombing channel against any address
+# (not just TrashVision accounts). 3/minute per IP.
+@limiter.limit("3/minute")
 async def forgot_password(
-    request: ForgotPasswordRequest, 
+    request: Request,
+    payload: ForgotPasswordRequest, 
     background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db)):
-    raw_code = auth_service.create_password_reset_code(db, request.email)
+    raw_code = auth_service.create_password_reset_code(db, payload.email)
     if raw_code:
-        background_tasks.add_task(send_reset_email, request.email, raw_code)
+        background_tasks.add_task(send_reset_email, payload.email, raw_code)
     return {"message": "If this email is registered, a code has been sent."}
 
 @router.post("/reset-password")
-async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    auth_service.verify_and_update_password(db, request.email, request.code, request.new_password)
+# SECURITY (audit 2026-10-28): the 6-digit reset code has no attempt counter
+# (schema change would be needed), so per-IP throttling is the anti-brute-
+# force control: 5/minute means ~15 guesses inside the 3-minute code lifetime
+# — a ~1-in-60,000 chance per window instead of a spray over all 900k codes.
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    payload: ResetPasswordRequest, 
+    db: Session = Depends(get_db)):
+    auth_service.verify_and_update_password(db, payload.email, payload.code, payload.new_password)
     return {"message": "Password updated successfully"}
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

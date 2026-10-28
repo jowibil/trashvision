@@ -641,19 +641,37 @@ export default function Maps() {
                           (typeSummaryCounts[det.label] || 0) + 1;
                       });
 
-                      const descriptionLedger = Object.entries(
+                      const totalItems = siblingDetections.length;
+                      const itemsBreakdown = Object.entries(
                         typeSummaryCounts,
                       )
                         .map(
-                          ([type, count]) =>
-                            `${type.toUpperCase()}: ${count} item(s)`,
+                          ([type, count]) => `${type.toUpperCase()} ×${count}`,
                         )
                         .join(", ");
+                      // Description copy (modal <p>): a sentence a civilian can
+                      // read — no debug brackets/"item(s)" filler, and no "Image
+                      // Details —" prefix duplicating the modal header it sits
+                      // under. Coordinates omit themselves if the row has none
+                      // (Guards against NaN/0,0 for rows archived without EXIF).                      
+                      const lat = Number(img.latitude);
+                      const lng = Number(img.longitude);
+                      const coordsLabel =
+                        Number.isFinite(lat) &&
+                        Number.isFinite(lng) &&
+                        !(lat === 0 && lng === 0)
+                          ? ` Captured at ${lat.toFixed(5)}°, ${lng.toFixed(5)}°.`
+                          : "";
+                      const description =
+                        totalItems === 0
+                          ? `No item-level detections archived for this frame.${coordsLabel}`
+                          : `${totalItems} item${totalItems === 1 ? "" : "s"} detected in this frame: ${itemsBreakdown}.${coordsLabel}`;
+
                       setSelectedItem({
                         id: img.detection_id || img.image_id,
                         type: "Image Detection",
                         image: targetUrl,
-                        description: `Image Details — [ ${descriptionLedger} ]. Coordinates: Lat ${Number(img.latitude).toFixed(5)}, Lng ${Number(img.longitude).toFixed(5)}.`,
+                        description,
                         reporter: "YOLOV8 Model",
                         detections: siblingDetections, // Passes all bounded items down to render concurrently
                       });

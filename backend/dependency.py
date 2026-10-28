@@ -8,6 +8,7 @@ from config import settings
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from typing import Optional
+from datetime import datetime, timedelta, timezone
 
 ROLE_HIERARCHY = {
     "guest": 0,
@@ -44,7 +45,26 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     
     if user is None:
         raise credentials_exception
-    user.role = role
+
+    # SESSIONS (Pre-Deployment Checklist): a token issued BEFORE the last
+    # password change is dead. The reset flow stamps users.password_changed_at
+    # (auth_service.verify_and_update_password), so a password change
+    # invalidates every outstanding token despite the 30-day JWT lifetime.
+    # NULL column = never changed since this was deployed -> no check, and
+    # the migration logs nobody out. 2 s leeway: a token minted in the same
+    # second as the password write is not spuriously rejected.
+    if user.password_changed_at is not None:
+        try:
+            issued_at = datetime.fromtimestamp(int(payload.get("iat")), timezone.utc)
+            if issued_at + timedelta(seconds=2) < user.password_changed_at:
+                raise credentials_exception
+        except (TypeError, ValueError, OSError):
+            raise credentials_exception
+
+    # DB role is authoritative. The old code overwrote user.role with the
+    # signed token claim, so a demoted admin kept admin rights until their
+    # 30-day token expired. login_user issues a fresh claim from the DB at
+    # every login, so nothing legitimate changes — only stale claims die.
     return user
 
 

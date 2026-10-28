@@ -163,6 +163,13 @@ def verify_and_update_password(db: Session, email: str, code: str, new_password:
         )
     new_hashed = pwd_context.hash(new_password)
     user.password_hash = new_hashed
+    # Pre-Deployment Checklist (security/sessions): birth-marks the password
+    # change so every token issued BEFORE this instant is rejected by
+    # get_current_user — a reset kills all old 30-day sessions, not just the
+    # client's active one. dependency.py applies a small leeway so a token
+    # minted in the same wall-clock second as the write (login racing a
+    # concurrent reset) is not spuriously rejected.
+    user.password_changed_at = datetime.now(timezone.utc)
     reset_request.used = True
     db.commit()
     return True

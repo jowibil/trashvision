@@ -49,7 +49,7 @@ flutter test
 9. **Map counts are detection rows; dedup is the pipeline's job.** Duplicate "trash" within a run is normalized by DBSCAN Stage A (overlapping frames, ε=3 m) and Stage B (same-frame boxes, ε≈2–3×GSD) — do NOT add map-level clustering across flights/windows (tried 2026-10, rolled back: undercounted; design preserved in `pipeline_explained.md` §5). Full pipeline narrative: `pipeline_explained.md`; formal math: `algorithm_equations.md`. K calibration against real survey data is still an open item.
 8. **Don't break the offline outbox.** Mobile `sync_services.dart` queues reports offline; ensure new write endpoints stay idempotent-friendly and don't assume instant connectivity.
 9. **Lazy-loading discipline (web):** route components are `lazy()` in `App.tsx`; keep heavy widgets (e.g., ChatWidget) out of the critical path.
-10. **Git hygiene:** current working branch is `feature-branch`. Don't commit unrelated files; don't touch `venv/`, `__pycache__/`, `build/`, `node_modules/`.
+10. **Git hygiene / branch flow:** changes land on `dev`, get checked on `feature-branch` (branch-checks CI), then `main`; `main` is production — pushes to it auto-deploy backend to Fly and portal to Cloudflare Pages via `.github/workflows/deploy-main.yml`. Don't commit unrelated files; don't touch `venv/`, `__pycache__/`, `build/`, `node_modules/`.
 
 ## Code Style
 

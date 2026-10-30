@@ -1,0 +1,29 @@
+# Railway deploy config for the TrashVision backend (FastAPI + in-process
+# YOLOv8). Build context is the repo root; the Dockerfile carries backend/ and
+# ml/ — the chain is: routes -> services/detection_service -> ml.detect ->
+# ml/weights/trashvision/weights/best.pt (path pinned in ml/detect.py).
+# backend/temp is NOT baked in: it's an attached volume mounted at
+# /app/backend/temp (Single-instance service — the volume and the in-process
+# background threads both pin it).
+#
+# Mutate via the normally-named variables (DATABASE_URL, DATABASE_URL_UNPOOLED,
+# SECRET_KEY, CLOUDINARY_*, SMTP_*, GEMINI_*, CORS_ORIGINS, SENTRY_DSN,
+# SWEEP_ENABLED, TEMP_CLEANER_ENABLED, TEMP_FILE_MAX_AGE_HOURS, PORT) — never
+# bake them here or into the image.
+
+[build]
+  dockerfilePath = "Dockerfile"
+
+[deploy]
+  # Runs against a fresh container BEFORE the new deployment swaps in.
+  # Database migrations go through the Neon UNPOOLED URL (pooled pgbouncer
+  # connections choke long-running DDL); falls back to the app DATABASE_URL
+  # when DATABASE_URL_UNPOOLED is not set. Mirrors the old Fly release_command.
+  releaseCommand = "sh -c 'cd /app/backend && DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" alembic upgrade head'"
+  # No startCommand: Railway uses the image CMD (uvicorn on ${PORT:-8080},
+  # single worker — SWEEP_ENABLED and the temp reaper must run on exactly one
+  # process). Keep the service at 1 replica.
+
+  # Root path returns 200 from FastAPI, so the healthcheck passes.
+  healthcheckPath = "/"
+  healthcheckTimeout = 60

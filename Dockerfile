@@ -37,8 +37,12 @@ WORKDIR /app/backend
 # (SWEEP_ENABLED must be on exactly one process; YOLO inference is
 # already semaphore-bounded, so extra workers add RAM for nothing).
 EXPOSE 8080
-# --proxy-headers honoured via --forwarded-allow-ips='*': fly terminates TLS
-# and forwards plain HTTP, so without this uvicorn sees scheme "http" and
+# Port comes from the platform: Railway injects PORT for the deployed
+# service; local/dev falls back to 8080. Shell-form CMD so the default
+# expands.
+# --proxy-headers honoured via --forwarded-allow-ips='*': the platform proxy
+# (Railway today, Render before it) terminates TLS and forwards plain HTTP,
+# so without this uvicorn sees scheme "http" and
 # FastAPI's trailing-slash 307s emit http:// Location headers — browsers
 # refuse to follow those from the HTTPS portal (mixed-content block).
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port \"${PORT:-8080}\" --workers 1 --proxy-headers --forwarded-allow-ips '*'"]

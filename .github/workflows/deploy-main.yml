@@ -1,5 +1,5 @@
 # Production deploy: main is prod. Pushes to main ship what merged --
-# backend to Fly Machines, portal to Cloudflare Pages. Each job only runs
+# backend to Railway, portal to Cloudflare Pages. Each job only runs
 # when its own tree changed, so an API-only fix doesn't rebuild the portal.
 name: Deploy main
 
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Fly — backend
+    name: Railway — backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,15 +26,16 @@ jobs:
               - 'backend/**'
               - 'ml/**'
               - 'Dockerfile'
-              - 'fly.toml'
+              - 'railway.toml'
               - '.dockerignore'
       - if: steps.changes.outputs.backend == 'true'
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        name: Install Railway CLI
+        run: npm install -g @railway/cli@latest
       - if: steps.changes.outputs.backend == 'true'
-        name: Deploy backend to Fly
-        run: flyctl deploy --remote-only --app trashvision-api --config fly.toml
+        name: Deploy backend to Railway
+        run: railway up --service trashvision-api --detach
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   web:
     name: Cloudflare Pages — portal
@@ -62,7 +63,7 @@ jobs:
         name: Build (tsc -b && vite build)
         working-directory: web
         env:
-          VITE_API_URL: https://trashvision-api.fly.dev
+          VITE_API_URL: https://trashvision-api-production-ba07.up.railway.app
         run: npm run build
       - if: steps.changes.outputs.web == 'true'
         name: Deploy portal to Cloudflare Pages

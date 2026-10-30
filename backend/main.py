@@ -42,11 +42,6 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
-# Pre-Deployment Checklist (transport & headers): hardening this service can
-# apply safely at the app level — the API serves only JSON and Swagger docs,
-# nothing here is meant to be framed or embedded. HTTPS, HSTS and the portal
-# page's real CSP belong to the reverse proxy / static hosting layer, where
-# pages with map tiles and Cloudinary images are served.
 @app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)

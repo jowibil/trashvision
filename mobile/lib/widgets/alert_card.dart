@@ -35,13 +35,13 @@ class _AlertsCardState extends State<AlertsCard> {
   Color _severityColor(String? severity) {
     switch (severity) {
       case 'Critical':
-        return const Color(0xFFb91c1c);
+        return critRed;
       case 'High':
-        return const Color(0xFFea580c);
+        return highOrange;
       case 'Medium':
-        return const Color(0xFFeab308);
+        return midYellow;
       default:
-        return const Color(0xFF22c55e);
+        return lowGreen;
     }
   }
 
@@ -125,7 +125,7 @@ class _AlertsCardState extends State<AlertsCard> {
     final color = _severityColor(alert.severity);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: surfaceBody,
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

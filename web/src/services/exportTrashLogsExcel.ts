@@ -122,7 +122,9 @@ export async function exportTrashLogsExcel(
     { wch: 12 }, // Latitude
     { wch: 12 }, // Longitude
   ];
-  logsWs["!freeze"] = { xSplit: 0, ySplit: 1 }; // keep the header row visible
+  // NOTE: no frozen header row here — SheetJS 0.18 (community) silently drops
+  // 'ws["!freeze"]' and 'ws["!views"]' on xlsx write (verified by round-trip),
+  // so the header scrolls. Column widths below DO apply.
 
   // ─── Sheet 2: export context (summary + active filters) ──────────────
   const composition = buildComposition(rows);

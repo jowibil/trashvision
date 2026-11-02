@@ -1,98 +1,50 @@
 # TrashVision
 
-![CI](https://img.shields.io/badge/CI-passing-brightgreen)
-![web](https://img.shields.io/badge/web-build-brightgreen)
-![flutter](https://img.shields.io/badge/flutter-analyze-blue)
+TrashVision is a trash monitoring & reporting platform. Drone and camera imagery is screened
+by an on-board detection model that spots trash from the air, and what it finds becomes live
+maps, severity ratings, and community reports — aimed at making litter something you can
+actually see, track, and act on.
 
-TrashVision is a trash monitoring & reporting platform: drone/camera imagery is run through
-an ML detection model, detections are clustered and visualized on maps (web + mobile), and
-users file reports that admins manage.
+## What it does
 
-## Repository layout
+- **See trash from the sky** — drone flights are processed automatically and flagged
+  detections are clustered into map views with severity levels.
+- **Browse openly** — the portal's dashboard and maps are public by default: no account
+  needed to look around.
+- **Report from anywhere** — the citizen mobile app lets anyone photograph and report
+  trash, and queued reports wait patiently while offline, then sync when a connection
+  returns.
+- **Manage the ask** — admins review reports, draw monitored areas, schedule flights, and
+  export logs (including Excel).
+- **Ask the assistant** — a built-in chatbot answers questions about the data.
 
-| Path       | What it is                                             |
-|------------|-------------------------------------------------------|
-| `backend/` | FastAPI REST API (Python) — auth, reports, detections, logs, areas, flights, chat |
-| `web/`     | React 19 + Vite + Tailwind 4 admin portal (dashboard, map, reports, logs) |
-| `mobile/`  | Flutter citizen app (reporting, offline sync, OSM map) |
-| `ml/`      | YOLO training/inference (5 trash classes)             |
+## The parts
 
-## Quick start
+| Path       | In one line                                            |
+|------------|--------------------------------------------------------|
+| `backend/` | The API that does the work (includes the ML pipeline)  |
+| `web/`     | The browser portal — dashboards, maps, admin tools     |
+| `mobile/`  | The citizen app — reporting, offline sync, maps        |
+| `ml/`      | The YOLO model that recognizes the trash classes       |
 
-### Backend
-
-```bash
-cd backend
-uvicorn main:app --reload
-```
-
-Migrations: `alembic upgrade head`.
-
-### Web
-
-```bash
-cd web
-npm run dev        # Vite dev server
-npm run build      # tsc -b && vite build  ← typecheck happens here
-npm run lint       # ESLint 9
-npm run preview    # preview the built app
-```
-
-### Mobile
+## Running it
 
 ```bash
-cd mobile
-flutter run
-flutter analyze
-flutter test
+cd backend && uvicorn main:app --reload   # the API (migrations: alembic upgrade head)
+cd web && npm run dev                     # the portal
+cd mobile && flutter run                  # the app
 ```
 
-## Architecture
+It's a live system, not just a repo: the API runs on Railway and the portal on
+Cloudflare Pages, auto-deployed whenever `main` changes.
 
-**Backend** — FastAPI + Uvicorn + SQLAlchemy + PostgreSQL. Config uses `pydantic-settings`
-(`backend/config.py` reads `backend/.env`). Migrations run through Alembic
-(`backend/migrations/versions/`).
+## Going deeper
 
-Routers (prefix → file): `/auth` auth, `/detections` detections, `/mobile/map` mobile_map,
-`/reports` reports, `/logs` logs, `/areas` areas, `/flights` flights, `/users` users,
-`/gemini` chat.
+- `AGENTS.md` — the house rules for working on this repo
+- `knowledge.md` — architecture and stack details
+- `pipeline_explained.md` and `algorithm_equations.md` — how detection and severity
+  scoring actually work
+- `docs/` — deployment runbooks
 
-**Web** — React 19 + TypeScript + Vite + Tailwind 4 + react-router-dom 7 + axios +
-react-hot-toast. Map is Leaflet + react-leaflet + leaflet.heat + @geoman-io/leaflet-geoman-free
-(area drawing) + @turf/turf. Pages: `LandingPage`, `Dashboard`, `MapView`, `Reports`,
-`TrashLogs`; admin-only: `AuthReport`, `Upload`, `Settings`, `DrawArea`. All routes are
-lazy-loaded in `App.tsx`. Excel export uses `xlsx` (SheetJS), lazy-loaded.
-
-**Mobile** — Flutter (Dart SDK ^3.10.1), Material 3, package name `TrashVision`. Uses dio +
-http, flutter_secure_storage (JWT), flutter_dotenv, sqflite (offline cache), connectivity_plus
-(offline sync), flutter_map + latlong2 (OSM maps), geolocator, image_picker/camera,
-flutter_image_compress, jwt_decoder, lucide_icons. Theme tokens live in
-`mobile/lib/config/theme.dart` (`primaryBlue`, `ink`, severity scale, `MapPanel`, `StaggerIn`).
-
-**ML** — YOLO (ultralytics) object detection; `ml/data.yaml` defines 5 classes:
-`composite_packaging`, `plastic`, `metal`, `glass`, `styrofoam`. Inference in `ml/detect.py`
-/ `ml/try_detection.py`; weights in `ml/weights/`; dataset in `ml/dataset/`.
-
-## Data pipeline
-
-Image uploaded (drone flight or report) → Cloudinary storage → YOLO detection →
-detections get GPS → DBSCAN clustering → severity (Low/Mid/High/Crit) → maps/heatmaps/reports.
-
-Map severity is CCI with one scale everywhere (`algorithm_equations.md`). CCI = K · count /
-geodesic cell area with K = 20; bands ≤2 / ≤5 / ≤10 / ≤20 / >20. Backend computes adaptive,
-boundary-clipped hex cells + per-cell geodesic area (`mobile_service.calculate_hex_tiles`);
-web math is in `useHexbins.ts`, mobile math in `mobile_map_models.dart` + `config/theme.dart`.
-Map counts are detection rows; dedup belongs to DBSCAN Stage A/B in the pipeline, NOT map-level
-clustering.
-
-## Offline-first mobile
-
-Mobile `sync_services.dart` queues reports offline; ensure new write endpoints stay
-idempotent-friendly and don't assume instant connectivity.
-
-## Gotchas
-
-- `backend/.env` exists in the repo tree (`config.py` loads it) — never commit real secrets from it.
-- `main.py` inserts the project root into `sys.path`; run uvicorn from inside `backend/`.
-- Web is TypeScript-strict: `npm run build` runs `tsc -b` — typecheck before handing off.
-- Flutter package name is `TrashVision` (capital T, V) — imports read `package:TrashVision/...`.
+Secrets live in environment files that are never committed — if you need credentials or
+configuration, ask the team. Anyone contributing code should read `AGENTS.md` first.

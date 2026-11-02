@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
 import '../config/app_config.dart';
 import '../models/report_model.dart';
 import 'api_client.dart';
@@ -35,13 +37,32 @@ class ApiService {
         request.fields['client_report_id'] = report.clientReportId!;
       }
 
-      // Add the photo
+      // Add the photo. The http package defaults MultipartFile content
+      // types to "application/octet-stream" when none is passed, which the
+      // backend's 2026-10-28 image-type validation rejects with 400 — look
+      // the real type up from the file path instead.
       if (report.localPhotoPath != null) {
-        request.files.add(await http.MultipartFile.fromPath('photo', report.localPhotoPath!));
+        final photoPath = report.localPhotoPath!;
+        final mimeType = lookupMimeType(photoPath) ?? 'application/octet-stream';
+        final mediaParts = mimeType.split('/');
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'photo',
+            photoPath,
+            contentType: MediaType(mediaParts.first, mediaParts.last),
+          ),
+        );
       }
 
       var response = await request.send().timeout(ApiClient.timeout);
       if (response.statusCode == 401) ApiClient.notifyUnauthorized();
+      // MIGRATION DIAGNOSTIC (temporary): the submit UI collapses every
+      // failure into "Server unreachable. Saved to outbox." and drops the
+      // response body, so the 400's actual `detail` was invisible. Print it
+      // here so the failing rule shows in the console/logcat. Remove once
+      // the cause is fixed.
+      final debugBody = await response.stream.bytesToString();
+      debugPrint("REPORT UPLOAD -> ${response.statusCode} $debugBody");
       return response.statusCode;
     } catch (e) {
       debugPrint("Sync Upload Error: $e");

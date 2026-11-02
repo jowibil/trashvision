@@ -372,7 +372,7 @@ export default function AreaDrawer() {
                       setGeoJson(null);
                       setClearSignal((n) => n + 1);
                     }}
-                    className="p-1 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+                    className="p-1 rounded-full text-slate-500 hover:text-red-700 hover:bg-red-50 transition-colors duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
                     aria-label="Remove drawn boundary"
                   >
                     <X size={14} aria-hidden="true" />

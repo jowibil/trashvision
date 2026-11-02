@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:TrashVision/services/api_client.dart' show userMessage;
 import 'package:TrashVision/services/auth_service.dart';
+import '../config/theme.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -24,8 +25,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Timer? _timer;
 
   // Theme
-  final Color brandBlue = const Color(0xFF005D90);
-  final Color successGreen = const Color(0xFF2E7D32);
+  final Color brandBlue = primaryBlue;
 
   @override
   void dispose() {

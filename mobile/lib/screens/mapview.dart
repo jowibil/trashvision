@@ -348,7 +348,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFf8fafc),
+      backgroundColor: surfaceLight,
       // FIX: this screen used to hand-roll its own BottomNavigationBar with
       // pushNamed (keeps the stack), while every other screen uses the shared
       // BottomNavBar with pushNamedAndRemoveUntil (clears the stack). That
@@ -370,7 +370,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFf1f5f9),
+                          color: surfaceBody,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
@@ -427,7 +427,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       filled: true,
-                      fillColor: const Color(0xFFf1f5f9),
+                      fillColor: surfaceBody,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                     ),
                   ),
@@ -492,7 +492,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                       urlTemplate: AppConfig.mapboxTileTemplate,
                       tileDimension: 512,
                       zoomOffset: -1,
-                      userAgentPackageName: 'com.example.mobile',
+                      userAgentPackageName: 'com.trashvision.mobile',
                       // Offline-first tile caching: MapOfflineTileCache serves
                       // cached tiles WITHOUT deleting them when a refresh
                       // fails (the built-in cache evicts on network error,
@@ -638,7 +638,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFb45309).withValues(alpha: 0.92),
+                          color: warningAmber.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
@@ -675,7 +675,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFb91c1c).withValues(alpha: 0.92),
+                          color: critRed.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
@@ -813,7 +813,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                       thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
                       overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                       activeTrackColor: primaryBlue,
-                      inactiveTrackColor: const Color(0xFFe2e8f0),
+                      inactiveTrackColor: surfaceBorder,
                       thumbColor: Colors.white,
                       overlayColor: primaryBlue.withValues(alpha: 0.08),
                     ),
@@ -856,14 +856,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                           viewMode == 'accumulated'
                               ? 'Jan – ${_shortMonth(selectedDate.month)} ${selectedDate.year}'
                               : '${_shortMonth(selectedDate.month)} ${selectedDate.year}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0f172a)),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink),
                         ),
                         const Spacer(),
                         Text(
                           viewMode == 'accumulated'
                               ? 'accumulated'
                               : (week == 4 ? 'to end' : 'to ${_shortMonth(selectedDate.month)} ${week * 7}'),
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748b)),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: inkMuted),
                         ),
                       ],
                     ),
@@ -943,12 +943,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                               style: TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF334155),
+                                color: inkDeep,
                               ),
                             ),
                             if (reportsFailed) ...[
                               const SizedBox(width: 6),
-                              const Icon(Icons.cloud_off_rounded, size: 11, color: Color(0xFFb45309)),
+                              const Icon(Icons.cloud_off_rounded, size: 11, color: warningAmber),
                             ],
                           ],
                         ),
@@ -1004,7 +1004,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF64748b))),
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: inkMuted)),
         ],
       );
 

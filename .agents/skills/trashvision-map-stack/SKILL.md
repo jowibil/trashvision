@@ -14,8 +14,8 @@ architectures. Understand which side you're editing before changing anything.
 - Fetches pre-aggregated hexbins from `GET /mobile/map/areas/{area_id}/tiles`
   (PostGIS `ST_HexagonGrid`, backend/services/mobile_service.py). Sizing is
   ADAPTIVE: cell edge = boundary bbox min(width, height) / 10, clamped to
-  25–1000 m (`_HEX_EDGE_MIN_M` / `_HEX_EDGE_MAX_M`); 150 m is only the fallback
-  for areas with no drawn boundary (`_DEFAULT_EDGE_M`). Cells are clipped to the
+  25–1000 m (`HEX_EDGE_MIN_M` / `HEX_EDGE_MAX_M`); 150 m is only the fallback
+  for areas with no drawn boundary (`DEFAULT_EDGE_M`). Cells are clipped to the
   polygon and `hex_area_m2` is the clipped geodesic area — never recompute a
   planar hex formula client-side.
 - Drawer images load on tap via `POST /mobile/map/images/batch` with `detection_ids`

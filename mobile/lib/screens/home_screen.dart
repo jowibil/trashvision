@@ -9,6 +9,7 @@ import '../helper/gps_helper.dart';
 import '../services/api_service.dart';
 import '../widgets/alert_card.dart';
 import '../widgets/connectivity_status.dart';
+import '../config/theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,10 +41,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _fromCache = false;
 
   // App-wide unified style tokens matching user_profile specs
-  static const Color primaryColor = Color(0xFF005D90);
-  static const Color slateCardBorder = Color(0xFFF1F5F9);
-  static const Color textMutedColor = Color(0xFF94A3B8);
-  static const Color textDarkColor = Color(0xFF475569);
+  static const Color primaryColor = primaryBlue;
+  static const Color slateCardBorder = surfaceBody;
+  static const Color textMutedColor = inkFaint;
+  static const Color textDarkColor = inkStrong;
 
   @override
   void initState() {
@@ -544,7 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
           height: 100,
           width: 14,
           decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
+            color: surfaceBody,
             borderRadius: BorderRadius.circular(8),
           ),
           // FIXED: Using Align to anchor the inner container to the bottom flawlessly

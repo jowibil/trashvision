@@ -1,0 +1,18 @@
+# Copy this file to mobile/android/key.properties (that exact filename) and
+# fill in real values. key.properties + the keystore it points to are ALWAYS
+# gitignored (mobile/android/.gitignore: key.properties, **/*.keystore, **/*.jks).
+#
+# 1. Generate the upload keystore once and keep it somewhere safe (you cannot
+#    re-sign app updates with a different key once a build is published):
+#
+#      keytool -genkey -v -keystore ~/trashvision-upload.jks \
+#        -keyalg RSA -keysize 4096 -validity 10000 \
+#        -alias trashvision-upload
+#
+# 2. Point storeFile at the keystore (absolute path or a path relative to
+#    mobile/android/app). Use the same alias/passwords as in step 1.
+
+storePassword=REPLACE_WITH_KEYSTORE_PASSWORD
+keyPassword=REPLACE_WITH_KEY_PASSWORD
+keyAlias=trashvision-upload
+storeFile=/home/YOURUSER/trashvision-upload.jks

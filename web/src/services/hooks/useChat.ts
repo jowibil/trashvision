@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useState } from 'react';
 import { sendMessage as sendApiMessage, type ChatHistoryTurn } from '../chatApi';
 
@@ -55,11 +56,25 @@ export function useChat(): UseChatReturn {
       setMessages((prev) => [...prev, { role: 'bot', text: data.reply }]);
     } catch (error) {
       console.error('Chat error:', error);
+      // Match the error to an honest message instead of a generic "connection
+      // issue": a 401 here is almost always a stale/expired token (anonymous
+      // chat is the default — a 401 means a token WAS sent and rejected), and
+      // a 429 is the server-side rate limiter protecting the Gemini credit
+      // budget. Network/CORS failures have no response at all.
+      let fallbackText =
+        'Sorry, I ran into an issue connecting to the service. Please try again.';
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        fallbackText =
+          'Your session has expired. Sign in again to keep using the assistant.';
+      } else if (axios.isAxiosError(error) && error.response?.status === 429) {
+        fallbackText =
+          'You are sending messages too quickly. Please wait a moment and try again.';
+      }
       setMessages((prev) => [
         ...prev,
         {
           role: 'bot',
-          text: 'Sorry, I ran into an issue connecting to the service. Please try again.',
+          text: fallbackText,
         },
       ]);
     } finally {

@@ -3,6 +3,7 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { Filter } from "lucide-react";
 import { MapPin } from "lucide-react";
@@ -179,7 +180,7 @@ const DetectionPreview = React.memo(({ log }: { log: DetectionRow }) => {
         </h5>
         <div className="grid grid-cols-2 gap-3 text-xs font-bold text-slate-600">
           <div>
-            <span className="block text-[9px] text-slate-400 font-black uppercase tracking-widest">
+            <span className="block text-xs font-medium text-slate-500">
               Latitude
             </span>
             <p className="text-slate-800 tracking-tight font-mono tabular-nums">
@@ -187,7 +188,7 @@ const DetectionPreview = React.memo(({ log }: { log: DetectionRow }) => {
             </p>
           </div>
           <div>
-            <span className="block text-[9px] text-slate-400 font-black uppercase tracking-widest">
+            <span className="block text-xs font-medium text-slate-500">
               Longitude
             </span>
             <p className="text-slate-800 tracking-tight font-mono tabular-nums">
@@ -195,7 +196,7 @@ const DetectionPreview = React.memo(({ log }: { log: DetectionRow }) => {
             </p>
           </div>
           <div>
-            <span className="block text-[9px] text-slate-400 font-black uppercase tracking-widest">
+            <span className="block text-xs font-medium text-slate-500">
               Items
             </span>
             <p className="text-slate-800 font-mono tabular-nums text-xs bg-blue-50 w-fit px-1.5 py-0.5 rounded border border-blue-100">
@@ -203,7 +204,7 @@ const DetectionPreview = React.memo(({ log }: { log: DetectionRow }) => {
             </p>
           </div>
           <div>
-            <span className="block text-[9px] text-slate-400 font-black uppercase tracking-widest">
+            <span className="block text-xs font-medium text-slate-500">
               Boxes shown
             </span>
             <p className="text-slate-800 tabular-nums">
@@ -289,11 +290,16 @@ const LogRow = React.memo(
     isSelected,
     onSelect,
     areaName,
+    onInspectButtonRef,
   }: {
     log: DetectionRow;
     isSelected: boolean;
     onSelect: (log: DetectionRow) => void;
     areaName: string;
+    onInspectButtonRef: (
+      log: DetectionRow,
+      el: HTMLButtonElement | null,
+    ) => void;
   }) => {
     const parsedDate = useMemo(() => {
       // `new Date` never throws on bad input — it returns Invalid Date, so
@@ -382,6 +388,7 @@ const LogRow = React.memo(
               keyboard order confusing). aria-pressed mirrors the toggle. */}
           <button
             type="button"
+            ref={(el) => onInspectButtonRef(log, el)}
             aria-label={`Inspect log from ${
               parsedDate?.date ?? "unknown date"
             } (${formatWasteTypeLabel(log.waste_type)})`}
@@ -426,6 +433,11 @@ const HistoricalTrashLogs: React.FC = () => {
 
   const [activeSelectedLog, setActiveSelectedLog] =
     useState<DetectionRow | null>(null);
+  // Inspect buttons registered here so Escape can hand focus back to the row
+  // it closed (keyboard users shouldn't fall to the top of the document).
+  const inspectButtonRefs = useRef(
+    new Map<string, HTMLButtonElement>(),
+  );
 
   const { areas } = useAreas();
 
@@ -554,6 +566,68 @@ const HistoricalTrashLogs: React.FC = () => {
     setActiveSelectedLog(selectedRecord);
   }, []);
 
+  const handleInspectButtonRef = useCallback(
+    (log: DetectionRow, el: HTMLButtonElement | null) => {
+      const key = String(log.detection_id);
+      if (el) inspectButtonRefs.current.set(key, el);
+      else inspectButtonRefs.current.delete(key);
+    },
+    [],
+  );
+
+  // Roving arrows between the rows' single tab stops: ArrowDown/ArrowUp move
+  // button focus along the visible rows (wrap blocked at the edges by the
+  // null guard); Enter/Space already open the inspector via the button itself.
+  const handleTableKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTableSectionElement>) => {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const currentRow = (e.target as HTMLElement).closest("tr");
+      if (!currentRow) return;
+      const rows = Array.from(e.currentTarget.querySelectorAll("tr"));
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      const nextRow = rows[rows.indexOf(currentRow) + step];
+      const nextButton = nextRow?.querySelector<HTMLButtonElement>("td button");
+      if (nextButton) {
+        e.preventDefault();
+        nextButton.focus();
+      }
+    },
+    [],
+  );
+
+  // Escape closes the inspector from anywhere on the page and returns focus
+  // to the row it came from — symmetrical with the close button.
+  useEffect(() => {
+    if (!activeSelectedLog) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setActiveSelectedLog(null);
+      inspectButtonRefs.current
+        .get(String(activeSelectedLog.detection_id))
+        ?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeSelectedLog]);
+
+  // Whole-ID clipboard copy for the inspector header: truncated IDs were
+  // unreachable for support workflows. Error copy names the recovery (select
+  // manually) when the clipboard API is unavailable (e.g. plain http://).
+  const handleCopyDetectionId = useCallback(() => {
+    const fullId = activeSelectedLog?.detection_id?.toString();
+    if (!fullId) return;
+    if (!navigator.clipboard) {
+      toast.error("Clipboard unavailable — copy the ID from the page.");
+      return;
+    }
+    navigator.clipboard
+      .writeText(fullId)
+      .then(() => toast.success("Detection ID copied"))
+      .catch(() =>
+        toast.error("Clipboard unavailable — copy the ID from the page."),
+      );
+  }, [activeSelectedLog]);
+
   const handleTypeChange = useCallback((value: string) => {
     setSelectedType(value);
     setCurrentPage(1);
@@ -676,7 +750,7 @@ const HistoricalTrashLogs: React.FC = () => {
       </header>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        <div className="grow bg-[#fcfcfc] rounded-2xl p-5 flex flex-col gap-4 shadow-xs border border-slate-200/60">
+        <div className="grow bg-[#fcfcfc] rounded-2xl p-5 flex flex-col gap-4 shadow-sm border border-slate-200/60">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 px-2.5 py-1 bg-blue-50 text-[#005D90] rounded-md text-[10px] font-black tracking-widest uppercase">
               <Filter size={11} aria-hidden="true" /> Filters
@@ -695,7 +769,7 @@ const HistoricalTrashLogs: React.FC = () => {
             <div className="space-y-1.5 text-left">
               <label
                 htmlFor="filter-period"
-                className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-0.5"
+                className="text-xs font-medium text-slate-500 ml-0.5"
               >
                 Period
               </label>
@@ -716,7 +790,7 @@ const HistoricalTrashLogs: React.FC = () => {
             <div className="space-y-1.5 text-left">
               <label
                 htmlFor="filter-type"
-                className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-0.5"
+                className="text-xs font-medium text-slate-500 ml-0.5"
               >
                 Classification
               </label>
@@ -738,7 +812,7 @@ const HistoricalTrashLogs: React.FC = () => {
             <div className="space-y-1.5 text-left">
               <label
                 htmlFor="filter-area"
-                className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-0.5"
+                className="text-xs font-medium text-slate-500 ml-0.5"
               >
                 Area
               </label>
@@ -760,7 +834,7 @@ const HistoricalTrashLogs: React.FC = () => {
             <div className="space-y-1.5 text-left">
               <label
                 htmlFor="filter-search"
-                className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-0.5"
+                className="text-xs font-medium text-slate-500 ml-0.5"
               >
                 Search
               </label>
@@ -803,15 +877,22 @@ const HistoricalTrashLogs: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div
-          className={`bg-[#fcfcfc] rounded-2xl shadow-xs border border-slate-200 overflow-hidden ${
+          className={`bg-[#fcfcfc] rounded-2xl shadow-sm border border-slate-200 overflow-hidden ${
             activeSelectedLog ? "lg:col-span-7" : "lg:col-span-12"
           }`}
           aria-busy={loadingLogs || isExporting}
         >
           <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-[#fcfcfc] gap-3">
-            <h4 className="text-md font-black text-slate-800 uppercase tracking-tight">
-              Detections
-            </h4>
+            <div className="min-w-0">
+              <h4 className="text-base font-bold text-slate-800 tracking-tight">
+                Detections
+              </h4>
+              {/* Contextual help at the decision point: the meter is the page's
+                  most-scanned column and its meaning was never stated. */}
+              <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                Confidence = the model's certainty per detection (0–100%).
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleExportExcel}
@@ -868,6 +949,7 @@ const HistoricalTrashLogs: React.FC = () => {
                 </tr>
               </thead>
               <tbody
+                onKeyDown={handleTableKeyDown}
                 className={`divide-y divide-slate-100/70 ${
                   loadingLogs && logs.length > 0 ? "opacity-50" : "opacity-100"
                 }`}
@@ -925,6 +1007,7 @@ const HistoricalTrashLogs: React.FC = () => {
                         activeSelectedLog?.detection_id === log.detection_id
                       }
                       onSelect={handleSelectRow}
+                      onInspectButtonRef={handleInspectButtonRef}
                     />
                   ))
                 )}
@@ -1001,10 +1084,24 @@ const HistoricalTrashLogs: React.FC = () => {
                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">
                   Detection inspector
                 </h4>
-                <p className="text-[9px] font-bold text-slate-400 tracking-wider uppercase mt-0.5 tabular-nums">
-                  ID: {activeSelectedLog.detection_id?.toString().slice(0, 8)}
-                  …
-                </p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <p className="text-[9px] font-bold text-slate-400 tracking-wider uppercase tabular-nums">
+                    ID: {activeSelectedLog.detection_id?.toString().slice(0, 8)}
+                    …
+                  </p>
+                  {/* Support workflows need the whole UUID, not the truncated
+                      preview — copy it to the clipboard with one click. */}
+                  <button
+                    type="button"
+                    onClick={handleCopyDetectionId}
+                    aria-label={`Copy the full detection ID ${
+                      activeSelectedLog.detection_id?.toString() ?? ""
+                    }`}
+                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition-colors duration-150 ease-out cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+                  >
+                    <Copy size={11} aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               <button
                 onClick={() => setActiveSelectedLog(null)}

@@ -14,14 +14,6 @@ import { ROLES } from "../types/roles";
 // Delight-tier mount animation for the row action menu and delete modal
 // (Settings is the prescription's delight-budget page, so chrome motion is
 // allowed here — still ≤200ms ease-out and reduced-motion gated).
-const POP_IN_CSS = `
-@keyframes tv-pop-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
-.tv-pop-in { animation: tv-pop-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-@media (prefers-reduced-motion: reduce) { .tv-pop-in { animation: none; } }
-`;
 
 // Based on actual field usage below (user_id, name, email, role) rather
 // than the previous `any[]`.
@@ -120,7 +112,6 @@ export default function UserManagement() {
 
   return (
     <div className="p-6 bg-[#fcfcfc] rounded-2xl shadow-sm border border-slate-100 max-w-5xl mx-auto mt-6">
-      <style>{POP_IN_CSS}</style>
       <div className="flex justify-between items-center mb-8">
         <div className="text-left">
           <h3 className="text-3xl font-black text-[#005D90] tracking-tight mb-2">User Management</h3>

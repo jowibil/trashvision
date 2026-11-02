@@ -60,10 +60,16 @@ export default function AdminLayout() {
         </main>
       </div>
 
-      {/* Mobile off-canvas drawer: scrim + the same sidebar component */}
+      {/* Mobile off-canvas drawer: scrim + the same sidebar component.
+          Overlay ladder (Z-ORDER, keep coherent when touching any tier):
+          page-local overlays (map header z-1001, footer search dropdown
+          z-2000, chat widget z-1100) < this drawer z-[2500] < image-detail
+          modal z-3000 < toasts (react-hot-toast default). The drawer must
+          cover ALL page chrome — MapView's footer legend matrix used to poke
+          through the scrim because the drawer sat at z-[1000]. */}
       {mobileNavOpen ? (
         <div
-          className="md:hidden fixed inset-0 z-[1000]"
+          className="md:hidden fixed inset-0 z-[2500]"
           role="dialog"
           aria-modal="true"
           aria-label="Navigation menu"

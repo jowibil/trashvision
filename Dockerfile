@@ -1,9 +1,9 @@
 # TrashVision backend image (FastAPI + YOLOv8 CPU inference).
-# Build context is the REPO ROOT (fly.toml sits here) so the image carries both
-# backend/ and ml/ — the chain is: routes -> services/detection_service ->
+# Build context is the REPO ROOT (railway.toml sits here) so the image carries
+# both backend/ and ml/ — the chain is: routes -> services/detection_service ->
 # ml.detect -> ml/weights/trashvision/weights/best.pt (path pinned in
-# ml/detect.py). backend/temp is NOT baked in: it's an empty host-mounted
-# volume (see fly.toml [mounts]).
+# ml/detect.py). backend/temp is NOT baked in: it's a Railway-mounted volume
+# at /app/backend/temp.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -20,7 +20,7 @@ WORKDIR /app
 
 # CPU-only torch/torchvision BEFORE ultralytics: the default PyPI torch wheel
 # pulls multi-GB CUDA dependency bundles, which bloats the image and slows
-# fly deploys. The CPU index keeps the image small; ultralytics then reuses
+# deploys. The CPU index keeps the image small; ultralytics then reuses
 # the already-installed torch instead of reinstalling it.
 RUN pip install --no-cache-dir torch torchvision \
     --index-url https://download.pytorch.org/whl/cpu

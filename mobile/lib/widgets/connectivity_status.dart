@@ -1,6 +1,8 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
+import '../config/theme.dart';
+
 /// Offline/online indicator shared by the Home dashboard and the Profile
 /// header. Listens to the same connectivity_plus stream whose state the
 /// SyncService gates on, so the chip and the sync engine can't disagree.
@@ -40,11 +42,11 @@ class _ConnectivityStatusChipState extends State<ConnectivityStatusChip> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _online ? const Color(0xFF22C55E) : Colors.amber[800]!;
+    final accent = _online ? lowGreen : Colors.amber[800]!;
     final label = _online ? "Online" : "Offline";
     final bg = widget.onDarkSurface
         ? Colors.black.withValues(alpha: 0.18)
-        : const Color(0xFFF1F5F9);
+        : surfaceBody;
     final fg = widget.onDarkSurface ? Colors.white : accent;
 
     final chip = Container(
@@ -55,7 +57,7 @@ class _ConnectivityStatusChipState extends State<ConnectivityStatusChip> {
         border: Border.all(
           color: widget.onDarkSurface
               ? Colors.white.withValues(alpha: 0.15)
-              : const Color(0xFFE2E8F0),
+              : surfaceBorder,
         ),
       ),
       child: Row(

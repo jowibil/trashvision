@@ -104,13 +104,40 @@ const CommunityReportsPage: React.FC = () => {
       <div className="max-w-350 mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-start px-0 sm:px-4">
         <div className="lg:col-span-8 space-y-6">
           {loading ? (
-            <div className="flex justify-center p-20 animate-pulse text-slate-400 font-bold uppercase tracking-widest">
-              Loading reports…
+            /* Structural skeleton mirroring the report-card layout (same
+               pattern Dashboard/AuthReport use) so nothing jumps when real
+               content arrives; two cards sketch the wide layout honestly. */
+            <div role="status" aria-label="Loading reports">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div
+                  key={i}
+                  aria-hidden="true"
+                  className="bg-[#fcfcfc] rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6"
+                >
+                  <div className="flex flex-col md:flex-row">
+                    <div className="md:w-64 p-4 shrink-0">
+                      <div className="h-40 md:h-44 rounded-2xl bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                    </div>
+                    <div className="p-4 sm:p-6 flex-1 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="h-6 w-28 rounded-xl bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                        <div className="h-3.5 w-20 rounded bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                      </div>
+                      <div className="h-3 w-3/4 rounded bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-y border-slate-50 py-4">
+                        <div className="h-3 w-32 rounded bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                        <div className="h-3 w-28 rounded bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                      </div>
+                      <div className="h-3 w-24 rounded bg-slate-100 animate-pulse motion-reduce:animate-none" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : loadFailed && reports.length === 0 ? (
             <div
               role="alert"
-              className="p-16 text-center border border-red-100 bg-red-50/60 rounded-[2.5rem]"
+              className="p-16 text-center border border-red-100 bg-red-50/60 rounded-3xl"
             >
               <AlertCircle className="mx-auto text-red-300 mb-3" size={32} />
               <p className="font-bold text-red-700">Couldn't load reports</p>
@@ -124,7 +151,7 @@ const CommunityReportsPage: React.FC = () => {
               </button>
             </div>
           ) : reports.length === 0 ? (
-            <div className="p-16 text-center border-2 border-dashed border-slate-200 rounded-[2.5rem]">
+            <div className="p-16 text-center border-2 border-dashed border-slate-200 rounded-3xl">
               <MapPin className="mx-auto text-slate-300 mb-3" size={32} />
               <p className="font-bold text-slate-500">No verified reports yet</p>
               <p className="text-sm text-slate-400 mt-1">
@@ -139,7 +166,7 @@ const CommunityReportsPage: React.FC = () => {
               return (
                 <div
                   key={log.report_id}
-                  className="bg-[#fcfcfc] rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-lg transition-[box-shadow] duration-200 ease-out overflow-hidden group relative"
+                  className="bg-[#fcfcfc] rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-[box-shadow] duration-200 ease-out overflow-hidden group relative"
                 >
                   <div className="flex flex-col md:flex-row">
                     <div className="md:w-64 p-4 shrink-0">
@@ -213,7 +240,7 @@ const CommunityReportsPage: React.FC = () => {
 
         {!loading && !loadFailed && reports.length > 0 && (
           <div className="lg:col-span-4 lg:sticky lg:top-10">
-            <div className="bg-[#fcfcfc] rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col gap-8 text-left">
+            <div className="bg-[#fcfcfc] rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col gap-8 text-left">
               <div className="space-y-1">
                 <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">At a glance</h3>
                 <p className="text-6xl font-black text-slate-800 tracking-tighter tabular-nums">

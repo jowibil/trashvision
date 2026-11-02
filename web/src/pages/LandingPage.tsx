@@ -31,7 +31,7 @@ export default function Landing() {
 
       {/* HERO SECTION */}
       <section className="relative min-h-[95dvh] flex items-center pt-8 overflow-hidden" id="hero">
-        <div className="absolute inset-0 w-full h-full overflow-hidden" style={{ zIndex: 0 }}>
+        <div className="absolute inset-0 w-full h-full overflow-hidden z-0">
           <img src={heroBg} alt="Ocean Background" className="w-full h-full object-cover object-bottom scale-110" />
           <div className="absolute inset-0 bg-linear-to-b from-black/40 via-transparent to-transparent" />
         </div>
@@ -160,8 +160,7 @@ export default function Landing() {
       {/* CTA SECTION */}
       <section
         id="about"
-        className="py-24 text-center text-white"
-        style={{ background: "linear-gradient(135deg, #1a56db 0%, #0d9488 100%)" }}
+        className="py-24 text-center text-white bg-linear-135 from-[#1a56db] to-[#0d9488]"
       >
         <div className="max-w-2xl mx-auto px-4">
           <h3 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">Ready to Clean Up Your Coastlines?</h3>

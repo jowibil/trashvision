@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:TrashVision/screens/login_screen.dart';
+import '../config/theme.dart';
 import '../services/api_client.dart' show userMessage;
 import '../services/auth_service.dart';
 
@@ -89,7 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF005D90);
+    const primaryColor = primaryBlue;
 
     return Scaffold(
       backgroundColor: Colors.white,

@@ -261,14 +261,14 @@ class SectorPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.cloud_off_rounded, size: 22, color: Color(0xFFb91c1c)),
+              Icon(Icons.cloud_off_rounded, size: 22, color: critRed),
               SizedBox(height: 8),
               Text(
                 "Couldn't load detections. Tap to retry.",
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFFb91c1c),
+                  color: critRed,
                 ),
               ),
             ],
@@ -425,7 +425,7 @@ class _SectorThumbnailTile extends StatelessWidget {
             : const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: const Color(0xFFf1f5f9),
+          color: surfaceBody,
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -442,7 +442,7 @@ class _SectorThumbnailTile extends StatelessWidget {
                 radius: BorderRadius.zero,
               ),
               errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.broken_image, color: Color(0xFFcbd5e1), size: 24),
+                child: Icon(Icons.broken_image, color: inkDisabled, size: 24),
               ),
             ),
             if (img.type != null)

@@ -1,10 +1,11 @@
 from fastapi import APIRouter, UploadFile, File, Depends, Form, HTTPException, Query
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, false as sa_false
 from database import get_db
 from dependency import require_role, require_public
 from services.detection_service import run_yolo_inference
+from services.fuzzy_search import matched_values
 from models.detection import Detection
 from models.area import Area
 import shutil, os, uuid
@@ -108,14 +109,38 @@ def get_all_detections(
     # 3b. Free-text search over waste_type and the linked area's name so the
     # web page can filter across ALL pages server-side (client-side search
     # only ever saw the current 15-row page).
+    # Typo-tolerant: a plain LIKE %q% returned nothing on one typo ("plastik",
+    # "bal costline"). The candidate vocabulary is tiny (5 waste classes +
+    # drawn area names), so we fetch the distinct values, score them with
+    # services/fuzzy_search.py (the same rules as the web's MapView search),
+    # and filter rows with SQL IN over the fuzzily-matched values. Bounded,
+    # no pg_trgm, no schema change.
     if q and q.strip():
-        term = f"%{q.strip().lower()}%"
-        query = query.outerjoin(Area, Detection.area_id == Area.area_id).filter(
-            or_(
-                func.lower(Detection.waste_type).like(term),
-                func.lower(Area.area_name).like(term),
-            )
-        )
+        term = q.strip()
+        waste_candidates = [
+            row[0] for row in db.query(Detection.waste_type).distinct().all() if row[0]
+        ]
+        area_candidates = [
+            row[0] for row in db.query(Area.area_name).distinct().all() if row[0]
+        ]
+        waste_matches = matched_values(term, waste_candidates)
+        area_matches = matched_values(term, area_candidates)
+        if not (waste_matches or area_matches):
+            # Every vocabulary value misses the query: empty result set, not
+            # "unfiltered" — same semantics the exact-substring version had.
+            query = query.filter(sa_false())
+        else:
+            conditions = []
+            if waste_matches:
+                conditions.append(
+                    func.lower(Detection.waste_type).in_([m.lower() for m in waste_matches])
+                )
+            if area_matches:
+                query = query.outerjoin(Area, Detection.area_id == Area.area_id)
+                conditions.append(
+                    func.lower(Area.area_name).in_([m.lower() for m in area_matches])
+                )
+            query = query.filter(or_(*conditions))
 
     # 4. Optional date window (inclusive). Accepts ISO datetimes or dates;
     # unparsable values are ignored rather than erroring the whole request.

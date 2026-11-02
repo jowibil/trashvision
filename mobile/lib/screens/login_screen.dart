@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/theme.dart';
 import '../services/api_client.dart' show userMessage;
 import '../services/auth_service.dart'; // also exports ApiException
 import 'register_screen.dart';
@@ -87,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF005D90);
+    const primaryColor = primaryBlue;
 
     return Scaffold(
       backgroundColor: Colors.white,

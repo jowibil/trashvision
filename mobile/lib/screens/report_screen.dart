@@ -8,6 +8,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:uuid/uuid.dart';
 import '../models/report_model.dart';
+import '../services/map_offline_tile_cache.dart';
+import '../config/theme.dart';
 import 'package:image_picker/image_picker.dart';
 // import 'package:path_provider/path_provider.dart';
 import 'package:camera/camera.dart';
@@ -150,7 +152,7 @@ Future<void> _pickImage() async {
           child: Wrap(
             children: [
               ListTile(
-                leading: const Icon(LucideIcons.camera, color: Color(0xFF005D90)),
+                leading: const Icon(LucideIcons.camera, color: primaryBlue),
                 title: const Text('Use Hardware Scanner (Camera)', style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () async {
                   // Dismiss sheet first. FIX (Step 7): the builder's `context`
@@ -194,7 +196,7 @@ Future<void> _pickImage() async {
                 },
               ),
               ListTile(
-                leading: const Icon(LucideIcons.image, color: Color(0xFF005D90)),
+                leading: const Icon(LucideIcons.image, color: primaryBlue),
                 title: const Text('Upload from Storage Library (Gallery)', style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () async {
                   Navigator.of(context).pop();
@@ -361,7 +363,7 @@ Future<void> _pickImage() async {
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: const Color(0xFF005D90),
+        backgroundColor: primaryBlue,
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -391,7 +393,7 @@ Future<void> _pickImage() async {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(15),
-                  borderSide: const BorderSide(color: Color(0xFF005D90), width: 1.5),
+                  borderSide: const BorderSide(color: primaryBlue, width: 1.5),
                 ),
               ),
             ),
@@ -513,7 +515,14 @@ Future<void> _pickImage() async {
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.trashvision.app',
+                  userAgentPackageName: 'com.trashvision.mobile',
+                  // Same offline-first rule as the main map: cache-first tiles
+                  // so the location preview renders from cache when the user
+                  // files reports with no connectivity.
+                  tileProvider: NetworkTileProvider(
+                    cachingProvider: MapOfflineTileCache.instance,
+                    silenceExceptions: true,
+                  ),
                 ),
                 MarkerLayer(
                   markers: [
@@ -566,8 +575,8 @@ Future<void> _pickImage() async {
         // double-tap guard is visible feedback rather than a silent no-op.
         onPressed: _isSubmitting ? null : _submit,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF005D90),
-          disabledBackgroundColor: const Color(0xFF005D90).withValues(alpha: 0.6),
+          backgroundColor: primaryBlue,
+          disabledBackgroundColor: primaryBlue.withValues(alpha: 0.6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),

@@ -147,7 +147,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label={`Report detail: ${report.waste_type || "unknown"}`}
-        className="relative w-full max-w-2xl max-h-[90dvh] overflow-y-auto bg-[#fcfcfc] rounded-[2rem] shadow-2xl border border-slate-100"
+        className="relative w-full max-w-2xl max-h-[90dvh] overflow-y-auto bg-[#fcfcfc] rounded-3xl shadow-2xl border border-slate-100"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 bg-[#fcfcfc]/95 backdrop-blur px-6 pt-6 pb-4 border-b border-slate-100">

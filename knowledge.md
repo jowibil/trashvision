@@ -16,19 +16,19 @@ users file reports that admins manage.
 
 ## Backend (`backend/`)
 
-- **Framework:** FastAPI + Uvicorn. Entry point `main.py` — app is titled `TrashVision`, CORS wide open (`allow_origins=["*"]`).
-- **Config:** `config.py` uses `pydantic-settings` reading `backend/.env`. Required keys:
-  `DATABASE_URL`, `SECRET_KEY`, `CLOUDINARY_*`, `SMTP_EMAIL`, `SMTP_PASSWORD`, `GEMINI_API_KEY`, `GEMINI_MODEL_NAME`.
-- **DB:** PostgreSQL (psycopg2) via SQLAlchemy; migrations with Alembic (`alembic.ini` → `migrations/versions/`, 13 revisions). PostGIS is referenced in migration history.
-- **Routers** (prefix → file): `/auth` auth, `/detections` detections, `/mobile/map` mobile_map, `/reports` reports, `/logs` logs, `/areas` areas, `/flights` flights, `/users` user, `/gemini` chat.
-- **Services:** `auth_service`, `cloudinary_service` (image upload), `dbscan_service` (clustering detections into severity levels), `detection_service`, `email_service` (SMTP password reset), `gemini_services` (chat + vision prompts in `prompts/`), `gps_service`, `log_service`, `mobile_service`, `user_service`.
+- **Framework:** FastAPI + Uvicorn. Entry point `main.py`. CORS is env-driven: `CORS_ORIGINS` (comma-separated) feeds `allow_origins`, defaulting to the localhost:5173 pair for dev — set the deployed portal's origin there per environment.
+- **Config:** `config.py` uses `pydantic-settings` reading `backend/.env` **plus the repo-root `.env.local`** (Neon CLI wiring: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_BRANCH`; real env vars beat both files). Required keys:
+  `DATABASE_URL`, `SECRET_KEY`, `CLOUDINARY_*`, `SMTP_EMAIL`, `SMTP_PASSWORD`, `GEMINI_API_KEY`, `GEMINI_MODEL_NAME`. Notable optional keys: `CORS_ORIGINS`, `SENTRY_DSN` + `SENTRY_TRACES_SAMPLE_RATE` (Sentry is a no-op when unset), `SWEEP_ENABLED` (weekly insights sweep daemon thread), `TEMP_CLEANER_ENABLED`/`TEMP_FILE_MAX_AGE_HOURS` (upload temp reaper), `ACCESS_TOKEN_EXPIRE_MINUTES` (default 30 days).
+- **DB:** PostgreSQL (psycopg2) via SQLAlchemy; migrations with Alembic (`alembic.ini` → `migrations/versions/`, 21 revisions). PostGIS is used (see `9c6ad0b483ab_postgis_and_async_fields.py`).
+- **Routers** (prefix → file): `/auth` auth, `/detections` detections, `/mobile/map` mobile_map, `/reports` reports, `/logs` logs, `/areas` areas, `/flights` flights, `/users` user, `/gemini` chat, `/info` info (ML metadata), `/insights` insights (critical-area sweep).
+- **Services:** `auth_service`, `chat_data_service`, `cloudinary_service` (image upload), `dbscan_service` (clustering detections into severity levels), `detection_service`, `email_service` (SMTP password reset), `gemini_services` (chat + vision prompts in `prompts/`), `geo_assign`, `gps_service`, `insights_service`, `log_service`, `mobile_service`, `report_inference_service` (report-image YOLO stage), `temp_cleanup_service`, `user_service`.
 - **Auth:** JWT (python-jose, HS256) with OAuth2 bearer; roles are `guest` < `community` < `admin` (see `ROLE_HIERARCHY` in `dependency.py`). Role gates: `get_current_active_admin`, `require_role(min_role)`. Rate limiting via slowapi.
 - **Run:** `uvicorn main:app --reload` from `backend/` (use `venv/` there; deps in `requirements.txt`).
 
 ## Web (`web/`)
 
 - **Stack:** React 19, TypeScript (~6.0), Vite 8, Tailwind CSS 4 (via `@tailwindcss/vite`), react-router-dom 7, axios, react-hot-toast.
-- **Map:** Leaflet + react-leaflet + leaflet.heat + @geoman-io/leaflet-geoman-free (area drawing) + @turf/turf (geo math). Offline cache-first via `services/mapCache.ts` (IndexedDB mirror of mobile's sqflite map_cache — shared `areas_v1` / `hexbins_v2:...` keys, LRU 24, `areas` protected; `isStale` renders as a "Cached" chip). Hex severity is CCI (`DRONE_K_FACTOR = 20`, spec `algorithm_equations.md` §2.1/§2.3), shared with mobile; cells are adaptive per area (boundary extent / 10, clipped server-side).
+- **Map:** Leaflet + react-leaflet + leaflet.heat + @geoman-io/leaflet-geoman-free (area drawing) + @turf/turf (geo math). Offline cache-first via `services/mapCache.ts` (IndexedDB mirror of mobile's sqflite map_cache — shared `areas_v1` / `hexbins_v7:...` keys, LRU 24, `areas` protected; `isStale` renders as a "Cached" chip). Hex severity is CCI (`DRONE_K_FACTOR = 20`, spec `algorithm_equations.md` §2.1/§2.3), shared with mobile; cells are adaptive per area (boundary extent / 10, clipped server-side).
 - **Excel export:** `xlsx` (SheetJS), lazy-loaded (`services/exportTrashLogsExcel.ts`).
 - **Spatial algorithms spec:** `algorithm_equations.md` (root) — DBSCAN stages + CalculateLitterDensityMap (CCI = K · count / geodesic cell area, K = 20, bands ≤2/≤5/≤10/≤20/>20). Backend implements it in `mobile_service.calculate_hex_tiles` (adaptive hex grid + clipping + per-cell geodesic area); map counts are detection rows — dedup belongs to DBSCAN Stage A/B in the pipeline, NOT map-level clustering (cross-flight clustering tried + rolled back 2026-10, see `pipeline_explained.md` §5); web math in `useHexbins.ts`, mobile math in `mobile_map_models.dart` + `config/theme.dart`. Keep all three in sync. Full narrative: `pipeline_explained.md`.
 - **Pages** (`src/pages/`): `LandingPage`, `Dashboard`, `MapView`, `Reports`, `TrashLogs`. Admin-only: `auth/AuthReport`, `auth/Upload`, `auth/Settings`, `auth/DrawArea`.
@@ -55,6 +55,8 @@ users file reports that admins manage.
 - **Severity scale (single source of truth in mobile theme):** count > 10 = Critical `#b91c1c`, > 5 = High `#ea580c`, > 2 = Mid `#eab308`, else Low `#22c55e`.
 - **Roles:** `guest` (0) / `community` (1) / `admin` (2) — enforced on backend via `require_role`, on web via `ProtectedRouteHelper`.
 - **Offline-first mobile:** sqflite cache + outbox queue (`sync_services.dart`) flushed when connectivity returns.
+- **Deploys:** main auto-deploys backend → Railway (Railway CLI; also triggered by `ml/**`, `Dockerfile`, `railway.toml`) and portal → Cloudflare Pages (wrangler) via `.github/workflows/deploy-main.yml`, path-filtered per job.
+- **Android release:** `mobile/android/app/build.gradle.kts` signs release builds from `mobile/android/key.properties` + upload keystore; falls back to debug signing when the keystore is absent (local/CI), so release builds must not ship from a machine without the keystore.
 
 ## Gotchas
 

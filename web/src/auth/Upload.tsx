@@ -23,14 +23,6 @@ const PRE_FLIGHT_CHECKLIST = [
 // Entrance for the selected-files and progress panels (mount animation;
 // transitions don't apply on first paint). Duration/easing follow the animate
 // skill's <300ms ease-out budget, with prefers-reduced-motion opting out.
-const RISE_IN_CSS = `
-@keyframes tv-rise-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
-}
-.tv-rise-in { animation: tv-rise-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-@media (prefers-reduced-motion: reduce) { .tv-rise-in { animation: none; } }
-`;
 
 // Radius rule for this page: cards 2.5rem (matches the admin portal's other
 // pages), controls and inputs 0.75rem.
@@ -206,7 +198,6 @@ export default function DroneUploadUI() {
 
   return (
     <div className="space-y-6 min-h-[100dvh] max-w-7xl mx-auto p-4 lg:p-8">
-      <style>{RISE_IN_CSS}</style>
       <Toaster position="top-right" />
 
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -219,7 +210,7 @@ export default function DroneUploadUI() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           {/* UPLOAD ZONE */}
-          <section className="bg-[#fcfcfc] rounded-[2.5rem] border border-slate-200 shadow-sm p-2" aria-label="Flight image upload">
+          <section className="bg-[#fcfcfc] rounded-3xl border border-slate-200 shadow-sm p-2" aria-label="Flight image upload">
             {!selectedFiles.length ? (
               <div
                 className={`py-14 px-8 border-4 border-dashed rounded-[2rem] transition-[background-color,border-color] duration-150 ease-out motion-reduce:transition-none ${
@@ -295,7 +286,7 @@ export default function DroneUploadUI() {
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="p-1.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+                        className="p-1.5 rounded-full text-slate-500 hover:text-red-700 hover:bg-red-50 transition-colors duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
                         aria-label={`Remove ${file.name}`}
                       >
                         <X size={14} aria-hidden="true" />
@@ -398,7 +389,7 @@ export default function DroneUploadUI() {
           </section>
 
           {/* RECENT FLIGHTS */}
-          <section className="bg-[#fcfcfc] rounded-[2.5rem] p-6 sm:p-8 border border-slate-200 shadow-sm" aria-label="Recent flights">
+          <section className="bg-[#fcfcfc] rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm" aria-label="Recent flights">
             <div className="mb-6">
               <h3 className="text-base font-bold text-slate-800">Recent flights</h3>
               <p className="text-xs text-slate-400 mt-0.5">The five most recent uploads</p>
@@ -451,7 +442,7 @@ export default function DroneUploadUI() {
 
         {/* GUIDELINES (Right Sidebar) */}
         <aside className="space-y-6 lg:sticky lg:top-4 self-start">
-          <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-lg relative overflow-hidden">
+          <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-md relative overflow-hidden">
             <div className="flex items-center gap-3 mb-7">
               <div className="p-2.5 bg-[#005D90] rounded-xl">
                 <Lightbulb size={18} aria-hidden="true" />

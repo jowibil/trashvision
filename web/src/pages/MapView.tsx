@@ -14,6 +14,7 @@ import { useLazyAreaCollection, type CollectionWindow } from "../services/hooks/
 import { useAreaHexbins, type SectorDetection } from "../services/hooks/useAreaHexbins";
 import { useReports } from "../services/hooks/useReports";
 import { useMapControl } from "../services/hooks/useMapControl";
+import { fuzzyScore } from "../services/fuzzySearch";
 import { Calendar } from "lucide-react";
 import { X } from "lucide-react";
 import { RefreshCcw as RefreshCw} from "lucide-react";
@@ -102,7 +103,7 @@ function ImageWithBoundingBoxes({
               <title>TrashVision Specimen Export</title>
               <style>
                 body { margin: 0; background: #0b0f19; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
-                img { max-width: 100%; max-height: 100vh; object-contain: contain; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+                img { max-width: 100%; max-height: 100vh; object-fit: contain; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
               </style>
             </head>
             <body>
@@ -351,9 +352,15 @@ export default function Maps() {
   };
 
   const filteredAreas = useMemo(() => {
-    return areas.filter((area) =>
-      area.area_name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
+    const query = searchQuery.trim();
+    if (!query) return areas;
+    // Typo-tolerant match + best-first ordering (fuzzySearch.ts shares the
+    // scoring rules with the backend's TrashLogs search).
+    return areas
+      .map((area) => ({ area, score: fuzzyScore(query, area.area_name) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.area);
   }, [areas, searchQuery]);
 
   const areaMetrics = useMemo(() => {
@@ -864,7 +871,7 @@ export default function Maps() {
             ref={modalPanelRef}
             tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
-            className="bg-[#fcfcfc] rounded-4xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 outline-none scale-100 transition-transform duration-200 ease-out starting:scale-[0.97] motion-reduce:transition-none"
+            className="bg-[#fcfcfc] rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 outline-none scale-100 transition-transform duration-200 ease-out starting:scale-[0.97] motion-reduce:transition-none"
           >
             <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
               <div className="text-left">

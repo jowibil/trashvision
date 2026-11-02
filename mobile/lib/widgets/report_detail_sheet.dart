@@ -10,7 +10,7 @@ import 'skeleton.dart';
 
 /// Same green as the severity scale's Low / the web map's verified styling —
 /// used here for the VERIFIED status chip.
-const Color _verifiedGreen = Color(0xFF22c55e);
+const Color _verifiedGreen = lowGreen;
 
 /// Detail view for a tapped community report pin: photo, AI bounding boxes
 /// for verified+analyzed photos, VERIFIED chip, reporter, timestamp,
@@ -244,7 +244,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                     style: const TextStyle(
                       fontSize: 12,
                       height: 1.45,
-                      color: Color(0xFF475569),
+                      color: inkStrong,
                     ),
                   ),
                 ),
@@ -359,12 +359,12 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
             Positioned.fill(
               child: _imageError
                   ? Container(
-                      color: const Color(0xFFf1f5f9),
+                      color: surfaceBody,
                       alignment: Alignment.center,
                       child: const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.broken_image, color: Color(0xFFcbd5e1), size: 24),
+                          Icon(Icons.broken_image, color: inkDisabled, size: 24),
                           SizedBox(height: 4),
                           Text(
                             'Couldn\'t load this image. Tap to retry.',
@@ -379,7 +379,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                     )
                   : _displayUrl.isEmpty
                       ? Container(
-                          color: const Color(0xFFf1f5f9),
+                          color: surfaceBody,
                           alignment: Alignment.center,
                           child: const Text(
                             'No photo attached',

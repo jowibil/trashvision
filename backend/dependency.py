@@ -17,7 +17,27 @@ ROLE_HIERARCHY = {
 }
 
 # rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Behind Cloudflare (proxied API domain), request.client.host is a Cloudflare
+# EDGE IP — thousands of visitors share a few dozen of them, so a plain
+# get_remote_address key would collapse every user's per-IP budget into one
+# global bucket. Cloudflare always stamps the real client IP into
+# CF-Connecting-IP, so prefer it when present. Trust note: on traffic that
+# reaches the Railway origin WITHOUT going through Cloudflare (e.g. a direct
+# hit on the *.up.railway.app domain), this header is client-supplied and
+# spoofable — a determined attacker can farm buckets by rotating fake values.
+# The Cloudflare WAF edge rule (docs/cloudflare-chat-edge-rule.md) is the
+# primary guard against that path; the origin limiter (and optionally
+# restricting the origin to Cloudflare ranges at the platform) is the
+# fallback. Local/dev runs have no CF header and key on the socket remote
+# address as before.
+def limiter_key(request: Request) -> str:
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=limiter_key)
 # Find bearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 # Optional bearer for PUBLIC read endpoints: returns None when no

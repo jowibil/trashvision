@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../models/report_model.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/connectivity_status.dart';
+import '../config/theme.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -143,7 +144,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           "My Clean-Up Profile", 
           style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Colors.white)
         ),
-        backgroundColor: const Color(0xFF005D90),
+        backgroundColor: primaryBlue,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -158,7 +159,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       body: _isLoading 
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF005D90)),
+                valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
               ),
             )
           : Column(
@@ -177,7 +178,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        color: Color(0xFF005D90),
+        color: primaryBlue,
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
@@ -203,7 +204,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     )
                   ],
                 ),
-                child: const Icon(LucideIcons.user, size: 36, color: Color(0xFF005D90)),
+                child: const Icon(LucideIcons.user, size: 36, color: primaryBlue),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -353,7 +354,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               const Text(
                 "Your reporting ledger is clean.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8)),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: inkFaint),
               ),
             ],
           ),
@@ -367,7 +368,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // Pull-to-refresh re-runs the merged outbox+ledger query so the sync
       // mix (and the pending count) is current without leaving the screen.
       onRefresh: _loadProfileAndReports,
-      color: const Color(0xFF005D90),
+      color: primaryBlue,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -395,10 +396,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF005D90) : Colors.white,
+            color: selected ? primaryBlue : Colors.white,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: selected ? const Color(0xFF005D90) : const Color(0xFFE2E8F0),
+              color: selected ? primaryBlue : surfaceBorder,
             ),
           ),
           child: Text(
@@ -406,7 +407,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: selected ? Colors.white : const Color(0xFF64748B),
+              color: selected ? Colors.white : inkMuted,
             ),
           ),
         ),
@@ -441,13 +442,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: surfaceBody),
       ),
       child: Center(
         child: Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8)),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: inkFaint),
         ),
       ),
     );
@@ -465,7 +466,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isPending ? Colors.amber.shade100 : const Color(0xFFF1F5F9),
+        color: isPending ? Colors.amber.shade100 : surfaceBody,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -474,7 +475,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Icon(
             isPending ? LucideIcons.clock : LucideIcons.checkCircle2,
             size: 10,
-            color: isPending ? Colors.amber.shade800 : const Color(0xFF64748B),
+            color: isPending ? Colors.amber.shade800 : inkMuted,
           ),
           const SizedBox(width: 4),
           Text(
@@ -482,7 +483,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w800,
-              color: isPending ? Colors.amber.shade900 : const Color(0xFF64748B),
+              color: isPending ? Colors.amber.shade900 : inkMuted,
             ),
           ),
         ],
@@ -529,16 +530,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
           "Delete pending report?",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF005D90)),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: primaryBlue),
         ),
         content: const Text(
           "This report hasn't reached the server yet. Deleting removes it from your device permanently.",
-          style: TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.4),
+          style: TextStyle(fontSize: 13, color: inkStrong, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel", style: TextStyle(color: Color(0xFF64748B))),
+            child: const Text("Cancel", style: TextStyle(color: inkMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -606,7 +607,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: surfaceBody),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -622,7 +623,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           children: [
             Container(
               width: 110,
-              color: const Color(0xFFF1F5F9),
+              color: surfaceBody,
               child: Builder(
                 builder: (context) {
                   final hasValidLocalFile = report.localPhotoPath != null && 
@@ -640,12 +641,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       report.photoUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => const Center(
-                        child: Icon(LucideIcons.image, color: Color(0xFF94A3B8), size: 24),
+                        child: Icon(LucideIcons.image, color: inkFaint, size: 24),
                       ),
                     );
                   } else {
                     return const Center(
-                      child: Icon(LucideIcons.image, color: Color(0xFF94A3B8), size: 24),
+                      child: Icon(LucideIcons.image, color: inkFaint, size: 24),
                     );
                   }
                 },
@@ -666,7 +667,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF005D90),
+                              color: primaryBlue,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -682,7 +683,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           : "No programmatic context summary submitted.",
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.3),
+                      style: const TextStyle(fontSize: 12, color: inkStrong, height: 1.3),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -695,7 +696,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             style: const TextStyle(
                               fontSize: 11, 
                               fontFamily: 'monospace', 
-                              color: Color(0xFF94A3B8),
+                              color: inkFaint,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),

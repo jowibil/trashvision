@@ -54,5 +54,5 @@ jobs:
       - name: Build (tsc -b && vite build)
         working-directory: web
         env:
-          VITE_API_URL: https://trashvision-api.fly.dev
+          VITE_API_URL: https://trashvision-api-production-ba07.up.railway.app
         run: npm run build

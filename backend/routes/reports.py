@@ -19,6 +19,15 @@ from services.report_inference_service import (
 
 router = APIRouter()
 
+# MIGRATION DIAGNOSTIC (2026-10-31, temporary): mobile report submits have
+# returned a bare 400 since the Railway cutover and FastAPI never logs the
+# detail, so the failing validation rule is invisible. This helper mirrors
+# the 400 raise AND prints the reason to the service log, making the exact
+# rejection visible in `railway logs`. Remove once the cause is found.
+def _reject(detail: str) -> HTTPException:
+    print(f"[reports] rejecting submit: {detail}")
+    return HTTPException(status_code=400, detail=detail)
+
 # SECURITY: GET / (community feed read) and GET /{report_id} (detail, incl.
 # YOLO boxes) are PUBLIC per product decision # 2026-10 — the web portal's
 # Reports page and map-pin popups are browsable logged-out via "Open
@@ -57,17 +66,17 @@ async def submit_report(
     # (they previously surfaced as uncaught ValueError → 500), and a
     # description cap so one request can't blob the feed.
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-        raise HTTPException(status_code=400, detail="Latitude/longitude out of range")
+        raise _reject("Latitude/longitude out of range")
     try:
         client_uuid = uuid.UUID(client_report_id) if client_report_id else None
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid UUID format")
+        raise _reject(f"Invalid client_report_id: {client_report_id!r}")
     try:
         resolved_area_id = uuid.UUID(area_id) if area_id else None
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid UUID format")
+        raise _reject(f"Invalid area_id: {area_id!r}")
     if description and len(description) > 2000:
-        raise HTTPException(status_code=400, detail="Description too long (max 2000 characters)")
+        raise _reject("Description too long (max 2000 characters)")
 
     if resolved_area_id is None:
         resolved_area = resolve_area_for_point(db, latitude, longitude)

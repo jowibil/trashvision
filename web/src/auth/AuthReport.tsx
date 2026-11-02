@@ -35,6 +35,9 @@ export default function AuthReport() {
   // underscore keeps noUnusedLocals satisfied.
   const [, setHasMore] = useState(true);
   const [selectedReports, setSelectedReports] = useState<string[]>([]);
+  // True while a bulk verify/reject loop is in flight — the action bar's
+  // buttons go busy so a double-click can't fire the batch twice.
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<(typeof STATUS_TABS)[number]>("pending");
@@ -100,6 +103,43 @@ export default function AuthReport() {
     }
   };
 
+  // Bulk verify/reject: the same PATCH each card's single-action buttons use
+  // (no new backend surface), run sequentially because a verify triggers a
+  // server-side YOLO analysis per report — one at a time keeps the ML worker
+  // from taking a burst. Partial failures stay selected so they can be
+  // retried; successes are removed from the list like single actions do.
+  const handleBulkStatus = async (newStatus: "verified" | "rejected") => {
+    if (isBulkUpdating || selectedReports.length === 0) return;
+    setIsBulkUpdating(true);
+    const succeeded: string[] = [];
+    let failed = 0;
+    for (const reportId of selectedReports) {
+      try {
+        await api.patch(`/reports/${reportId}/status?status=${newStatus}`);
+        succeeded.push(reportId);
+      } catch {
+        failed += 1;
+      }
+    }
+    if (succeeded.length > 0) {
+      setReports((prev) => prev.filter((r) => !succeeded.includes(r.report_id)));
+      setSelectedReports((prev) => prev.filter((id) => !succeeded.includes(id)));
+      toast.success(
+        `${succeeded.length} report${succeeded.length === 1 ? "" : "s"} ${newStatus}`,
+      );
+    }
+    if (failed > 0) {
+      toast.error(
+        `${failed} update${failed === 1 ? "" : "s"} failed — still selected, try again`,
+      );
+    }
+    setIsBulkUpdating(false);
+  };
+
+  // Verify/reject only make sense for pending reports — the list is filtered
+  // client-side by the active tab, so everything selected shares its status.
+  const showBulkStatusActions = filter === "pending" && selectedReports.length > 0;
+
   const handleSelectReport = (report_id: string) => {
     setSelectedReports((prev) => (prev.includes(report_id) ? prev.filter((id) => id !== report_id) : [...prev, report_id]));
   };
@@ -114,6 +154,13 @@ export default function AuthReport() {
         <div className="text-left">
           <h3 className="text-3xl font-black text-[#005D90] tracking-tight">Community Submissions</h3>
           <p className="text-slate-500 text-sm font-medium">Verify or reject reports from the field</p>
+          {/* Contextual help at the decision point: verification is the
+              action with real-world consequences on this page. */}
+          {filter === "pending" ? (
+            <p className="text-xs text-slate-400 mt-1">
+              Verifying runs AI analysis on the photo and publishes the report to the public feed.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -156,7 +203,7 @@ export default function AuthReport() {
         // real content arrives.
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" role="status" aria-label="Loading reports">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-[#fcfcfc] rounded-[2.5rem] border border-slate-100 p-6" aria-hidden="true">
+            <div key={i} className="bg-[#fcfcfc] rounded-3xl border border-slate-100 p-6" aria-hidden="true">
               <div className="flex items-center justify-between mb-5">
                 <div className="h-4 w-28 rounded bg-slate-100 animate-pulse motion-reduce:animate-none" />
                 <div className="h-6 w-20 rounded-full bg-slate-100 animate-pulse motion-reduce:animate-none" />
@@ -180,7 +227,7 @@ export default function AuthReport() {
               return (
                 <div
                   key={report.report_id}
-                  className="bg-[#fcfcfc] rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-lg transition-[box-shadow] duration-200 ease-out p-6 flex flex-col justify-between gap-5 text-left motion-reduce:transition-none"
+                  className="bg-[#fcfcfc] rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-[box-shadow] duration-200 ease-out p-6 flex flex-col justify-between gap-5 text-left motion-reduce:transition-none"
                 >
                   <div className="flex flex-col gap-5">
                     {/* Card header: identity + status, the two things an admin scans first */}
@@ -272,14 +319,16 @@ export default function AuthReport() {
                       <button
                         type="button"
                         onClick={() => handleUpdateStatus(report.report_id, "verified")}
-                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-[#005D90] hover:bg-[#004C77] text-white text-[11px] font-black uppercase tracking-widest transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+                        disabled={isBulkUpdating}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-[#005D90] hover:bg-[#004C77] text-white text-[11px] font-black uppercase tracking-widest transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-wait disabled:active:scale-100 focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
                       >
                         <CheckCircle size={14} strokeWidth={2.5} aria-hidden="true" /> Verify
                       </button>
                       <button
                         type="button"
                         onClick={() => handleUpdateStatus(report.report_id, "rejected")}
-                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-black uppercase tracking-widest transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] cursor-pointer focus-visible:outline-2 focus-visible:outline-red-600 focus-visible:outline-offset-2 motion-reduce:transition-none"
+                        disabled={isBulkUpdating}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-black uppercase tracking-widest transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-wait disabled:active:scale-100 focus-visible:outline-2 focus-visible:outline-red-600 focus-visible:outline-offset-2 motion-reduce:transition-none"
                       >
                         <XCircle size={14} strokeWidth={2.5} aria-hidden="true" /> Reject
                       </button>
@@ -297,14 +346,35 @@ export default function AuthReport() {
           ) : null}
 
           {selectedReports.length > 0 ? (
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-full shadow-2xl z-50 flex items-center gap-6 opacity-100 translate-y-0 transition-[opacity,transform] duration-200 ease-out starting:opacity-0 starting:translate-y-4 motion-reduce:transition-none">
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-full shadow-2xl z-50 flex flex-wrap items-center justify-center gap-3 sm:gap-6 max-w-[calc(100vw-2rem)] opacity-100 translate-y-0 transition-[opacity,transform] duration-200 ease-out starting:opacity-0 starting:translate-y-4 motion-reduce:transition-none">
               <span className="text-sm font-bold tabular-nums" aria-live="polite">
                 {selectedReports.length} selected
               </span>
+              {showBulkStatusActions ? (
+                <button
+                  type="button"
+                  onClick={() => handleBulkStatus("verified")}
+                  disabled={isBulkUpdating}
+                  className="bg-[#005D90] hover:bg-[#004C77] px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-colors duration-150 ease-out active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 motion-reduce:transition-none"
+                >
+                  Verify selected
+                </button>
+              ) : null}
+              {showBulkStatusActions ? (
+                <button
+                  type="button"
+                  onClick={() => handleBulkStatus("rejected")}
+                  disabled={isBulkUpdating}
+                  className="bg-red-600/90 hover:bg-red-600 px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-colors duration-150 ease-out active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 motion-reduce:transition-none"
+                >
+                  Reject selected
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={handleBulkDelete}
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-colors duration-150 ease-out active:scale-[0.97] cursor-pointer focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 motion-reduce:transition-none"
+                disabled={isBulkUpdating}
+                className="border border-white/30 hover:bg-red-700 px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-colors duration-150 ease-out active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 motion-reduce:transition-none"
               >
                 Delete permanently
               </button>
@@ -314,7 +384,7 @@ export default function AuthReport() {
       )}
 
       {!loading && reports.length === 0 ? (
-        <div className="text-center py-16 px-8 bg-[#fcfcfc] rounded-[2.5rem] border-2 border-dashed border-slate-200">
+        <div className="text-center py-16 px-8 bg-[#fcfcfc] rounded-3xl border-2 border-dashed border-slate-200">
           <Inbox className="mx-auto text-slate-300 mb-3" size={32} aria-hidden="true" />
           <p className="font-bold text-slate-500">No {TAB_LABELS[filter].toLowerCase()} reports</p>
           <p className="text-sm text-slate-400 mt-1">

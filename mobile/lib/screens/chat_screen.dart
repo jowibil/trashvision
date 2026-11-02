@@ -4,6 +4,7 @@ import '../config/theme.dart';
 import '../services/api_client.dart' show logAndReport, userMessage;
 import '../services/chat_service.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/chat_markdown.dart';
 
 /// Mobile chat screen (brief Task 4, mobile half): CCia with the same
 /// backend endpoint the web widget uses. Simple by design — message list,
@@ -159,14 +160,24 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           border: isUser ? null : Border.all(color: Colors.grey.shade300, width: 1),
         ),
-        child: Text(
-          turn.text,
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.45,
-            color: isUser ? Colors.white : const Color(0xFF334155),
-          ),
-        ),
+        child: isUser
+            // User text is exactly what they typed — never re-interpreted as
+            // Markdown (feature not bug: nobody wants their asterisks styled).
+            ? Text(
+                turn.text,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: Colors.white,
+                ),
+              )
+            // Model replies are Markdown (same strings the web widget
+            // renders with react-markdown) — no dependency for the subset
+            // the model emits; see chat_markdown.dart.
+            : ChatMarkdownText(
+                text: turn.text,
+                baseStyle: TextStyle(fontSize: 13, height: 1.45, color: inkDeep),
+              ),
       ),
     );
   }
@@ -207,7 +218,7 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF2F2),
+          color: dangerSoft,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.red.shade200),
         ),
@@ -243,7 +254,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   hintText: _sending ? 'Waiting for a reply…' : 'Type a message…',
                   hintStyle: TextStyle(fontSize: 13, color: inkMuted),
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
+                  fillColor: surfaceLight,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   border: OutlineInputBorder(

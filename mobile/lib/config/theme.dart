@@ -11,6 +11,34 @@ const Color ink = Color(0xFF0f172a);
 const Color inkMuted = Color(0xFF64748b);
 const Color inkFaint = Color(0xFF94a3b8);
 
+// ─── Extended ink scale (Tailwind slate family, web parity) ───────────────────
+// The screens read these instead of re-declaring slate hexes; values match the
+// Tailwind palette used by the web portal so both surfaces stay in step.
+
+const Color inkDeep = Color(0xFF334155); // slate-700
+const Color inkStrong = Color(0xFF475569); // slate-600
+const Color inkDisabled = Color(0xFFCBD5E1); // slate-300
+
+// ─── Surface scale (Tailwind slate family, web parity) ────────────────
+
+const Color surfaceLight = Color(0xFFF8FAFC); // slate-50, softest panels
+const Color surfaceBody = Color(0xFFF1F5F9); // slate-100, cards/dividers
+const Color surfaceBorder = Color(0xFFE2E8F0); // slate-200, hairline borders
+
+// ─── Semantic / status colors (shared with the web palette) ───────────────
+// Severity values mirror `severityScale` below; the standalone consts exist so
+// non-map UI (badges, progress, alerts) can pull a named token instead of a
+// raw hex. Keep values in lockstep with the scale lists.
+
+const Color lowGreen = Color(0xFF22c55e); // severity Low
+const Color midYellow = Color(0xFFeab308); // severity Mid
+const Color highOrange = Color(0xFFea580c); // severity High
+const Color critRed = Color(0xFFb91c1c); // severity Critical
+const Color warningAmber = Color(0xFFb45309); // offline / degraded accents
+const Color successGreen = Color(0xFF2E7D32); // verified / success states
+const Color dangerSoft = Color(0xFFFEF2F2); // danger tint background (red-50)
+const Color alertRed = Color(0xFFEF4444); // strong alert + image marker red
+
 // ─── Motion language ─────────────────────────────────────────────────────────
 // One curve + duration for the map's floating chrome so every surface moves
 // with the same physical weight. Transform/opacity only — never layout props.
@@ -140,10 +168,10 @@ const List<SeverityLevel> severityScale = [
 ];
 
 Color getDensityColor(int count) {
-  if (count > 10) return const Color(0xFFb91c1c);
-  if (count > 5) return const Color(0xFFea580c);
-  if (count > 2) return const Color(0xFFeab308);
-  return const Color(0xFF22c55e);
+  if (count > 10) return critRed;
+  if (count > 5) return highOrange;
+  if (count > 2) return midYellow;
+  return lowGreen;
 }
 
 String getDensityLabel(int count) {

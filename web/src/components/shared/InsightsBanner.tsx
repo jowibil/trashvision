@@ -113,7 +113,7 @@ export default function InsightsBanner() {
   return (
     <section
       aria-label="Critical area alerts"
-      className="rounded-2xl border border-zinc-900/10 bg-[#fcfcfc] shadow-xs overflow-hidden"
+      className="rounded-2xl border border-zinc-900/10 bg-[#fcfcfc] shadow-sm overflow-hidden"
     >
       <header className="flex items-center gap-2 px-4 sm:px-6 py-3 border-b border-slate-100">
         <ShieldAlert size={16} className="text-[#005D90]" aria-hidden="true" />

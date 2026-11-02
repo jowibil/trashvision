@@ -43,14 +43,14 @@ class BoundingBoxPainter extends CustomPainter {
 
       // Draw outer box border
       final paint = Paint()
-        ..color = const Color(0xFFEF4444)
+        ..color = alertRed
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
       canvas.drawRect(rect, paint);
 
       // Draw inner target shaded layout tint region
       final fillPaint = Paint()
-        ..color = const Color(0xFFEF4444).withValues(alpha: 0.1)
+        ..color = alertRed.withValues(alpha: 0.1)
         ..style = PaintingStyle.fill;
       canvas.drawRect(rect, fillPaint);
 
@@ -62,7 +62,7 @@ class BoundingBoxPainter extends CustomPainter {
             color: Colors.white,
             fontSize: 8,
             fontWeight: FontWeight.bold,
-            backgroundColor: Color(0xFFEF4444),
+            backgroundColor: alertRed,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -198,7 +198,7 @@ class _ImageDetailDialogState extends State<ImageDetailDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: ink,
       contentPadding: EdgeInsets.zero,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

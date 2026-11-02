@@ -73,6 +73,11 @@ export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
   }, [loading, navigate]);
 
   const goHome = useCallback(() => {
+    // Token hygiene now matches handleLogout: a stale/invalid token used to
+    // survive the trip home and could make the landing page read a user as
+    // logged-in with dead credentials. "Back to Home" closes the portal
+    // session on this device — signing in again is one tap away.
+    localStorage.removeItem("token");
     localStorage.removeItem("user_name");
     sessionStorage.clear();
     navigate("/", { replace: true });
@@ -146,10 +151,10 @@ export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
             end={item.end ?? false}
             onClick={() => onNavigate?.()}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white hover:shadow-sm ${
+              `flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white hover:shadow-sm ${
                 isActive
-                  ? "bg-white/50 shadow-xl text-blue-600 border-r-4 border-blue-500"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white shadow-sm text-[#005D90] font-semibold"
+                  : "text-slate-600 font-medium hover:text-slate-900"
               } ${isCollapsed ? "justify-center px-2" : ""}`
             }
             title={isCollapsed ? item.name : ""}
@@ -168,8 +173,7 @@ export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
               onNavigate?.();
               handleLogout();
             }}
-            disabled={loading}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all disabled:opacity-50 ${
+            disabled={loading}                                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-700 transition-all disabled:opacity-50 ${
               isCollapsed ? "justify-center px-2" : ""
             }`}
             title={isCollapsed ? "Logout" : ""}
@@ -183,8 +187,7 @@ export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
             onClick={() => {
               onNavigate?.();
               goHome();
-            }}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all ${
+            }}                                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition-all ${
               isCollapsed ? "justify-center px-2" : ""
             }`}
             title={isCollapsed ? "Back to Home" : ""}

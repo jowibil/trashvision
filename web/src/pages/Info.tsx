@@ -154,7 +154,7 @@ export default function Info() {
             <li key={step.title}>
               <a
                 href={step.href}
-                className="block h-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-xs hover:border-[#005D90]/40 hover:shadow-sm transition"
+                className="block h-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-[#005D90]/40 hover:shadow-sm transition"
               >
                 <span
                   className="flex h-7 w-7 items-center justify-center rounded-full bg-[#005D90] text-xs font-bold text-white"
@@ -181,7 +181,7 @@ export default function Info() {
           The model, and what it did <em>not</em> learn from
         </SectionHeading>
 
-        <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-xs text-left">
+        <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-sm text-left">
           <div className="grid md:grid-cols-[1fr_auto] divide-y md:divide-y-0 md:divide-x divide-slate-200">
             <div className="p-6 md:p-8 flex flex-col items-start">
               <div className="flex items-center gap-2.5">
@@ -263,7 +263,7 @@ export default function Info() {
         {/* Which data feeds which number (from the code: reports are stored
             and counted here only — the map, alerts and assistant all read
             from the detections pipeline). */}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 md:p-8 text-left">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm p-6 md:p-8 text-left">
           <p className="text-sm font-bold text-slate-900">Which data feeds which number</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
@@ -319,8 +319,7 @@ export default function Info() {
                 1
               </span>
               <span
-                className="w-px flex-1 my-1"
-                style={{ backgroundColor: "rgba(0, 93, 144, 0.25)" }}
+                className="w-px flex-1 my-1 bg-[#005D90]/25"
                 aria-hidden="true"
               />
             </div>
@@ -408,7 +407,7 @@ export default function Info() {
         <SectionHeading id="cci-heading">
           What the map colors mean: the Clean Coast Index
         </SectionHeading>
-        <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-xs p-6 md:p-8 text-left">
+        <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-sm p-6 md:p-8 text-left">
           <div className="space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
             <p>
               Each surveyed area is covered by an adaptive hex grid — cell size
@@ -479,7 +478,7 @@ export default function Info() {
           each one; the cards below give each ruler&apos;s bands.
         </p>
 
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 overflow-x-auto">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm p-6 overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
             <thead>
               <tr className="text-slate-500">
@@ -513,7 +512,7 @@ export default function Info() {
 
         <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Ruler 1: alerts (thresholds served by the API) */}
-          <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-xs">
+          <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-sm">
             <header className="flex items-center gap-2.5 px-5 pt-5 pb-3">
               <AlertTriangle size={16} className="text-[#005D90]" aria-hidden="true" />
               <h3 className="text-sm font-bold text-slate-800">Alerts, badges, chatbot</h3>
@@ -567,7 +566,7 @@ export default function Info() {
           {/* Ruler 2: the maps — both platforms run the same CCI ruler
               (web: useHexbins classifyCci/getCciColor; phone: theme.dart
               getCciColor/getCciLabel — same thresholds, same colors). */}
-          <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-xs">
+          <div className="rounded-2xl border border-zinc-900/10 bg-white shadow-sm">
             <header className="flex items-center gap-2.5 px-5 pt-5 pb-3">
               <MapIcon size={16} className="text-[#005D90]" aria-hidden="true" />
               <h3 className="text-sm font-bold text-slate-800">Web &amp; phone map hexagons</h3>
@@ -613,7 +612,7 @@ export default function Info() {
 
         {/* Reconciliation — every number here is runnable arithmetic on the
             real formula and served thresholds. */}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-xs p-6 md:p-8 text-justify">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm p-6 md:p-8 text-justify">
           <h3 className="text-sm font-bold text-slate-800">
             Why a Critical alert can sit on a calm-looking map
           </h3>

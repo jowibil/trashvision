@@ -27,17 +27,19 @@ class ChatTurn(BaseModel):
         return v
 
 class Chat(BaseModel):
-    # SECURITY: must be a real UUID. The old server-side session store keyed
-    # on arbitrary client strings; requiring a UUID (as the web client
-    # already sends via crypto.randomUUID()) prevents arbitrary-key abuse.
+    # Must be a real UUID. An older server-side session store accepted
+    # arbitrary client strings; validating a UUID (the web client already
+    # generates one with crypto.randomUUID()) keeps that key from being
+    # abused.
     conversation_id: str
 
-    # SECURITY: cap input so one request can't burn unbounded Gemini tokens.
-    # ~1000 chars comfortably fits the assistant's 2–5 sentence persona.
+    # Caps the message length — one request can't make the Gemini call
+    # as large as it likes. 1000 chars comfortably fits the assistant's
+    # 2–5 sentence style.
     message: str = Field(max_length=1000)
 
-    # Stateless conversation context: client sends the last few turns; the
-    # backend keeps NO chat session memory.
+    # Conversation context the client sends along (the server keeps NO
+    # chat memory).
     history: list[ChatTurn] = Field(default_factory=list, max_length=MAX_HISTORY_TURNS)
 
     @field_validator("conversation_id")

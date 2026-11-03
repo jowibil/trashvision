@@ -8,30 +8,30 @@ from services.gemini_services import get_chat_reply
 
 router = APIRouter()
 
-# SECURITY (chatbot safeguard pass):
-#  1. Rate-limited 10/minute per IP — every call costs Gemini credits. This is
-#     the budget guard (the edge-layer option is DEFERRED until an owned
-#     domain exists — see docs/cloudflare-chat-edge-rule.md). The limiter key
-#     prefers CF-Connecting-IP so per-IP buckets would survive a future
-#     Cloudflare-proxied api. domain (dependency.py).
-#  2. PUBLIC access (product decision 2026-11: the web portal is admins plus
-#     anonymous guests, and login is deliberately hidden — there is no visible
-#     sign-in surface to send guests to). Chat runs under require_public()
-#     like every other anonymous-browsable read:
-#       - no token -> anonymous chat allowed;
-#       - valid token -> unchanged;
-#       - expired/invalid token -> 401, same as before.
-#     Anonymity leaks nothing here: the endpoint is statelessly read-only —
-#     no writes tied to identity (point 3) and replies are built from public
-#     aggregate stats, never per-user data. The limiter above is what stops
-#     anonymous traffic from driving the Gemini bill.
-#  3. Fully STATELESS: the client sends conversation_id + rolling history; the
-#     backend keeps no session store. This removes the old unbounded
-#     in-memory dict (memory-exhaustion DoS + cross-user session hijack by
-#     guessing conversation UUIDs).
-#  4. Input bounds (UUID id, 1000-char message, <=8 history turns) live in
-#     models/chat_schema.py so malformed requests are rejected by pydantic
-#     with 422 before any expensive work happens.
+# How /chat is protected:
+#
+# 1. Cost control. Every reply costs a Gemini API call, so requests are
+#    capped at 10 per minute per IP (the key logic lives in
+#    dependency.py). A stronger Cloudflare edge rule has been designed
+#    but is not switched on yet — docs/cloudflare-chat-edge-rule.md
+#    holds the full plan.
+# 2. Open to guests. The web portal serves admins plus anonymous visitors
+#    (login is hidden on purpose), so the chatbot guards itself with
+#    require_public(), same as the other public read endpoints:
+#      no token       -> anonymous chat is fine
+#      valid token    -> works as normal
+#      expired token  -> 401, same as any stale session
+#    Open access leaks nothing here: the endpoint stores nothing, writes
+#    nothing by identity, and builds replies from public aggregates only.
+#    The rate limit is what stops anonymous traffic from running up the
+#    API bill.
+# 3. No server memory. The client sends the conversation id and its
+#    recent history with every request; the backend keeps no session
+#    store. This retired the old in-memory dict, which could be flooded
+#    with sessions and had guessable ids.
+# 4. Inputs are validated in models/chat_schema.py (real UUID id,
+#    1000-character message, at most 8 history turns), so malformed
+#    requests die with a 422 before anything expensive runs.
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)

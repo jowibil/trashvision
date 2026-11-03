@@ -15,7 +15,7 @@ import { useAreaHexbins, type SectorDetection } from "../services/hooks/useAreaH
 import { useReports } from "../services/hooks/useReports";
 import { useMapControl } from "../services/hooks/useMapControl";
 import { fuzzyScore } from "../services/fuzzySearch";
-import { Calendar } from "lucide-react";
+import { Calendar, Search } from "lucide-react";
 import { X } from "lucide-react";
 import { RefreshCcw as RefreshCw} from "lucide-react";
 import { Maximize2 } from "lucide-react";
@@ -564,9 +564,91 @@ export default function Maps() {
         </div>
       </header>
 
-      <main className="flex flex-1 overflow-hidden relative">
+      {/* TOP BAR — Location header + area search (left), live stats (right).
+          Content moved up from the footer Location card, which became just
+          the CCI legend. Same state/ref/handlers; dropdown opens downward. */}
+      <div className="w-full px-4 pt-3 sm:pt-4 pb-1 flex flex-wrap md:flex-nowrap md:items-end md:justify-between gap-x-4 gap-y-2 tv-rise-in">
+        <div className="w-full max-w-md">
+          <div className="flex items-center gap-2 mb-1.5">
+            <h2 className="text-xs font-black text-slate-700 uppercase tracking-widest">
+              Location
+            </h2>
+            <p className="text-xs font-bold text-[#005D90] truncate">
+              {currentArea?.area_name || "Select Area"}
+            </p>
+          </div>
+          <div className="relative" ref={searchRef}>
+          <div
+            className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400"
+            aria-hidden="true"
+          >
+            <Search size={14} />
+          </div>
+          <input
+            type="text"
+            placeholder="Search area..."
+            aria-label="Search areas"
+            value={searchQuery}
+            onFocus={() => setIsOpen(true)}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white text-slate-700 text-xs p-2.5 pl-9 rounded-full border border-slate-300 shadow-sm hover:border-slate-400 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#005D90] placeholder:text-slate-400 motion-reduce:transition-none"
+          />
+          {isOpen && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-[#fcfcfc] rounded-xl shadow-2xl border border-slate-200 max-h-48 overflow-y-auto z-2000 text-left">
+              {filteredAreas.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-slate-400 text-center">
+                  No areas found
+                </div>
+              ) : (
+                filteredAreas.map((area) => (
+                  <button
+                    key={area.area_id}
+                    onClick={() => handleAreaSelect(area)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b last:border-0"
+                  >
+                    <p className="text-xs font-bold text-slate-800">
+                      {area.area_name}
+                    </p>
+                    <p className="text-[8px] text-slate-400 uppercase">
+                      {area.category}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          </div>
+        </div>
+
+        {/* Live stats, lifted verbatim from the footer card: detection count
+            + polygon size, then the CCI number colored by severity band. */}
+        {/* Two labeled stat cells; hairline divider between them on md+. */}
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-1 pt-2 md:pt-0">
+          <div className="min-w-0 whitespace-nowrap">
+            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
+              Detections · Coverage
+            </p>
+            <p className="text-xs font-bold text-slate-700 uppercase tracking-wide tabular-nums">
+              {areaStatus.primary ?? areaStatus.label}
+            </p>
+          </div>
+          <div className="min-w-0 whitespace-nowrap md:border-l md:border-slate-200 md:pl-4">
+            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
+              Clean Coast Index
+            </p>
+            <p
+              className="text-xs font-bold uppercase tracking-wide tabular-nums"
+              style={{ color: areaStatus.color }}
+            >
+              {areaStatus.secondary ?? `● ${areaStatus.label}`}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <main className="flex flex-1 overflow-hidden relative mt-1.5 px-1.5">
         <div
-          className={`relative h-137.5 flex-1 m-2 sm:m-4 rounded-3xl overflow-hidden border-2 sm:border-4 border-[#005D90] transition-all duration-300 shadow-inner ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
+          className={`relative h-full flex-1 min-h-[320px] m-2 sm:m-4 rounded-2xl overflow-hidden border border-slate-200 transition-all duration-300 shadow-lg shadow-slate-900/10 ${drawerOpen ? "mr-0 rounded-r-none border-r-0" : ""}`}
         >
           <MapContainer
             ref={setMap}
@@ -765,70 +847,9 @@ export default function Maps() {
         />
       </main>
 
-      {/* FOOTER LEGEND MATRIX — stacks vertically below lg: two side-by-side
-          cards don't fit a Mobile-S viewport and squish the CCI legend. */}
-      <footer className="flex flex-col lg:flex-row justify-between items-stretch gap-4 p-2 sm:p-4 w-full z-1003">
-        <div className="bg-[#005D90] p-3 sm:p-4 rounded-2xl lg:flex-[1.5] relative">
-          <div className="flex items-center justify-between mb-2 border-b border-blue-400/30 pb-2">
-            <div className="flex items-center gap-3">
-              <h3 className="text-xs font-black text-blue-200 uppercase tracking-widest">
-                {" "}
-                Location
-              </h3>
-              <p className="text-xs font-bold text-white uppercase truncate max-w-50">
-                {currentArea?.area_name || "Select Area"}
-              </p>
-            </div>
-            <div className="text-right leading-tight">
-              <p className="text-xs font-bold text-white uppercase tracking-wide tabular-nums">
-                {areaStatus.primary ?? areaStatus.label}
-              </p>
-              <p
-                className="text-[10px] font-bold uppercase tracking-wide tabular-nums"
-                style={{ color: areaStatus.color }}
-              >
-                {areaStatus.secondary ?? `● ${areaStatus.label}`}
-              </p>
-            </div>
-          </div>
-          <div className="relative" ref={searchRef}>
-            <input
-              type="text"
-              placeholder="Search area..."
-              aria-label="Search areas"
-              value={searchQuery}
-              onFocus={() => setIsOpen(true)}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-blue-900/40 text-white text-xs p-2.5 rounded-xl border border-blue-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 placeholder:text-white/80"
-            />
-            {isOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#fcfcfc] rounded-xl shadow-2xl border border-slate-200 max-h-48 overflow-y-auto z-2000 text-left">
-                {filteredAreas.length === 0 ? (
-                  <div className="px-4 py-3 text-xs text-slate-400 text-center">
-                    No areas found
-                  </div>
-                ) : (
-                  filteredAreas.map((area) => (
-                    <button
-                      key={area.area_id}
-                      onClick={() => handleAreaSelect(area)}
-                      className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b last:border-0"
-                    >
-                      <p className="text-xs font-bold text-slate-800">
-                        {area.area_name}
-                      </p>
-                      <p className="text-[8px] text-slate-400 uppercase">
-                        {area.category}
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-[#fcfcfc] border border-slate-200 p-3 sm:p-4 rounded-2xl shadow-sm lg:flex-2 flex flex-wrap items-center justify-center sm:justify-evenly gap-x-6 gap-y-2">
+      {/* FOOTER — CCI legend only; Location info now lives in the top bar. */}
+      <footer className="flex flex-col lg:flex-row justify-between items-stretch gap-4 px-2 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-4 w-full z-1003">
+        <div className="bg-[#fcfcfc] border border-slate-200 p-3 sm:p-4 rounded-2xl shadow-sm lg:flex-1 flex flex-wrap items-center justify-center sm:justify-evenly gap-x-6 gap-y-2">
           <div className="text-center sm:text-left">
             <h3 className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-widest mb-1">
               Clean Coast Index

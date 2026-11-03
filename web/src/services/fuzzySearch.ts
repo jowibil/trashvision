@@ -1,15 +1,20 @@
 /**
- * Typo-tolerant matching for small in-memory lists (MapView area search).
+ * Typo-tolerant matching for small, in-memory lists (MapView area search).
  *
- * Plain substring matching returns nothing on a single typo ("bali costline"
- * vs "bali coastline"), which reads as a broken feature. This helper scores
- * candidates instead: exact > word-prefix > substring > bounded edit distance,
- * with every query token required to hit somewhere (AND semantics). A score of
- * 0 means no match; callers drop those and usually sort the rest best-first.
+ * Plain substring search scores nothing on a single typo ("bali costline"
+ * vs "bali coastline"), which feels like a broken feature. Instead, each
+ * candidate gets a score:
  *
- * Dependency-free and O(tokens × words) with a bounded-distance DP, so it's
- * fine for the handful of area names a user can draw. Same scoring rules as
- * backend/services/fuzzy_search.py — keep the two in lockstep.
+ *   exact word > word prefix > substring > edit distance within a budget
+ *
+ * every word of the query must hit somewhere in the text (AND semantics).
+ * A score of 0 means no match; callers drop those and sort the rest best
+ * first.
+ *
+ * No dependencies; one pass of O(query words × text words) with a bounded
+ * edit-distance walk is plenty for the handful of area names a user can
+ * draw. This mirrors backend/services/fuzzy_search.py — keep the two in
+ * lockstep.
  */
 
 /** Normalize + tokenize: diacritics stripped, camelCase/snake_case split,
@@ -45,8 +50,8 @@ function editDistanceWithin(a: string, b: string, budget: number): number | null
     if (rowMin > budget) return null;
     prev = row;
   }
-  // Early abort only catches rows whose min is over budget; verify the final
-  // cell too (keep in lockstep with backend fuzzy_search.py).
+  // Early abort only catches rows whose minimum is already over budget;
+  // re-verify the final cell too (mirrors backend fuzzy_search.py).
   return prev[b.length] <= budget ? prev[b.length] : null;
 }
 
@@ -60,11 +65,10 @@ function tokenScore(queryToken: string, targetToken: string): number {
   if (targetToken.includes(queryToken)) return 0.9;
   let budget = queryToken.length <= 4 ? 1 : queryToken.length <= 8 ? 2 : 3;
   if (targetToken.length > queryToken.length) {
-    // Truncated-tail tolerance: a query cut short while typing shouldn't
-    // miss ("packg" → "packaging"); widen only up to the missing tail,
-    // capped at 4, and ONLY when the tokens share a near-full common prefix
-    // ("glass" vs "plastic" shares none, so it stays a non-match).
-    // Keep in lockstep with backend fuzzy_search.py.
+    // Tolerance for a query cut short mid-typing ("packg" → "packaging"):
+    // widen the budget up to the missing tail (capped at 4), but only when
+    // the tokens share a near-full common prefix — "glass" vs "plastic"
+    // shares none, so it stays a non-match. Mirrors backend fuzzy_search.py.
     let prefix = 0;
     while (
       prefix < queryToken.length &&

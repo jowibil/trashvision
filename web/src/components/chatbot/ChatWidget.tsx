@@ -36,8 +36,15 @@ export default function ChatWidget() {
     setIsOpen(true);
   };
 
+  // The wrapper keeps the OPEN panel's width in the layout even when the
+  // chat is collapsed (grid-row 0fr + overflow:hidden hides it visually, but
+  // its box still spans ~380px) — a fixed bottom-right strip that swallowed
+  // clicks on anything beneath it (TrashLogs' pager sat exactly there,
+  // making the page arrows feel "stuck"). pointer-events-none on the
+  // wrapper + pointer-events-auto on each interactive child restores that
+  // area to the page; the widget's own surfaces stay tappable.
   return (
-    <div className="fixed bottom-6 right-6 z-1100 flex flex-col items-end">
+    <div className="fixed bottom-6 right-6 z-1100 flex flex-col items-end pointer-events-none">
 
       {/* aria-hidden keeps the collapsed panel out of the tab order. */}
       <div className="chat-panel mb-4" data-open={isOpen} aria-hidden={!isOpen}>
@@ -46,8 +53,9 @@ export default function ChatWidget() {
               overflows narrow viewports (floating panel is right-anchored). */}
           <div
             role="dialog"
+            aria-hidden={!isOpen}
             aria-label="TrashVision Assistant chat"
-            className="flex h-[500px] w-[min(100vw-4rem,360px)] sm:w-[380px] flex-col overflow-hidden rounded-2xl border border-zinc-900/10 bg-[#fcfcfc] shadow-2xl"
+            className="flex h-[500px] w-[min(100vw-4rem,360px)] sm:w-[380px] flex-col overflow-hidden rounded-2xl border border-zinc-900/10 bg-[#fcfcfc] shadow-2xl pointer-events-auto"
           >
             <div className="flex items-center justify-between px-4 py-3.5 text-white bg-[#005D90]">
               <div className="flex items-center gap-2.5">
@@ -75,7 +83,7 @@ export default function ChatWidget() {
         type="button"
         ref={triggerRef}
         onClick={() => (isOpen ? closeWidget() : requestInputFocus())}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-[#005D90] text-white shadow-lg transition-[box-shadow,transform] duration-200 ease-out hover:shadow-xl active:scale-95 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+        className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#005D90] text-white shadow-lg transition-[box-shadow,transform] duration-200 ease-out hover:shadow-xl active:scale-95 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={isOpen ? "Close chatbot" : "Open chatbot"}

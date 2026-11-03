@@ -3,8 +3,7 @@ import { User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessageData } from "../../services/hooks/useChat";
 
-// Hoisted: same object reused for every bot-avatar render instead of a
-// fresh literal per message.
+// Defined at module scope so it isn't re-created for every message.
 const AVATAR_STYLE = { backgroundColor: "#005D90" };
 
 const MARKDOWN_COMPONENTS = {

@@ -15,6 +15,7 @@ import { LogOut } from "lucide-react";
 import { Home } from "lucide-react";
 import { Menu } from "lucide-react";
 import { ChevronsLeft } from "lucide-react";
+import { X } from "lucide-react";
 import { PenBoxIcon } from "lucide-react";
 
 import TVLogo from "@/assets/LOGO.png";
@@ -29,9 +30,9 @@ type MenuItem = {
   end?: boolean;
 };
 
-// Hoisted to module scope: this array never depends on component state or
-// props, so building it once avoids re-allocating 8 JSX elements + objects
-// on every render.
+// The menu never depends on component state or props, so it is built once
+// at module scope instead of reallocating its JSX elements and objects on
+// every render.
 const MENU_ITEMS: MenuItem[] = [
   { name: "Dashboard", path: "/portal", icon: <LayoutDashboard size={20} />, minRole: ROLES.GUEST, end: true },
   { name: "Map View", path: "/portal/map", icon: <MapIcon size={20} />, minRole: ROLES.GUEST },
@@ -52,9 +53,19 @@ interface SidebarProps {
   className?: string;
   /** Called after any drawer nav action so AppLayout can close the overlay. */
   onNavigate?: () => void;
+  /** "drawer" = off-canvas overlay copy (below md): the header close button
+   * dismisses the overlay outright there, since the desktop collapse-to-rail
+   * state is useless on a phone (it doesn't even persist across drawer
+   * reopens — the instance unmounts). Default "permanent" keeps collapse. */
+  variant?: "permanent" | "drawer";
 }
 
-export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
+export default function Sidebar({
+  className = "",
+  onNavigate,
+  variant = "permanent",
+}: SidebarProps) {
+  const isDrawer = variant === "drawer";
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -121,16 +132,17 @@ export default function Sidebar({ className = "", onNavigate }: SidebarProps) {
         {!isCollapsed ? (
           <button
             type="button"
-            onClick={toggleCollapsed}
-            className="p-2 hover:bg-white rounded-lg text-slate-500 transition-colors"
-            aria-label="Collapse sidebar"
+            onClick={isDrawer ? () => onNavigate?.() : toggleCollapsed}
+            className="p-2 hover:bg-white rounded-lg text-slate-500 transition-colors focus-visible:outline-2 focus-visible:outline-blue-500"
+            aria-label={isDrawer ? "Close navigation menu" : "Collapse sidebar"}
           >
-            <ChevronsLeft size={20} />
+            {isDrawer ? <X size={20} /> : <ChevronsLeft size={20} />}
           </button>
         ) : null}
       </div>
 
-      {isCollapsed ? (
+      {/* Permanent-only: mini-rail expand row; unreachable in the drawer. */}
+      {isCollapsed && !isDrawer ? (
         <div className="flex justify-center p-2 border-b border-slate-100">
           <button
             type="button"

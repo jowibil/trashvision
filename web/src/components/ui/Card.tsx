@@ -8,7 +8,7 @@ interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, "className"> {
   className?: string;
 }
 
-/** Hoisted so the map isn't rebuilt on every render. */
+/** Built once at module scope; nothing here changes between renders. */
 const PADDING_STYLES: Record<CardPadding, string> = {
   none: "",
   sm: "p-4",

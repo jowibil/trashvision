@@ -1,6 +1,6 @@
 import LOGO from "@/assets/LOGO_WORDS.png";
 
-// Hoisted: static nav config, doesn't depend on props/state.
+// Static footer links — defined once, outside the render.
 const FOOTER_LINKS = {
   Platform: ["Detection Engine", "Mapping Tools", "API Access"],
   Support: ["Help Center", "Documentation", "Contact Support"],

@@ -80,7 +80,7 @@ export default function AdminLayout() {
             aria-hidden="true"
           />
           <div className="absolute inset-y-0 left-0 shadow-2xl">
-            <Sidebar onNavigate={() => setMobileNavOpen(false)} />
+            <Sidebar variant="drawer" onNavigate={() => setMobileNavOpen(false)} />
           </div>
         </div>
       ) : null}

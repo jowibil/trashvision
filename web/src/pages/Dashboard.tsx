@@ -7,8 +7,8 @@ import { useAreas } from "../services/hooks/useAreas";
 import type { Area } from "../services/hooks/useAreas";
 import type { DashboardStats } from "../types/types";
 
-// Hoisted: pure lookup data/functions that don't depend on component state
-// are moved to module scope so they aren't re-allocated on every render.
+// Data that never depends on component state lives at module scope so it
+// isn't rebuilt on every render.
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 type SeverityConfig = { bg: string; text: string };

@@ -2,6 +2,12 @@ from PIL import Image
 import piexif
 import re
 from datetime import date as _date
+from datetime import datetime
+
+# EXIF dates this old are clock-garbage (unset camera batteries etc.), not
+# real shutter times — treat them as "no timestamp" just like a malformed
+# date string would be.
+MIN_PLAUSIBLE_YEAR = 1990
 
 
 def extract_dimensions(image_path: str):
@@ -55,6 +61,62 @@ def extract_gps(image_path: str):
     except Exception as e:
         print(f"GPS extraction failed for {image_path}: {e}")
         return None, None
+
+
+def extract_capture_datetime(image_path: str) -> datetime | None:
+    """
+    EXIF shutter-release (capture) timestamp as a naive datetime — the
+    per-frame real time detections now inherit.
+
+    EXIF carries no timezone and drone camera clocks drift, so the value
+    is taken at face value (no offset applied). The flight date stays the
+    fallback whenever this returns None (re-encoded/EXIF-less frames),
+    which then shows as midnight in the UI — and is blanked there.
+
+    Preference order: DateTimeOriginal (actual shutter time) >
+    DateTimeDigitized > the 0th-directory file DateTime (upload/copy
+    timestamp, e.g. re-encoded frames). Returns None on any failure.
+    """
+    try:
+        with Image.open(image_path) as img:
+            exif_bytes = img.info.get('exif')
+            if not exif_bytes:
+                return None
+
+            exif_data = piexif.load(exif_bytes)
+            raw = (
+                exif_data.get('Exif', {}).get(piexif.ExifIFD.DateTimeOriginal)
+                or exif_data.get('Exif', {}).get(piexif.ExifIFD.DateTimeDigitized)
+                or exif_data.get('0th', {}).get(piexif.ImageIFD.DateTime)
+            )
+            if not raw:
+                return None
+
+            if isinstance(raw, bytes):
+                raw = raw.decode('ascii', errors='ignore')
+            raw = raw.strip().strip('[0\x00]').strip()
+
+            # EXIF spells datetimes "YYYY:MM:DD HH:MM[:SS]"; tolerate both
+            # colons and hyphens in the date part.
+            match = re.match(
+                r'(\d{4})[:-](\d{2})[:-](\d{2})[ T]?(\d{2}):?(\d{2})(?::(\d{2}))?',
+                raw,
+            )
+            if not match:
+                return None
+            y, m, d, hh, mm, ss = (
+                match.group(1), match.group(2), match.group(3),
+                match.group(4), match.group(5), match.group(6) or "0",
+            )
+
+            dt = datetime(int(y), int(m), int(d), int(hh), int(mm), int(ss))
+            if dt.year < MIN_PLAUSIBLE_YEAR:
+                return None
+            return dt
+
+    except Exception as e:
+        print(f"Capture-datetime extraction failed for {image_path}: {e}")
+        return None
 
 
 def extract_capture_date(image_path: str):

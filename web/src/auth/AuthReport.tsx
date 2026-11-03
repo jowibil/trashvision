@@ -9,7 +9,7 @@ import api from "../api/axios";
 import toast from "react-hot-toast";
 import type { Report } from "../services/hooks/useReports";
 
-// Hoisted: static tab config, previously a fresh array literal on every render.
+// Static tab config — defined once here, not rebuilt on every render.
 const STATUS_TABS = ["pending", "verified", "rejected"] as const;
 
 // UI-only lookup: the API needs the raw status value, humans read a label.

@@ -4,21 +4,21 @@ import { Send } from "lucide-react";
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
   isLoading: boolean;
-  // Bumped once per chat open so the panel's ref callback refocuses the
-  // input (mount-time focus, zero effect libraries).
+  // Bumped once per chat open; the panel re-keys on it, which re-runs the
+  // input's ref callback below and puts the cursor back in the box.
   focusTick?: number;
 }
 
-// Hoisted so the object literal isn't re-allocated on every render.
+// Defined at module scope so it isn't re-created on every render.
 const SEND_BUTTON_STYLE = { backgroundColor: "#005D90" };
 
 export default function ChatInput({ onSendMessage, isLoading, focusTick = 0 }: ChatInputProps) {
   const [input, setInput] = useState<string>("");
 
   const inputRef = useCallback((node: HTMLInputElement | null) => {
-    // Ref callback fires when the panel subtree mounts (per open, because the
-    // widget re-keys on focusTick) — focus lands in the box with zero effect
-    // libraries. Native DOM, cheapest tool per the animate skill's ladder.
+    // Fires when the input element mounts — once per chat open, since the
+    // widget re-keys on focusTick. Focusing inside a ref callback keeps this
+    // dependency-free (no useEffect, no focus-trap libraries).
     if (node) node.focus({ preventScroll: true });
   }, []);
 

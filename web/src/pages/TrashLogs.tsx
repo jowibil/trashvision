@@ -306,16 +306,23 @@ const LogRow = React.memo(
       // the old try/catch never fired. Check the timestamp instead.
       const d = new Date(log.timestamp);
       if (isNaN(d.getTime())) return null;
+      // Midnight = flight-date placeholder (frame had no EXIF capture time);
+      // show no Time cell rather than a fake 12:00 AM — same rule the Excel
+      // export applies.
+      const isMidnightPlaceholder =
+        d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
       return {
         date: d.toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
           year: "numeric",
         }),
-        time: d.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        time: isMidnightPlaceholder
+          ? ""
+          : d.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
       };
     }, [log.timestamp]);
 
@@ -323,12 +330,13 @@ const LogRow = React.memo(
 
     return (
       <tr
+        role="row"
         onClick={() => onSelect(log)}
         className={`group transition-colors cursor-pointer select-none hover:bg-slate-50/70 ${
           isSelected ? "bg-blue-50/70 hover:bg-blue-50" : ""
         }`}
       >
-        <td className="px-6 py-4 align-middle">
+        <td role="cell" className="px-6 py-4 align-middle">
           <p className="text-sm font-bold text-slate-800 tabular-nums whitespace-nowrap">
             {parsedDate?.date ?? "Unknown date"}
           </p>
@@ -339,7 +347,7 @@ const LogRow = React.memo(
             {parsedDate?.time ?? "--:--"}
           </p>
         </td>
-        <td className="px-6 py-4 align-middle">
+        <td role="cell" className="px-6 py-4 align-middle">
           <div className="flex items-center gap-2 font-medium text-xs text-slate-600">
             <MapPin
               size={13}
@@ -349,7 +357,7 @@ const LogRow = React.memo(
             <span className="truncate max-w-40">{areaName}</span>
           </div>
         </td>
-        <td className="px-6 py-4 align-middle">
+        <td role="cell" className="px-6 py-4 align-middle">
           <div className="flex items-center justify-center gap-2">
             <WasteIcon type={log.waste_type} />
             {(log.cluster_count ?? 0) > 1 && (
@@ -362,7 +370,7 @@ const LogRow = React.memo(
             )}
           </div>
         </td>
-        <td className="px-6 py-4 align-middle">
+        <td role="cell" className="px-6 py-4 align-middle">
           <div className="flex items-center gap-3">
             <div
               className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden shrink-0"
@@ -382,7 +390,7 @@ const LogRow = React.memo(
             </span>
           </div>
         </td>
-        <td className="px-6 py-4 align-middle text-right">
+        <td role="cell" className="px-6 py-4 align-middle text-right">
           {/* The single tab stop per row (the row itself is not focusable —
               aria-expanded isn't valid on a <tr> and nested tab stops made
               keyboard order confusing). aria-pressed mirrors the toggle. */}
@@ -421,6 +429,11 @@ const HistoricalTrashLogs: React.FC = () => {
 
   const [logs, setLogs] = useState<DetectionRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  // Scroll anchor for pagination: every row shows the same flight-date "Date"
+  // cell and the viewport stays parked at the footer after a click, so a new
+  // page otherwise looks identical to the last one. Moving the list back to
+  // its top is the feedback that paging actually did something.
+  const listTopRef = useRef<HTMLDivElement | null>(null);
   // Derived from the server's `total` so the pager can never disagree with it.
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -610,6 +623,19 @@ const HistoricalTrashLogs: React.FC = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeSelectedLog]);
 
+  // While the inspector is open on a phone (bottom sheet), the page behind
+  // it must not scroll-inside-the-sheet trick the body. Desktop's sticky
+  // column never locks (matchMedia gate).
+  useEffect(() => {
+    if (!activeSelectedLog) return;
+    if (!window.matchMedia("(max-width: 1023.98px)").matches) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [activeSelectedLog]);
+
   // Whole-ID clipboard copy for the inspector header: truncated IDs were
   // unreachable for support workflows. Error copy names the recovery (select
   // manually) when the clipboard API is unavailable (e.g. plain http://).
@@ -662,13 +688,39 @@ const HistoricalTrashLogs: React.FC = () => {
   const changePage = useCallback(
     (targetPage: number) => {
       if (targetPage >= 1 && targetPage <= totalPages) {
+        if (targetPage !== currentPage && listTopRef.current) {
+          listTopRef.current.scrollIntoView({
+            block: "start",
+            // Honor the user's reduced-motion preference instead of always
+            // gliding.
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+              .matches
+              ? "auto"
+              : "smooth",
+          });
+        }
         setCurrentPage(targetPage);
         // The inspector shouldn't keep showing a row that isn't in the table.
         setActiveSelectedLog(null);
       }
     },
-    [totalPages],
+    [totalPages, currentPage],
   );
+
+  // Jump-to-page input: type a page number and press Enter (or leave the
+  // field) to go straight there — the sliding window pager shows only 3
+  // buttons, so distant pages were otherwise 40+ Next clicks away.
+  const [jumpValue, setJumpValue] = useState<string>("1");
+  useEffect(() => {
+    setJumpValue(String(currentPage));
+  }, [currentPage]);
+  const handleJumpToPage = useCallback(() => {
+    const targetPage = parseInt(jumpValue, 10);
+    if (!Number.isFinite(targetPage)) return;
+    // Clamp instead of ignoring: typing "99" on a 42-page log jumps to 42,
+    // while an empty field commits to the current page (changePage guards).
+    changePage(Math.min(Math.max(targetPage, 1), totalPages));
+  }, [jumpValue, changePage, totalPages]);
 
   // Exports every row matching the active filters, all pages: same params as
   // the table (including q), capped at the backend's page-size maximum.
@@ -912,8 +964,8 @@ const HistoricalTrashLogs: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div ref={listTopRef} className="overflow-x-auto">
+            <table className="logs-table w-full text-left border-collapse">
               <thead className="bg-slate-50/70 border-b border-slate-100">
                 <tr>
                   <th
@@ -1016,7 +1068,7 @@ const HistoricalTrashLogs: React.FC = () => {
           </div>
 
           <div className="p-4 border-t border-slate-100 bg-slate-50/40 flex flex-col sm:flex-row gap-4 justify-between items-center font-bold text-xs text-slate-500">
-            <div className="tabular-nums">
+            <div className="flex items-center gap-3 tabular-nums">
               {totalRecords > 0 ? (
                 <>
                   Page{" "}
@@ -1031,6 +1083,32 @@ const HistoricalTrashLogs: React.FC = () => {
               ) : (
                 "No records"
               )}
+
+              {/* Jump-to-page lives beside the count, since the ellipsis-less
+                  3-button slider it complements never shows far pages. */}
+              {totalRecords > 0 && totalPages > 1 && (
+                <label className="flex items-center gap-1.5">
+                  <span>Jump to</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={jumpValue}
+                    onChange={(e) =>
+                      setJumpValue(e.target.value.replace(/[^\d]/g, ""))
+                    }
+                    onBlur={handleJumpToPage}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    aria-label="Go to page"
+                    placeholder={String(totalPages)}
+                    className="w-16 text-center px-1.5 py-1 border border-slate-200 bg-white rounded-lg text-[11px] font-black text-slate-700 focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed motion-reduce:transition-none"
+                    disabled={loadingLogs}
+                  />
+                </label>
+              )}
             </div>
 
             {/* Pager renders only once there is something to page through. */}
@@ -1038,9 +1116,11 @@ const HistoricalTrashLogs: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => changePage(currentPage - 1)}
-                  disabled={currentPage === 1 || loadingLogs}
+                  // Clickable even mid-load: the fetch effect's AbortController
+                  // cancels a superseded request, so rapid paging stays safe.
+                  disabled={currentPage === 1}
                   aria-label="Previous page"
-                  className="p-1.5 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-white transition-colors duration-150 ease-out cursor-pointer flex items-center justify-center focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+                  className="p-1.5 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-white transition-colors duration-150 ease-out cursor-pointer flex items-center justify-center focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={14} aria-hidden="true" />
                 </button>
@@ -1066,9 +1146,11 @@ const HistoricalTrashLogs: React.FC = () => {
 
                 <button
                   onClick={() => changePage(currentPage + 1)}
-                  disabled={currentPage === totalPages || loadingLogs}
+                  // Clickable even mid-load: the fetch effect's AbortController
+                  // cancels a superseded request, so rapid paging stays safe.
+                  disabled={currentPage === totalPages}
                   aria-label="Next page"
-                  className="p-1.5 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-white transition-colors duration-150 ease-out cursor-pointer flex items-center justify-center focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none"
+                  className="p-1.5 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-white transition-colors duration-150 ease-out cursor-pointer flex items-center justify-center focus-visible:outline-2 focus-visible:outline-[#005D90] focus-visible:outline-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed"
                 >
                   <ChevronRight size={14} aria-hidden="true" />
                 </button>
@@ -1078,7 +1160,18 @@ const HistoricalTrashLogs: React.FC = () => {
         </div>
 
         {activeSelectedLog && (
-          <div className="col-span-1 lg:col-span-5 lg:sticky lg:top-6 bg-[#fcfcfc] rounded-2xl border border-slate-200 shadow-sm overflow-hidden opacity-100 translate-x-0 transition-[opacity,translate] duration-200 ease-out starting:opacity-0 starting:translate-x-2 motion-reduce:transition-none">
+          <>
+            <button
+              type="button"
+              aria-label="Close detection inspector"
+              onClick={() => setActiveSelectedLog(null)}
+              className="fixed inset-0 z-40 bg-black/40 lg:hidden cursor-default focus-visible:outline-2 focus-visible:outline-[#005D90] motion-reduce:transition-none"
+              tabIndex={-1}
+            />
+            <div
+              key={activeSelectedLog.detection_id}
+              className="sheet-in fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-[#fcfcfc] shadow-xl opacity-100 transition-[opacity,translate] duration-200 ease-out starting:opacity-0 motion-reduce:transition-none lg:relative lg:z-auto lg:inset-auto lg:col-span-5 lg:sticky lg:top-6 lg:max-h-none lg:overflow-hidden lg:rounded-2xl lg:shadow-sm lg:starting:translate-x-2"
+            >
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
               <div className="text-left">
                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">
@@ -1121,6 +1214,7 @@ const HistoricalTrashLogs: React.FC = () => {
               />
             </div>
           </div>
+          </>
         )}
       </div>
     </div>

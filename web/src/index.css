@@ -43,3 +43,82 @@
   .tv-rise-in { animation: none; }
   .chat-panel { transition: none; }
 }
+
+/* ─── TrashLogs table → card stack on small screens (< 640px) ───
+   The table keeps its DOM (same rows, same interactions: tap selects, the
+   inspect button opens, keyboard and skeletons unchanged); on phones it is
+   just restyled into stacked "cards". thead hidden, every field becomes its
+   own line labeled by a ::before, inspection button pinned top-right.
+   role="row"/"cell" on the elements in TrashLogs.tsx keeps screen-reader
+   semantics intact once table layout turns into blocks. Desktop (sm+) is
+   untouched — everything here is behind a max-width media query only.
+   Plain (unlayered) CSS beats Tailwind's utility layer, so the paddings
+   inside this block override the px-6/py-4 utilities on purpose. */
+@media (max-width: 639.98px) {
+  .logs-table thead { display: none; }
+  .logs-table tbody tr {
+    display: block;
+    position: relative;
+    padding: 10px 48px 10px 10px;
+  }
+
+  .logs-table tbody tr > td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    position: relative;
+    padding: 3px 0;
+  }
+
+  .logs-table tbody tr > td::before {
+    position: absolute;
+    left: 0;
+    top: 8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .logs-table tbody tr > td:nth-child(1)::before { content: "Date"; }
+  .logs-table tbody tr > td:nth-child(2)::before { content: "Area"; }
+  .logs-table tbody tr > td:nth-child(3)::before { content: "Type"; }
+  .logs-table tbody tr > td:nth-child(4)::before { content: "Confidence"; }
+
+  /* Inspect cell: pulled out of the flow, becomes the card's top-right
+     action instead of a rightmost column. */
+  .logs-table tbody tr > td:nth-child(5) {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    flex-direction: row;
+    padding: 0;
+  }
+
+  /* State rows (loading skeleton / empty / failed) render a single
+     full-width cell: no labels, roomier padding, and let the skeleton
+     strip wrap instead of forcing width. */
+  .logs-table tbody tr > td[colspan] {
+    display: block;
+    position: static;
+    padding: 32px 8px;
+  }
+  .logs-table tbody tr > td[colspan]::before { content: none; }
+  .logs-table tbody tr > td[colspan] > div { flex-wrap: wrap; }
+}
+
+/* ─── Detection inspector bottom sheet (phones, < lg) ───
+   The inspector is ONE panel node that swaps shape per breakpoint (sheet on
+   phones, sticky column on lg+) via classes in TrashLogs.tsx. This block only
+   owns the slide-up entrance, on the house curve and durations. */
+@keyframes tv-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@media (max-width: 1023.98px) {
+  .sheet-in { animation: tv-sheet-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in { animation: none; }
+}

@@ -40,10 +40,10 @@ function bySeverityDesc(a: InsightAlert, b: InsightAlert): number {
  * alert rows with inline Acknowledge, plus the latest monthly digest as a
  * muted footer line (digests need no action, so no button).
  *
- * ADMIN-ONLY surface (product decision 2026-10-27): alerts are an operator
- * workflow — guest/community viewers get nothing. READS are public per
- * backend decision, but a non-actionable alert panel is noise on
- * client-facing pages, so the banner (alerts + digest) never loads there.
+ * Admin-only surface: alerts are an operator workflow, so guest and
+ * community viewers get nothing. The backend reads are public, but a
+ * non-actionable alert panel is noise on client-facing pages, so the
+ * banner (alerts + digest) never loads there.
  *
  * Renders nothing when there are no unacknowledged alerts AND no digest —
  * an always-visible "all clear" panel would rot into noise.

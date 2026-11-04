@@ -56,11 +56,11 @@ export function useChat(): UseChatReturn {
       setMessages((prev) => [...prev, { role: 'bot', text: data.reply }]);
     } catch (error) {
       console.error('Chat error:', error);
-      // Match the error to an honest message instead of a generic "connection
-      // issue": a 401 here is almost always a stale/expired token (anonymous
-      // chat is the default — a 401 means a token WAS sent and rejected), and
-      // a 429 is the server-side rate limiter protecting the Gemini credit
-      // budget. Network/CORS failures have no response at all.
+      // Pick an error-specific message instead of a blanket "connection
+      // issue". A 401 means a token WAS sent and rejected — an expired
+      // session (anonymous requests send no token). A 429 is the server-side
+      // limiter protecting the Gemini credit budget. Anything else (network,
+      // CORS, server down) gets the fallback text below.
       let fallbackText =
         'Sorry, I ran into an issue connecting to the service. Please try again.';
       if (axios.isAxiosError(error) && error.response?.status === 401) {

@@ -8,7 +8,12 @@ from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
 from models.detection import Detection
 from routes.helper.utils import FlightCreate, FlightResponse
-from services.gps_service import extract_gps, extract_dimensions, extract_capture_date
+from services.gps_service import (
+    extract_gps,
+    extract_dimensions,
+    extract_capture_date,
+    extract_capture_datetime,
+)
 from services.geo_assign import resolve_area_for_point
 from services.detection_service import process_image_upload
 from services.dbscan_service import cluster_points, STAGE_A_EPS_METERS, DBSCAN_MIN_SAMPLES
@@ -325,10 +330,12 @@ async def upload_flight_batch(
         temp_path, content_hash = _save_upload_to_temp(file)
         lat, lng = extract_gps(temp_path)
         width, height = extract_dimensions(temp_path)
-        # Upload-aid only — see extract_capture_date's docstring: the stored
-        # captured_at stays flight-date driven; this feeds a mismatch
-        # warning to the admin.
+        # exif_date feeds the upload-aid's mismatch warning; capture_ts is the
+        # full shutter datetime that becomes the frame's stored captured_at
+        # and its detections' real timestamps (midnight fallback when the
+        # frame carries no usable EXIF).
         exif_date = extract_capture_date(temp_path)
+        capture_ts = extract_capture_datetime(temp_path)
         extracted_frames.append({
             "id": str(uuid.uuid4()),
             "file": file,
@@ -339,6 +346,7 @@ async def upload_flight_batch(
             "width": width,
             "height": height,
             "exif_date": exif_date,
+            "capture_ts": capture_ts,
         })
 
     # 1a. Auto-detect assignment area (Upload page "Auto-detect from GPS").
@@ -428,10 +436,11 @@ async def upload_flight_batch(
                 image_width=member["width"],
                 image_height=member["height"],
                 content_hash=member["content_hash"],
-                # From the admin-entered flight date (captured_at feeds
-                # batch-image listings); the insert clock would misdate
-                # historical flights.
-                captured_at=datetime.combine(flight.flight_date, datetime.min.time()),
+                # Real EXIF shutter time when the frame carries one, else the
+                # admin-entered flight date at midnight (insert clock would
+                # misdate historical flights).
+                captured_at=member["capture_ts"]
+                or datetime.combine(flight.flight_date, datetime.min.time()),
                 is_representative=is_rep,
                 cluster_id=cluster_str_id,
                 processing_status=status
@@ -449,6 +458,7 @@ async def upload_flight_batch(
                     lat=member["lat"],
                     lng=member["lng"],
                     image_id=str(db_image.image_id),
+                    capture_ts=member["capture_ts"],
                 )
             else:
                 # Stage A duplicate: no worker is enqueued for this frame, so
@@ -472,7 +482,8 @@ async def upload_flight_batch(
             image_width=frame["width"],
             image_height=frame["height"],
             content_hash=frame["content_hash"],
-            captured_at=datetime.combine(flight.flight_date, datetime.min.time()),
+            captured_at=frame["capture_ts"]
+            or datetime.combine(flight.flight_date, datetime.min.time()),
             is_representative=False,
             cluster_id=None,
             processing_status=ProcessingStatus.DUPLICATE_SKIPPED

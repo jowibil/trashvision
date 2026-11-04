@@ -47,7 +47,7 @@ interface HexbinsResponse {
  * aggregates cells + returns cheap header stats (total, latest timestamp)
  * over the SAME window filter.
  *
- * Window modes (product decision 2026-10):
+ * Window modes (shared contract with the mobile app — see AGENTS.md rule 8):
  *  - "month": selected month + cumulative week cutoff (W2 = days 1-14).
  *  - "accumulated": Jan 1 → end of selected month, same year. Week chips
  *    are hidden client-side in this mode; `week` is ignored server-side.

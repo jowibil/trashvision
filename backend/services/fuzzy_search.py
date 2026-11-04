@@ -1,27 +1,28 @@
 """Typo-tolerant free-text matching for small candidate sets.
 
-Search bars that talk to the DB (GET /detections `q=` over waste_type and
-area name, used by the web TrashLogs page) send free text; a plain
-`LIKE %q%` silently returns nothing on one typo, which reads as a broken
-feature. The query vocabulary here is tiny in practice — 5 waste classes
-plus whatever areas an admin has drawn — so the cheap correct approach is:
+Search bars that hit the DB (GET /detections `q=` over waste_type and area
+name, used by the web TrashLogs page) take free text, and a plain
+`LIKE %q%` returns nothing on a single typo — which feels like a broken
+feature. The vocabulary here is tiny in practice (5 waste classes plus the
+areas an admin has drawn), so the cheap, correct approach is:
 
     client sends q  ->  fetch distinct candidate values (bounded, tiny)
                     ->  score candidates in Python (this module, no deps)
                     ->  keep the matched values  ->  filter rows with SQL IN
 
 No pg_trgm extension, no schema change, bounded cost. Pure functions only
-(no SQLAlchemy / DB imports) so the scoring is unit-testable by import.
+(no SQLAlchemy/DB imports) so the scoring can be tested by importing the
+module directly.
 
-IMPORTANT: web/src/services/fuzzySearch.ts implements the SAME scoring for
-the client-side searches (MapView area search). Keep the two in lockstep:
+web/src/services/fuzzySearch.ts implements the same scoring for the
+client-side searches (MapView area search). The two must stay identical:
 same normalization, same per-token tiers, same edit budgets.
 
-Rules per token: exact > prefix > substring > bounded edit distance
-(1 edit for tokens <= 4 chars, 2 up to 8, 3 larger; <= 2-char tokens must
-prefix-match — they can't claim a typo). A candidate matches only if EVERY
-query token hits its text (AND semantics), mirroring the old contiguous
-LIKE substring behavior.
+Per-token rules: exact match > prefix > substring > edit distance within
+a budget (1 edit for tokens <= 4 chars, 2 up to 8, 3 larger; 2-char and
+shorter tokens must prefix-match — they can't claim a typo). A candidate
+matches only if EVERY query token hits its text (AND semantics),
+mirroring the old contiguous LIKE-substring behavior.
 """
 
 import re

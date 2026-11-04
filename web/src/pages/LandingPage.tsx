@@ -8,8 +8,8 @@ import FeatureCard from "../components/landing/FeatureCard";
 import { useNavigate } from "react-router-dom";
 import { useMlInfoState } from "../services/mlInfo";
 
-// Hoisted: pairs each feature index with its bento span/size for the
-// asymmetric layout below. Doesn't depend on props/state.
+// Layout map for the feature grid: feature index -> column span and size.
+// It's static, so it lives at module scope instead of inside the render.
 const FEATURE_LAYOUT: { span: string; size: "md" | "lg" }[] = [
   { span: "md:col-span-7", size: "lg" },
   { span: "md:col-span-5", size: "md" },

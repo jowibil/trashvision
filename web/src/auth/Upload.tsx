@@ -13,7 +13,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { useAreas } from "../services/hooks/useAreas";
 import api from "../api/axios";
 
-// Hoisted: static content, doesn't depend on component state.
+// Static checklist content — defined once here rather than per render.
 const PRE_FLIGHT_CHECKLIST = [
   { t: "RTK Positioning", d: "Ensure Real-Time Kinematic is active for <2cm accuracy." },
   { t: "Nadir Angle", d: "Camera must be at exactly 90° for waste area calculation." },

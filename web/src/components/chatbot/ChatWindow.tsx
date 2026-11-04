@@ -8,7 +8,7 @@ interface ChatWindowProps {
   isLoading: boolean;
 }
 
-// Hoisted: reused across renders instead of a fresh object each time.
+// Defined at module scope so it isn't re-created on every render.
 const LOADING_AVATAR_STYLE = { backgroundColor: "#005D90" };
 
 export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
@@ -23,9 +23,8 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#fcfcfc] p-4">
       {messages.map((msg, index) => (
-        // Messages are only ever appended, never reordered/removed, so an
-        // index key is stable here; there's no natural unique id on
-        // ChatMessageData to key by instead.
+        // Messages are append-only (never reordered or removed) and have no
+        // natural id to key by, so an index key is stable enough here.
         <ChatMessage key={index} role={msg.role} text={msg.text} />
       ))}
 

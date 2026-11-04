@@ -16,20 +16,21 @@ ROLE_HIERARCHY = {
     "admin": 2,
 }
 
-# rate limiter
-# Behind Cloudflare (proxied API domain), request.client.host is a Cloudflare
-# EDGE IP — thousands of visitors share a few dozen of them, so a plain
-# get_remote_address key would collapse every user's per-IP budget into one
-# global bucket. Cloudflare always stamps the real client IP into
-# CF-Connecting-IP, so prefer it when present. Trust note: on traffic that
-# reaches the Railway origin WITHOUT going through Cloudflare (e.g. a direct
-# hit on the *.up.railway.app domain), this header is client-supplied and
-# spoofable — a determined attacker can farm buckets by rotating fake values.
-# The Cloudflare WAF edge rule (docs/cloudflare-chat-edge-rule.md) is the
-# primary guard against that path; the origin limiter (and optionally
-# restricting the origin to Cloudflare ranges at the platform) is the
-# fallback. Local/dev runs have no CF header and key on the socket remote
-# address as before.
+# Rate-limiter keying.
+#
+# With Cloudflare sitting in front of the API, the socket address is a
+# Cloudflare edge server, not the visitor — thousands of people share a
+# handful of those. When the CF-Connecting-IP header is present it carries
+# the visitor's real IP, so that is what we bucket by.
+#
+# One honest caveat: the header is only trustworthy for traffic that came
+# through Cloudflare. A request aimed straight at the Railway origin
+# (bypassing the proxy) can set it to anything, so a determined attacker
+# can rotate fake values to dodge the per-IP limit.
+# The full two-layer plan — a Cloudflare edge rule plus this limiter — is
+# documented in docs/cloudflare-chat-edge-rule.md (not deployed yet for
+# as long as the API stays on its free subdomain). Local/dev traffic has
+# no such header and keys on the remote address as before.
 def limiter_key(request: Request) -> str:
     cf_ip = request.headers.get("CF-Connecting-IP")
     if cf_ip:
@@ -104,15 +105,15 @@ def get_optional_user(
 
 
 def require_public(min_role: str = "guest"):
-    """Guard for PUBLIC READ endpoints (product decision 2026-10: the web
-    portal's Dashboard/MapView/Reports/TrashLogs are browsable without an
-    account — 'Open Forecast' must work logged-out).
+    """Guard for public-READ endpoints. The web portal browses
+    Dashboard/MapView/Reports/TrashLogs without an account — the public
+    "Open Forecast" audience.
 
-    - No token  -> anonymous read (returns None user).
-    - Valid token -> role checked against [min_role] as usual.
+    - No token -> anonymous read (returns None user).
+    - Valid token -> role checked against min_role as usual.
     - Invalid/expired token -> 401 (same as require_role).
 
-    NEVER use on write/admin endpoints — those keep require_role().
+    Never use on write or admin endpoints — those keep require_role().
     """
     required_level = ROLE_HIERARCHY[min_role]
 

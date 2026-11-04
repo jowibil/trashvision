@@ -37,6 +37,11 @@ def run_yolo_inference(
     lng: float | None,
     image_id: str | None = None,
     gsd_meters: float = GSD_DEFAULT_METERS,
+    # Per-frame EXIF shutter time (from the upload pipeline). When present
+    # it becomes detections.timestamp directly; when absent we fall back to
+    # the flight-date midnight below, which the UI exports blank instead of
+    # showing a fake 12:00 AM.
+    frame_ts: "datetime | None" = None,
 ):
     """
     Stage B Detection-Level DBSCAN Implementation.
@@ -51,17 +56,18 @@ def run_yolo_inference(
     if not raw_detections:
         return []
 
-    # Temporal source of truth is the admin-entered flight date, NOT the
-    # worker's insert clock: the map's month/year/week windows filter
-    # detections.timestamp, so stamping insert time put historical flight
-    # pins into the upload month instead of the flight month.
-    flight_ts: datetime | None = None
-    if flight_id:
+    # Temporal source of truth is the frame's own EXIF capture time when the
+    # pipeline extracted one; otherwise the admin-entered flight date —
+    # never the worker's insert clock: the map's month/year/week windows
+    # filter detections.timestamp, so stamping insert time put historical
+    # flight pins into the upload month instead of the flight month.
+    detection_ts: datetime | None = frame_ts
+    if detection_ts is None and flight_id:
         flight = db.get(DroneFlightLog, uuid.UUID(flight_id))
         if flight is not None and flight.flight_date is not None:
             # Naive midnight of the flight date, matching the detections
             # column type (TIMESTAMP without tz).
-            flight_ts = datetime.combine(flight.flight_date, datetime.min.time())
+            detection_ts = datetime.combine(flight.flight_date, datetime.min.time())
 
     if lat is None or lng is None:
         # No geotag: keep every raw detection as its own unclustered row.
@@ -114,8 +120,8 @@ def run_yolo_inference(
             duplicate_count=cluster["member_count"],
             cluster_id=str(cluster["cluster_id"]),
         )
-        if flight_ts is not None:
-            new_detection.timestamp = flight_ts
+        if detection_ts is not None:
+            new_detection.timestamp = detection_ts
         db.add(new_detection)
         db_detections.append(new_detection)
 
@@ -131,6 +137,7 @@ def process_image_upload(
     lat: float | None,
     lng: float | None,
     image_id: str | None = None,
+    capture_ts: "datetime | None" = None,
 ):
     """
     Canonical Stage B background worker (runs in a threadpool via
@@ -171,6 +178,7 @@ def process_image_upload(
             lat=lat,
             lng=lng,
             image_id=image_id,
+            frame_ts=capture_ts,
         )
 
         # Critical-area alert trigger (brief Task 3a): after this frame's

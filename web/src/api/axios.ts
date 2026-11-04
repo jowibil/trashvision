@@ -1,21 +1,21 @@
 import axios from 'axios';
 
-// Module augmentation: axios 1.x has no built-in `metadata` bag on request
-// config, but the request interceptor uses one to record whether the outgoing
-// call carried an Authorization token (so the 401 interceptor can tell "my
-// session expired" apart from "anonymous visitor hit a token-required
-// endpoint" — public portal reads now run logged-out).
+// TypeScript note: axios 1.x has no `metadata` field on request config, so
+// this declares the one extra key the request interceptor adds — whether the
+// outgoing call carried a token. The 401 handler below reads it back to tell
+// "my session expired" apart from "an anonymous visitor hit a token-required
+// endpoint" (public portal reads run without login).
 declare module 'axios' {
   export interface InternalAxiosRequestConfig {
     metadata?: { hadToken: boolean };
   }
 }
 
-// API root comes from the environment, never hard-coded: a built bundle
-// that still points at 127.0.0.1:8000 has every visitor's browser calling
-// their OWN localhost. Dev keeps a localhost fallback so the dev server
-// works with zero setup; a production (vite build) bundle without
-// VITE_API_URL fails loudly at startup rather than firing broken requests.
+// The API root comes from the environment, never a constant. A deployed
+// bundle that still pointed at localhost would make every visitor's browser
+// call their own machine, so: dev keeps a localhost fallback (zero-setup
+// dev server), while a production build without VITE_API_URL fails loudly
+// at startup instead of firing broken requests.
 const resolveBaseURL = (): string => {
   const envUrl = import.meta.env.VITE_API_URL?.trim();
   if (envUrl) return envUrl.replace(/\/+$/, "");
@@ -35,9 +35,9 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // Remember whether THIS request carried a token, so the 401 interceptor can
-  // tell "my session expired" apart from "anonymous visitor hit an auth'd
-  // endpoint" (public portal reads now run logged-out — Open Forecast).
+  // Stash whether THIS request carried a token. The 401 handler below uses
+  // it to tell "my session expired" apart from "an anonymous visitor hit an
+  // auth-required endpoint" — public portal reads run without login.
   config.metadata = { hadToken: Boolean(token) };
   return config;
 });
@@ -45,16 +45,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // FIX (TypeError: Cannot read properties of undefined (reading 'status')):
-    // error.response is undefined for network/CORS failures and server-down
-    // (no HTTP response at all). Only an actual 401 RESPONSE may trigger the
-    // session-expiry redirect; everything else just rejects for the caller.
+    // error.response is undefined when there is no HTML response at all
+    // (network/CORS failure, server down) — reading status on it crashes the
+    // error handler itself. So: only an actual 401 response may trigger the
+    // session-expiry redirect; everything else just rejects to the caller.
     //
-    // FIX (logged-out browse): the redirect also only makes sense when the
-    // failed request actually CARRIED a token (real session expiry). An
-    // anonymous visitor getting 401 from a token-required endpoint (e.g.
-    // submit report) must stay on the page to see the login prompt, not be
-    // bounced to the landing page by the interceptor.
+    // Redirecting only makes sense for a request that actually CARRIED a
+    // token (true session expiry). An anonymous visitor getting 401 from a
+    // token-required endpoint (e.g. submitting a report) must stay on the
+    // page to see the login prompt, not be bounced to the landing page.
     const hadToken = error.config?.metadata?.hadToken ?? false;
     const isLoginRequest = error.config?.url?.includes("/auth/login");
     if (!isLoginRequest && hadToken && error.response?.status === 401) {

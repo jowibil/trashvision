@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 // credentials left by it (see onAuthSubmit's non-admin branch).
 import { getUserFromToken } from "../../services/tokenHelper";
 
-// Hoisted: static config that never depends on component state/props.
+// Static nav config — defined once, outside the render.
 const NAV_LINKS = [
   { name: "Home", href: "#hero" },
   { name: "Features", href: "#features" },

@@ -84,6 +84,14 @@ export async function exportTrashLogsExcel(
   const dataRows = rows.map((log) => {
     const parsed = new Date(log.timestamp);
     const valid = !isNaN(parsed.getTime());
+    // A midnight timestamp means the frame carried no usable EXIF capture
+    // time and the row was stamped with the flight date only — showing a
+    // "12:00 AM" would present that placeholder as a real time.
+    const isMidnightPlaceholder =
+      valid &&
+      parsed.getHours() === 0 &&
+      parsed.getMinutes() === 0 &&
+      parsed.getSeconds() === 0;
     return [
       textCell(
         valid
@@ -95,12 +103,12 @@ export async function exportTrashLogsExcel(
           : "Unknown",
       ),
       textCell(
-        valid
+        valid && !isMidnightPlaceholder
           ? parsed.toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
             })
-          : "--:--",
+          : "",
       ),
       textCell(areaNameResolver(log.area_id)),
       textCell(formatWasteType(log.waste_type)),

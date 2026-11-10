@@ -181,7 +181,7 @@ String getDensityLabel(int count) {
   return 'LOW';
 }
 
-// ─── CCI scale (spec: algorithm_equations.md §2.3) ──────────────────────────
+// ─── CCI scale (spec: docs/algorithm_equations.md §2.3) ─────────────────────
 // Clean Coast Index bands + colors, shared with the web map
 // (useHexbins.ts classifyCci — same thresholds, same hexes). Map severity is
 // size-invariant: cells classify by CCI = K · count / geodesic area, never by

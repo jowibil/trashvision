@@ -32,8 +32,9 @@ from models.area import Area
 from models.detection import Detection
 from services.insights_service import (
     _previous_month,
+    area_cci,
     count_detections,
-    severity_from_count,
+    severity_from_cci,
     top_waste_type,
 )
 
@@ -64,10 +65,15 @@ def _area_line(db: Session, area: Area) -> str | None:
     """One compact '-Name: ...' line following the brief's example format."""
     area_id = area.area_id
     detection_count = count_detections(db, area_id)
-    severity = severity_from_count(detection_count)
+    # Same CCI ruler as the map and the alerts, so the chatbot describes an
+    # area exactly as its map chip does.
+    cci = area_cci(db, area_id, detection_count)
+    severity = severity_from_cci(cci)
     top_type, top_type_pct = top_waste_type(db, area_id)
 
     parts = [f"{area.area_name}: {detection_count} detections, severity {severity}"]
+    if cci is not None:
+        parts.append(f"CCI {cci:.2f}")
     if top_type and (top_type_pct or 0) > 0:
         parts.append(f"top type {top_type} ({top_type_pct}%)")
 

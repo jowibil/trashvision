@@ -11,11 +11,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/report_screen.dart';
-import 'screens/mapview.dart';
+import 'screens/home_shell.dart';
 import 'screens/chat_screen.dart';
-import 'screens/user_profile_screen.dart';
+import 'screens/info_screen.dart';
 
 void main() async {
 
@@ -127,11 +125,14 @@ void initState() {
       initialRoute: widget.isLoggedIn ? '/home' : '/login',
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/map': (context) => const MapView(),
-        '/report': (context) => const ReportScreen(),
-        '/profile': (context) => const UserProfileScreen(),
+        // All four signed-in tabs are bodies of this single route, so Home
+        // stays beneath them and system back returns to Home instead of
+        // closing the app. The old per-tab '/map', '/report' and '/profile'
+        // routes are gone: pushing them is what emptied the back stack.
+        '/home': (context) => const HomeShell(),
         '/chat': (context) => const ChatScreen(),
+        // Pushed above the shell, so back returns to whichever tab opened it.
+        '/info': (context) => const InfoScreen(),
       },
     );
   }

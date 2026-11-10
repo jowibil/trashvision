@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:TrashVision/helper/database_helper.dart';
 import 'package:TrashVision/services/api_service.dart';
-import 'package:TrashVision/widgets/bottom_nav.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -20,7 +19,17 @@ import 'package:latlong2/latlong.dart';
 
 class ReportScreen extends StatefulWidget {
   final String? initialImagePath;
-  const ReportScreen({super.key, this.initialImagePath});
+
+  /// Switches HomeShell back to its Home tab once a report has been sent or
+  /// queued. The tab's state survives switching now, so this screen also
+  /// clears its own form (see _finishSubmission).
+  final VoidCallback? onSubmitted;
+
+  const ReportScreen({
+    super.key,
+    this.initialImagePath,
+    this.onSubmitted,
+  });
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -324,11 +333,7 @@ Future<void> _pickImage() async {
       }
 
       if (!mounted) return;
-      // FIX: this screen is a root tab route (reached via
-      // pushNamedAndRemoveUntil from BottomNavBar), so it usually has nothing
-      // beneath it on the stack. Calling pop() here could black-screen the
-      // app or exit it entirely instead of just returning to Home.
-      Navigator.pushReplacementNamed(context, '/home');
+      _finishSubmission();
     } catch (e) {
       debugPrint("Submit Error: $e");
 
@@ -339,7 +344,7 @@ Future<void> _pickImage() async {
         const SnackBar(content: Text("Server unreachable. Saved to outbox.")),
       );
 
-      Navigator.pushReplacementNamed(context, '/home');
+      _finishSubmission();
     } finally {
       // Always release the guard, whatever happened above, so the button
       // recovers if the user stays on this screen after an error.
@@ -347,11 +352,40 @@ Future<void> _pickImage() async {
     }
   }
 
+  /// Leaves the Report tab after a submission and returns to Home.
+  ///
+  /// Two things matter here:
+  ///  * Inside HomeShell, the Report tab is no longer a throwaway route — its
+  ///    state is kept alive by the shell's IndexedStack. Without clearing the
+  ///    form, coming back to the tab would still show the photo and text that
+  ///    were already submitted.
+  ///  * Navigation goes through the shell callback (tab switch) rather than
+  ///    `pushReplacementNamed('/home')`, which used to swap out the only route
+  ///    on the stack and make system back exit the app. The route fallback is
+  ///    only for a ReportScreen hosted outside the shell.
+  void _finishSubmission() {
+    if (mounted) {
+      setState(() {
+        _capturedImagePath = null;
+        _descController.clear();
+      });
+      // Refresh the fix for the next report so a stale position isn't reused.
+      _getCurrentLocation();
+    }
+
+    final onSubmitted = widget.onSubmitted;
+    if (onSubmitted != null) {
+      onSubmitted();
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white, // Kept completely white
-      bottomNavigationBar: const BottomNavBar(currentIndex: 2),
       appBar: AppBar(
         title: const Text(
           "Submit Report",

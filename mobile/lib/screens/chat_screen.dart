@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../services/api_client.dart' show logAndReport, userMessage;
 import '../services/chat_service.dart';
-import '../widgets/bottom_nav.dart';
 import '../widgets/chat_markdown.dart';
 
 /// Mobile chat screen (brief Task 4, mobile half): CCia with the same
@@ -103,7 +102,6 @@ class _ChatScreenState extends State<ChatScreen> {
           _composer(),
         ],
       ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 0),
     );
   }
 

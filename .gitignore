@@ -84,3 +84,10 @@ dump.rdb
 # Drone frame transit staging (hashed in DB; originals land on Cloudinary)
 backend/temp/
 .neon
+
+# ML local run scratch + artifacts (regenerable from the zip; see ml/colab/README.md)
+ml/footprint/local_state/
+ml/.roboflow_key.txt
+
+# Stage B preview renders (ml/preview_stage_b.py) — local review only
+ml/_review/

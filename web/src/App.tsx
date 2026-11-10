@@ -2,6 +2,9 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import Layout from "./layouts/AppLayout";
+// Public documentation shell: /info lives outside the portal (marketing
+// surface), while /portal/info keeps rendering the same page in-shell.
+const DocShell = lazy(() => import("./layouts/DocShell"));
 // Layout is the shared shell for every /portal route (sidebar + frame) and
 // is already lightweight after last iteration's refactor, so it stays
 // eager to avoid an extra network round-trip before the shell paints.
@@ -50,6 +53,18 @@ function App() {
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+
+          {/* Public docs: same page component as /portal/info, no sidebar. */}
+          <Route
+            path="/info"
+            element={
+              <DocShell title="Methodology · TrashVision">
+                {/* 4rem = DocShell's h-16 sticky header, which the page's
+                    pinned section nav tucks under. */}
+                <Info stickyTop="4rem" />
+              </DocShell>
+            }
+          />
 
           <Route path="/portal" element={<Layout />}>
             {/* PUBLIC ACCESSIBLE ROUTES  */}

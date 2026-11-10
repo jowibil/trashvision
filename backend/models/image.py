@@ -43,7 +43,32 @@ class Image(Base):
     # legacy rows are never deduped.
     content_hash = Column(String, nullable=True, index=True)
 
+    # EXIF shutter time — the pipeline's temporal truth. Detections copy it and
+    # the map's month/week windows filter on it, so it must never be overwritten
+    # with an insert clock.
     captured_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    # Row-insert clock. Deliberately separate from captured_at: it answers
+    # "when did this row arrive / is a worker alive?" for the flight's stats,
+    # and must never date a mission or window a map query — a re-uploaded
+    # historical mission is months old by captured_at while its work runs now.
+    # Nullable, no backfill: rows written before this column existed have an
+    # unknown activity time, which is honest.
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=True,
+    )
+
+    # One upload request id (minted per POST), stamped on every Image row that
+    # request produced. Groups the rows for support/debugging; it is not a
+    # mission id and is never shared across chunks of one mission.
+    upload_batch = Column(UUID(as_uuid=True), nullable=True, index=True)
+
+    # Why a row ended in `failed` ("TimeoutError: ..."). Label-only: there is
+    # no retry path, but "failed" without a reason is unauditable. Null for
+    # every other status.
+    processing_error = Column(String(1000), nullable=True)
     
     is_representative = Column(Boolean, default=True, nullable=False)
     cluster_id = Column(String, nullable=True)

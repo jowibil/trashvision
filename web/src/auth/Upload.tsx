@@ -149,15 +149,19 @@ export default function DroneUploadUI() {
       const { representatives_queued = 0, duplicates_skipped = 0, already_uploaded = 0 } =
         (res.data ?? {}) as { representatives_queued?: number; duplicates_skipped?: number; already_uploaded?: number };
 
-      // EXIF-date aid: the camera's own capture dates are surfaced against
-      // the flight date the admin typed. A mismatch DOESN'T change what was
-      // stored (the entered flight date still drives every map window) —
-      // this is purely a heads-up that the form date may be a typo, since a
-      // batch landing in the wrong W1–W4 window silently skews that cell's
-      // CCI. Long duration so the operator can read it after a long upload.
+      // EXIF-date aid: the camera's own capture dates now DECIDE the flight
+      // record (routes/flights.py majority vote) — the typed form date only
+      // breaks an exact count tie and covers batches with no EXIF dates.
+      // A mismatch therefore means the form was OVERRIDDEN: the flight was
+      // stored with the EXIF-majority date (effective_flight_date), which
+      // also anchors midnight placeholders for EXIF-less frames. A batch
+      // landing in the wrong W1–W4 window silently skews that cell's CCI,
+      // so this deserves the operator's attention. Long duration so the
+      // message stays readable after a long upload.
       const exifDates = (res.data?.exif_capture_dates ?? {}) as Record<string, number>;
       const exifMismatch = (res.data?.exif_date_mismatch_count ?? 0) as number;
       const enteredFlightDate = res.data?.flight_date as string | undefined;
+      const effectiveFlightDate = (res.data?.effective_flight_date ?? enteredFlightDate) as string | undefined;
       if (exifMismatch > 0) {
         const mismatchLabels = Object.entries(exifDates)
           .filter(([exifDate]) => exifDate !== enteredFlightDate)
@@ -165,7 +169,17 @@ export default function DroneUploadUI() {
           .map(([exifDate, count]) => `${exifDate} ×${count}`)
           .join(", ");
         toast.error(
-          `EXIF date check: ${exifMismatch} frame${exifMismatch === 1 ? "" : "s"} say ${mismatchLabels}, but the flight date entered was ${enteredFlightDate}. Your entered date still applies — if it's a typo, delete and re-upload this flight.`,
+          `EXIF date override: ${exifMismatch} frame${exifMismatch === 1 ? "" : "s"} say ${mismatchLabels}, so this flight was recorded as ${effectiveFlightDate} — not the ${enteredFlightDate} you entered. If the camera's dates are wrong (e.g. the drone's clock drifted), delete and re-upload this flight.`,
+          { duration: 10000 }
+        );
+      }
+      // Stale-camera-clock nudge: the EXIF majority year matches neither the
+      // entered year nor today — e.g. a drone clock reset to a plausible old
+      // date after a battery pull. The year gate (1990 cutoff) can't catch
+      // this, so it's called out explicitly.
+      if (res.data?.exif_year_suspicious === true) {
+        toast(
+          `⚠️ EXIF year check: frames were captured in ${effectiveFlightDate?.slice(0, 4) ?? "?"} — differing from both the entered year and today. Check the drone's clock before trusting this flight's dates.`,
           { duration: 10000 }
         );
       }

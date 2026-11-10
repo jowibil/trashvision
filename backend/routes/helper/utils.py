@@ -93,3 +93,24 @@ class FlightResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class FlightStats(BaseModel):
+    """What the pipeline did with what was sent, for ONE flight.
+
+    Deliberately not on FlightResponse: the list endpoint must not run an
+    aggregate per row. Every count is a COUNT(*) over one flight's images;
+    `images_pending` folds in `processing` so the number cannot read 0 while a
+    worker holds a frame.
+
+    `last_capture_at` is the newest frame's EXIF shutter time — a mission
+    label, never activity. Activity is images.created_at.
+    """
+
+    images_total: int = 0
+    images_done: int = 0
+    images_pending: int = 0
+    images_skipped: int = 0
+    images_failed: int = 0
+    detections_total: int = 0
+    last_capture_at: Optional[datetime] = None

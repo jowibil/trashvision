@@ -8,6 +8,8 @@ guessing a nearest area (see the 2026-10-14 discussion; surfaced in the UI as
 "Unassigned sector" / no report pin).
 """
 
+import uuid
+
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -45,3 +47,57 @@ def resolve_area_for_point(db: Session, lat: float | None, lng: float | None) ->
     if row is None:
         return None
     return db.get(Area, row.area_id)
+
+
+def resolve_areas_for_points(
+    db: Session, points: list[tuple[float | None, float | None]]
+) -> dict[int, uuid.UUID]:
+    """Resolve MANY points in ONE spatial query: {point index -> area_id}.
+
+    Per-point semantics are identical to resolve_area_for_point: None / (0, 0)
+    placeholders never match, and the lowest area_id wins where polygons
+    overlap. The difference is cost — the upload path used to run one PostGIS
+    scan per frame in a loop (200 sequential round-trips for a 200-frame
+    mission), inside the only worker.
+
+    Uncovered points are absent from the result rather than mapped to a
+    nearest area: callers keep their own "unassigned" honesty.
+    """
+    indexed = [
+        (idx, float(lat), float(lng))
+        for idx, (lat, lng) in enumerate(points)
+        if lat is not None and lng is not None and not (lat == 0.0 and lng == 0.0)
+    ]
+    if not indexed:
+        return {}
+
+    rows = db.execute(
+        text(
+            """
+            WITH pts AS (
+                SELECT *
+                FROM unnest(
+                    CAST(:idxs AS int[]),
+                    CAST(:lats AS float8[]),
+                    CAST(:lngs AS float8[])
+                ) AS t(idx, lat, lng)
+            )
+            -- min(...::text): uuid has no min() aggregate on every supported
+            -- Postgres, and canonical uuid text sorts in byte order anyway.
+            SELECT pts.idx AS idx, min(a.area_id::text) AS area_id
+            FROM pts
+            JOIN areas a
+              ON a.boundary_coordinates IS NOT NULL
+             AND ST_Covers(a.boundary_coordinates,
+                    ST_SetSRID(ST_MakePoint(pts.lng, pts.lat), 4326))
+            GROUP BY pts.idx
+            """
+        ),
+        {
+            "idxs": [row[0] for row in indexed],
+            "lats": [row[1] for row in indexed],
+            "lngs": [row[2] for row in indexed],
+        },
+    ).all()
+
+    return {row.idx: uuid.UUID(row.area_id) for row in rows}

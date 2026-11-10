@@ -94,7 +94,7 @@ def extract_capture_datetime(image_path: str) -> datetime | None:
 
             if isinstance(raw, bytes):
                 raw = raw.decode('ascii', errors='ignore')
-            raw = raw.strip().strip('[0\x00]').strip()
+            raw = raw.replace('\x00', ' ').strip()
 
             # EXIF spells datetimes "YYYY:MM:DD HH:MM[:SS]"; tolerate both
             # colons and hyphens in the date part.
@@ -122,16 +122,19 @@ def extract_capture_datetime(image_path: str) -> datetime | None:
 def extract_capture_date(image_path: str):
     """
     EXIF capture (shutter-release) date, normalized to 'YYYY-MM-DD'.
-    UPLOAD-AID ONLY: the stored images.captured_at stays the admin's
-    flight date (see routes/flights.py). EXIF carries no timezone and
-    drone camera clocks drift, so this is for confirmation / mismatch
-    warnings, never a silent source of truth.
+    Drives the flight-date majority vote in routes/flights.py: the
+    camera's own dates decide the flight record (the typed form date
+    only breaks an exact count tie, and covers batches with no EXIF
+    dates at all).
+
+    Plausibility: years before MIN_PLAUSIBLE_YEAR are rejected so clock
+    garbage (unset drone battery, scrambled clock) can never out-vote a
+    real date — the batch then just stays on the typed date.
 
     Preference order: DateTimeOriginal (actual shutter time) >
     DateTimeDigitized > the 0th-directory file DateTime (upload/copy
     timestamp, e.g. re-encoded frames). Returns None on any failure —
-    the aid degrades to 'no EXIF date', matching the optional-GPS
-    pattern.
+    matching the optional-GPS pattern.
     """
     try:
         with Image.open(image_path) as img:
@@ -150,7 +153,7 @@ def extract_capture_date(image_path: str):
 
             if isinstance(raw, bytes):
                 raw = raw.decode('ascii', errors='ignore')
-            raw = raw.strip().strip('[0\x00]').strip()
+            raw = raw.replace('\x00', ' ').strip()
 
             match = re.match(r'(\d{4})[:-](\d{2})[:-](\d{2})', raw)
             if not match:
@@ -160,8 +163,10 @@ def extract_capture_date(image_path: str):
             # Validate the day component before exposing it ("2026:13:45"
             # garbage from a scrambled clock must read as no-date, not as
             # an impossible calendar date).
-            _date(int(y), int(m), int(d))
-            return f"{y}-{m}-{d}"
+            captured = _date(int(y), int(m), int(d))
+            if captured.year < MIN_PLAUSIBLE_YEAR:
+                return None
+            return captured.isoformat()
 
     except Exception as e:
         print(f"Capture-date extraction failed for {image_path}: {e}")

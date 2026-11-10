@@ -11,15 +11,20 @@ from dependency import require_public
 from models.report import Report
 
 # Shared numeric constants — served so the Info page never re-types a number
-# the code already owns (brief A3). Severity thresholds are the same ones
-# insights_service.severity_from_count uses; stage params are the real
-# DBSCAN callsites; hex sizing is the same clamp the hex grid applies.
+# the code already owns (brief A3). Severity bands are the CCI band edges
+# insights_service.severity_from_cci uses (the map's ruler); stage params are
+# the real DBSCAN callsites; hex sizing is the same clamp the hex grid applies.
 from services.insights_service import (
-    CRITICAL_COUNT_THRESHOLD,
-    HIGH_COUNT_THRESHOLD,
-    MEDIUM_COUNT_THRESHOLD,
+    CCI_HIGH_MAX,
+    CCI_K_FACTOR,
+    CCI_LOW_MAX,
+    CCI_MODERATE_MAX,
 )
-from services.dbscan_service import STAGE_A_EPS_METERS, DBSCAN_MIN_SAMPLES
+from services.dbscan_service import (
+    STAGE_A_EPS_METERS,
+    STAGE_B_IOU_EPS,
+    DBSCAN_MIN_SAMPLES,
+)
 from services.detection_service import STAGE_B_GSD_FACTOR, GSD_DEFAULT_METERS
 from services.mobile_service import HEX_EDGE_MIN_M, HEX_EDGE_MAX_M, DEFAULT_EDGE_M
 
@@ -66,14 +71,18 @@ def get_ml_info(db: Session = Depends(get_db), _user=Depends(require_public())):
             db.query(func.count(Report.report_id)).filter(Report.status == "verified").scalar()
             or 0
         ),
-        # Alert severity bands: "above N" = severity_from_count fires the band
-        # when the all-time de-duplicated count for a drawn area exceeds N.
+        # Alert severity bands — the MAP's CCI scale, not detection counts.
+        # "above N" = severity_from_cci fires the band when the area's CCI
+        # (K · detections ÷ geodesic area → the map header chip's number)
+        # exceeds N. k_factor is served so the page can show how a count and
+        # an area become that CCI.
         "severity_bands": [
-            {"name": "Critical", "above": CRITICAL_COUNT_THRESHOLD},
-            {"name": "High", "above": HIGH_COUNT_THRESHOLD},
-            {"name": "Medium", "above": MEDIUM_COUNT_THRESHOLD},
+            {"name": "Critical", "above": CCI_HIGH_MAX},
+            {"name": "High", "above": CCI_MODERATE_MAX},
+            {"name": "Medium", "above": CCI_LOW_MAX},
             {"name": "Low", "above": -1},
         ],
+        "cci_k_factor": CCI_K_FACTOR,
         # The two de-duplication stages' real parameters.
         "dedup": {
             "stage_a": {
@@ -82,13 +91,21 @@ def get_ml_info(db: Session = Depends(get_db), _user=Depends(require_public())):
                 "min_samples": DBSCAN_MIN_SAMPLES,
             },
             "stage_b": {
-                # Boxes nearer than this factor * GSD are one object.
+                # Same-frame duplicate boxes: overlap of at least this IoU is
+                # one object. This is the LIVE rule (dbscan_service.cluster_boxes).
+                "iou_threshold": STAGE_B_IOU_EPS,
+                "min_samples": DBSCAN_MIN_SAMPLES,
+                # LEGACY (pre-2026-11-11 rule): Stage B used to merge boxes
+                # nearer than gsd_factor × gsd_meters. Every box in a frame
+                # shares that frame's one GPS fix, so that radius clustered
+                # each frame into a single detection — it is history now, kept
+                # so the page can show what changed.
                 "gsd_factor": STAGE_B_GSD_FACTOR,
                 "gsd_meters": GSD_DEFAULT_METERS,
-                "min_samples": DBSCAN_MIN_SAMPLES,
+                "legacy": True,
             },
         },
-        # Adaptive hex sizing clamps (spec: algorithm_equations.md §2) — cell
+        # Adaptive hex sizing clamps (spec: docs/algorithm_equations.md §2) — cell
         # edge derives from the drawn boundary's min dimension / 10, clamped
         # to these bounds; areas without a boundary use default_edge_m.
         "hex_grid": {

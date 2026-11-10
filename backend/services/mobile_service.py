@@ -11,7 +11,7 @@ from models.detection import Detection
 
 logger = logging.getLogger(__name__)
 
-# Adaptive hex sizing (spec: algorithm_equations.md §2 — grid the SURVEY
+# Adaptive hex sizing (spec: docs/algorithm_equations.md §2 — grid the SURVEY
 # POLYGON, not the detections). Cell edge = min(bbox width, height) / 10 of
 # the area boundary, clamped to sane bounds so a tiny drawn area can't
 # explode the payload and a huge one can't produce four mega-cells.
@@ -27,7 +27,7 @@ _M_PER_DEG_LNG_EQUATOR = 111_320.0
 # (A: overlapping frames ε=3 m, B: same-frame boxes ε≈2-3×GSD) — map counts
 # are detection rows. Cross-flight (between-month) clustering was implemented
 # and ROLLED BACK (product decision 2026-10: it undercounted too aggressively);
-# the design is preserved in pipeline_explained.md §5 if it's ever revisited.
+# the design is preserved in docs/pipeline_explained.md §5 if it's ever revisited.
 
 # Normalized survey boundary (spec polygon A). FIX (mixed-SRID InternalError):
 # boundary polygons written before the srid=4326 column constraint exist with

@@ -53,6 +53,7 @@ class AppConfig {
   static String get mobileMapBaseUrl => '$apiBaseUrl/mobile/map';
   static String get logsBaseUrl => '$apiBaseUrl/logs';
   static String get insightsBaseUrl => '$apiBaseUrl/insights';
+  static String get infoBaseUrl => '$apiBaseUrl/info';
 
   /// Mapbox token, previously read ad hoc via `dotenv.env['MAP_API']`
   /// directly inside mapview.dart.

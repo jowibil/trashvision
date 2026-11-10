@@ -8,7 +8,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../helper/database_helper.dart';
 import '../services/api_service.dart';
 import '../models/report_model.dart';
-import '../widgets/bottom_nav.dart';
 import '../widgets/connectivity_status.dart';
 import '../config/theme.dart';
 
@@ -170,7 +169,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 3),
     );
   }
 

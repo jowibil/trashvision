@@ -1,4 +1,3 @@
-import 'package:TrashVision/widgets/bottom_nav.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,7 +11,20 @@ import '../widgets/connectivity_status.dart';
 import '../config/theme.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    required this.onSelectTab,
+    required this.onOpenReportWithImage,
+  });
+
+  /// Switches the enclosing HomeShell to another tab (0 Home, 1 Map,
+  /// 2 Report, 3 Profile). Shortcuts used to push routes, which replaced the
+  /// only route on the stack and made back exit the app instead of going to
+  /// the previous page.
+  final ValueChanged<int> onSelectTab;
+
+  /// Hands a photo recovered from a killed camera session to the Report tab.
+  final ValueChanged<String> onOpenReportWithImage;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -63,11 +75,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (response.file != null) {
       if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context, 
-        '/report', 
-        arguments: response.file!.path
-      );
+      // The Report tab owns the capture flow now; hand the recovered photo to
+      // the shell instead of replacing the route (which used to drop the
+      // arguments and leave a one-deep stack).
+      widget.onOpenReportWithImage(response.file!.path);
     }
   }
 
@@ -223,7 +234,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 0),
     );
   }
 
@@ -287,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.report_problem,
                 title: "File Report",
                 color: Colors.amber[700]!,
-                onTap: () => Navigator.pushReplacementNamed(context, '/report'),
+                onTap: () => widget.onSelectTab(2),
               ),
             ),
             const SizedBox(width: 14),
@@ -296,19 +306,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.map,
                 title: "View Map",
                 color: primaryColor,
-                onTap: () => Navigator.pushReplacementNamed(context, '/map'),
+                onTap: () => widget.onSelectTab(1),
               ),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        // Chat assistant (brief Task 4): CCia, same endpoint the web widget
-        // uses. pushNamed (not pushReplacement) so back returns to Home.
-        _buildActionCard(
-          icon: Icons.forum_outlined,
-          title: "Ask Assistant",
-          color: Colors.teal[600]!,
-          onTap: () => Navigator.pushNamed(context, '/chat'),
+        // IntrinsicHeight + stretch keeps the two half-width cards the same
+        // height even when one title wraps on a narrow screen.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                // Chat assistant (brief Task 4): CCia, same endpoint the web
+                // widget uses. pushNamed (not pushReplacement) so back
+                // returns to Home.
+                child: _buildActionCard(
+                  icon: Icons.forum_outlined,
+                  title: "Ask Assistant",
+                  color: Colors.teal[600]!,
+                  onTap: () => Navigator.pushNamed(context, '/chat'),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                // How TrashVision works (mobile twin of the portal Info page):
+                // pushed above the shell so back lands on Home.
+                child: _buildActionCard(
+                  icon: Icons.info_outline,
+                  title: "How It Works",
+                  color: primaryColor,
+                  onTap: () => Navigator.pushNamed(context, '/info'),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

@@ -35,7 +35,7 @@ export const getCciColor = (category?: PollutionCategory | string): string => {
 };
 import type { HexbinTile } from "./useAreaHexbins";
 
-// CCI scaling coefficient — spec value (algorithm_equations.md §2.1:
+// CCI scaling coefficient — spec value (docs/algorithm_equations.md §2.1:
 // "typically K = 20"). Same constant the area header metric uses, so cells
 // and the survey-wide chip are on ONE scale. CCI is size-invariant, so the
 // adaptive per-area cell sizes never skew colors.

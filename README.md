@@ -42,9 +42,9 @@ Cloudflare Pages, auto-deployed whenever `main` changes.
 
 - `AGENTS.md` — the house rules for working on this repo
 - `knowledge.md` — architecture and stack details
-- `pipeline_explained.md` and `algorithm_equations.md` — how detection and severity
-  scoring actually work
-- `docs/` — deployment runbooks
+- `docs/pipeline_explained.md` and `docs/algorithm_equations.md` — how detection
+  and severity scoring actually work
+- `docs/` — the written specs behind the detection pipeline and the map
 
 Secrets live in environment files that are never committed — if you need credentials or
 configuration, ask the team. Anyone contributing code should read `AGENTS.md` first.

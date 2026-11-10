@@ -11,8 +11,9 @@ export interface DatasetManifest {
   total_images: number;
 }
 
-/** One alert severity band; `above` is the exclusive threshold. Backend:
- *  insights_service.CRITICAL/HIGH/MEDIUM_COUNT_THRESHOLD served via routes/info.py. */
+/** One alert severity band; `above` is the exclusive CCI threshold. Backend:
+ *  insights_service.CCI_HIGH_MAX / CCI_MODERATE_MAX / CCI_LOW_MAX, served via
+ *  routes/info.py — the same edges classifyCci uses on the map. */
 export interface SeverityBand {
   name: string;
   above: number;
@@ -24,9 +25,16 @@ export interface StageAParams {
 }
 
 export interface StageBParams {
-  gsd_factor: number;
-  gsd_meters: number;
+  /** Live rule: same-frame boxes whose IoU reaches this are one object
+   *  (dbscan_service.STAGE_B_IOU_EPS). */
+  iou_threshold: number;
   min_samples: number;
+  /** Retired pre-2026-11-11 radius rule (gsd_factor × gsd_meters). Served with
+   *  `legacy: true` so the page can document what changed — never the live
+   *  rule, and never a threshold this page computes from. */
+  gsd_factor?: number;
+  gsd_meters?: number;
+  legacy?: boolean;
 }
 
 export interface HexGridParams {

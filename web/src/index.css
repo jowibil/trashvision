@@ -16,8 +16,12 @@
   to { opacity: 1; transform: none; }
 }
 
+/* No fill-mode 'both': once the keyframes' end state equals the natural
+   styles, a forwards-filled animation keeps the element on the compositor
+   as a stacking context indefinitely — which trapped MapView's z-2000
+   search dropdown under the map on mobile browsers. */
 .tv-pop-in { animation: tv-pop-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.tv-rise-in { animation: tv-rise-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.tv-rise-in { animation: tv-rise-in 220ms cubic-bezier(0.23, 1, 0.32, 1); }
 
 /* ChatWidget floating panel: grid-row expansion (0fr → 1fr) + opacity, so
    the panel animates open/closed without measuring content height. */

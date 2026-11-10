@@ -1,31 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import TVLogo from "@/assets/LOGO.png";
 import { Menu } from "lucide-react";
 
-const GEIST_FONT_LINK_ID = "font-geist-stylesheet";
-const GEIST_FONT_HREF =
-  "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap";
-
-/**
- * Loads the Geist typeface without adding a package dependency. Runs once
- * per app lifetime (idempotent via the link's id) rather than on every
- * AppLayout mount.
- */
-function useGeistFont() {
-  useEffect(() => {
-    if (document.getElementById(GEIST_FONT_LINK_ID)) return;
-    const link = document.createElement("link");
-    link.id = GEIST_FONT_LINK_ID;
-    link.rel = "stylesheet";
-    link.href = GEIST_FONT_HREF;
-    document.head.appendChild(link);
-  }, []);
-}
+// Geist used to be injected here by JS. It is now a static <link> in
+// index.html, so public routes outside the portal (/info via DocShell) get the
+// same typeface instead of falling back to the system stack.
 
 export default function AdminLayout() {
-  useGeistFont();
   // Off-canvas sidebar below `md`: the persistent column is display:none on
   // phones so pages get the full viewport width (see Sidebar's className).
   // Without this, the fixed 256px column eats most of a Mobile-S viewport
@@ -63,8 +46,9 @@ export default function AdminLayout() {
       {/* Mobile off-canvas drawer: scrim + the same sidebar component.
           Overlay ladder (Z-ORDER, keep coherent when touching any tier):
           page-local overlays (map header z-1001, footer search dropdown
-          z-2000, chat widget z-1100) < this drawer z-[2500] < image-detail
-          modal z-3000 < toasts (react-hot-toast default). The drawer must
+          z-2000, chat widget z-1100) < off-canvas drawers (nav scrim +
+          MapView's sector drawer, both z-[2500]) < image-detail modal
+          z-3000 < toasts (react-hot-toast default). The drawer must
           cover ALL page chrome — MapView's footer legend matrix used to poke
           through the scrim because the drawer sat at z-[1000]. */}
       {mobileNavOpen ? (

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import TVLogo from "@/assets/LOGO.png";
 import { Eye } from "lucide-react";
@@ -16,7 +16,33 @@ const NAV_LINKS = [
   { name: "Features", href: "#features" },
   { name: "How It Works", href: "#hiw" },
   { name: "About", href: "#about" },
+  { name: "Docs", href: "/info" },
 ];
+
+/**
+ * In-page anchors must stay plain <a> so the browser handles hash scrolling;
+ * page-level links (Docs → /info) need router navigation. One component keeps
+ * both nav surfaces (desktop pill row, mobile menu) in sync.
+ */
+function NavEntry({
+  link,
+  className,
+  onClick,
+}: {
+  link: (typeof NAV_LINKS)[number];
+  className: string;
+  onClick?: () => void;
+}) {
+  return link.href.startsWith("/") ? (
+    <Link to={link.href} className={className} onClick={onClick}>
+      {link.name}
+    </Link>
+  ) : (
+    <a href={link.href} className={className} onClick={onClick}>
+      {link.name}
+    </a>
+  );
+}
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MS = 30_000;
@@ -137,20 +163,21 @@ export default function Navbar() {
 
           {/* Desktop Nav */}
           <div
-            className={`hidden md:flex items-center gap-1 rounded-full px-2 py-1 backdrop-blur-md ${
+            // gap-0.5 + px-3 (not gap-1/px-4): the row gained a fifth item
+            // (Docs) and has to share 768px with the logo, the portal button
+            // and the admin lock.
+            className={`hidden md:flex items-center gap-0.5 rounded-full px-2 py-1 backdrop-blur-md ${
               scrolled ? "bg-slate-100/50 border border-slate-200" : "bg-white/5 border border-white/10"
             }`}
           >
             {NAV_LINKS.map((link) => (
-              <a
+              <NavEntry
                 key={link.name}
-                href={link.href}
-                className={`text-sm font-medium px-4 py-2 rounded-full transition-all ${
+                link={link}
+                className={`text-sm font-medium px-3 py-2 rounded-full whitespace-nowrap transition-all ${
                   scrolled ? "text-slate-600 hover:text-blue-600" : "text-white/80 hover:text-white"
                 }`}
-              >
-                {link.name}
-              </a>
+              />
             ))}
           </div>
 
@@ -259,15 +286,23 @@ export default function Navbar() {
             }`}
           >
             {NAV_LINKS.map((link) => (
-              <a
+              <NavEntry
                 key={link.name}
-                href={link.href}
+                link={link}
                 onClick={() => setMenuOpen(false)}
                 className={`block text-sm px-4 py-3 rounded-xl ${scrolled ? "text-slate-600" : "text-white/80"}`}
-              >
-                {link.name}
-              </a>
+              />
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                navigate("/portal");
+              }}
+              className="mt-1 w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+            >
+              Open Portal
+            </button>
             <hr className="border-white/10 my-2" />
             <button
               type="button"

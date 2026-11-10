@@ -15,6 +15,20 @@ jobs:
   backend:
     name: Backend imports cleanly
     runs-on: ubuntu-latest
+    # Dummy secrets for the whole job: config.Settings makes DATABASE_URL,
+    # SECRET_KEY, CLOUDINARY_*, SMTP_* and GEMINI_* required with no defaults,
+    # and routes.flights imports config transitively — so a DB-free test would
+    # also fail to import without them. Real values never enter CI.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      SECRET_KEY: ci-dummy
+      CLOUDINARY_CLOUD_NAME: ci
+      CLOUDINARY_API_KEY: ci
+      CLOUDINARY_API_SECRET: ci
+      SMTP_EMAIL: ci@example.com
+      SMTP_PASSWORD: ci
+      GEMINI_API_KEY: ci
+      GEMINI_MODEL_NAME: gemini-dummy
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,18 +37,16 @@ jobs:
       - name: Install pinned deps
         working-directory: backend
         run: pip install -r requirements.txt
-      - name: Import app (needs dummy secrets)
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-          SECRET_KEY: ci-dummy
-          CLOUDINARY_CLOUD_NAME: ci
-          CLOUDINARY_API_KEY: ci
-          CLOUDINARY_API_SECRET: ci
-          SMTP_EMAIL: ci@example.com
-          SMTP_PASSWORD: ci
-          GEMINI_API_KEY: ci
-          GEMINI_MODEL_NAME: gemini-dummy
+      - name: Import app
         run: python -c "import sys; sys.path.insert(0, 'backend'); import main"
+      - name: Install dev deps
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+      # Before the compile check on purpose: a contract failure should cost
+      # seconds and report first. No DB, no Cloudinary, no network.
+      - name: Upload contract canary (no DB)
+        working-directory: backend
+        run: python -m pytest test/test_upload_contract.py -q
       - name: Clean check (no generated files committed)
         run: python -m compileall backend ml -q
 

@@ -7,26 +7,33 @@ from slowapi.util import get_remote_address
 from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
 from models.detection import Detection
-from routes.helper.utils import FlightCreate, FlightResponse
+from routes.helper.utils import FlightCreate, FlightResponse, FlightStats
 from services.gps_service import (
     extract_gps,
     extract_dimensions,
     extract_capture_date,
     extract_capture_datetime,
 )
-from services.geo_assign import resolve_area_for_point
+from services.geo_assign import resolve_areas_for_points
 from services.detection_service import process_image_upload
 from services.dbscan_service import cluster_points, STAGE_A_EPS_METERS, DBSCAN_MIN_SAMPLES
 from services.mobile_service import MobileMapService
 from dependency import require_public
 from typing import Optional, List, Dict
-from datetime import date, datetime
-from sqlalchemy import extract
+from datetime import date, datetime, timezone
+from sqlalchemy import extract, func
 import uuid
 import shutil
 import hashlib
 import os
+import time
+import asyncio
 import logging
+
+from starlette.concurrency import run_in_threadpool
+
+from config import settings
+from models.area import Area
 
 logger = logging.getLogger(__name__)
 
@@ -213,20 +220,77 @@ def get_area_detection_batch(
 @router.get("/{flight_id}")
 def get_flight(
     flight_id: str,
+    # The images array is thousands of rows and the only optional part of this
+    # payload; the stats block is seven scalars and always returned (a flag
+    # would mean two payload shapes for no saved bytes).
+    include_images: bool = Query(True),
     db: Session = Depends(get_db),
     _user=Depends(require_role("guest")),
 ):
+    """Flight detail + what the pipeline did with what was sent.
+
+    `stats` is the reason this route exists after an upload: the upload
+    response describes the REQUEST (and is gone after a reload), while
+    BackgroundTasks leave nothing behind when the process is replaced. These
+    counters are read from the rows themselves, so they survive both.
+
+    `last_capture_at` is the newest frame's EXIF shutter time — a label for the
+    mission, never proof of activity.
+    """
+    try:
+        flight_uuid = uuid.UUID(flight_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid flight UUID format")
+
     flight = db.query(DroneFlightLog).filter(
-        DroneFlightLog.flight_id == uuid.UUID(flight_id)
+        DroneFlightLog.flight_id == flight_uuid
     ).first()
 
     if not flight:
         raise HTTPException(status_code=404, detail="Flight not found")
 
-    return {
+    # One aggregate row over one flight: COUNT(*) FILTER per status instead of
+    # loading the images to count them in Python.
+    counts = db.query(
+        func.count(Image.image_id).label("images_total"),
+        func.count(Image.image_id).filter(
+            Image.processing_status == ProcessingStatus.COMPLETED
+        ).label("images_done"),
+        # `processing` is currently unreachable, but folding it in means a
+        # future worker cannot make a held frame report as finished.
+        func.count(Image.image_id).filter(
+            Image.processing_status.in_(
+                [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]
+            )
+        ).label("images_pending"),
+        func.count(Image.image_id).filter(
+            Image.processing_status == ProcessingStatus.DUPLICATE_SKIPPED
+        ).label("images_skipped"),
+        func.count(Image.image_id).filter(
+            Image.processing_status == ProcessingStatus.FAILED
+        ).label("images_failed"),
+        func.max(Image.captured_at).label("last_capture_at"),
+    ).filter(Image.flight_id == flight_uuid).one()
+
+    detections_total = db.query(func.count(Detection.detection_id)).filter(
+        Detection.flight_id == flight_uuid
+    ).scalar() or 0
+
+    payload = {
         "flight_details": flight,
-        "images": flight.images
+        "stats": FlightStats(
+            images_total=counts.images_total or 0,
+            images_done=counts.images_done or 0,
+            images_pending=counts.images_pending or 0,
+            images_skipped=counts.images_skipped or 0,
+            images_failed=counts.images_failed or 0,
+            detections_total=detections_total,
+            last_capture_at=counts.last_capture_at,
+        ),
     }
+    if include_images:
+        payload["images"] = flight.images
+    return payload
 
 @router.delete("/{flight_id}")
 def delete_flight(
@@ -244,21 +308,175 @@ def delete_flight(
     return {"message": "Flight log deleted"}
 
 
-def _save_upload_to_temp(file: UploadFile) -> tuple[str, str]:
+class UploadRejected(Exception):
+    """Rejection raised inside the threadpool extraction pass.
+
+    That pass has no request context to raise HTTPException into, so it raises
+    this and the endpoint maps it to the typed response below.
+    """
+
+    def __init__(self, status_code: int, detail: dict):
+        super().__init__(detail.get("message", "upload rejected"))
+        self.status_code = status_code
+        self.detail = detail
+
+
+def _cap_detail(error: str, message: str, **extra) -> dict:
+    """The typed rejection body the upload form is meant to render."""
+    return {"error": error, "message": message, **extra}
+
+
+def _cap_error(error: str, message: str, **extra) -> HTTPException:
+    return HTTPException(status_code=413, detail=_cap_detail(error, message, **extra))
+
+
+_upload_semaphore: asyncio.Semaphore | None = None
+
+
+def _upload_gate() -> asyncio.Semaphore:
+    """Single-flight save loop (settings.MAX_CONCURRENT_UPLOADS).
+
+    Built lazily so importing the router never needs a running event loop.
+    """
+    global _upload_semaphore
+    if _upload_semaphore is None:
+        _upload_semaphore = asyncio.Semaphore(max(1, settings.MAX_CONCURRENT_UPLOADS))
+    return _upload_semaphore
+
+
+def _ensure_temp_capacity(declared_bytes: int | None) -> None:
+    """Refuse before writing when the temp volume cannot hold the request.
+
+    Self-defence, not policy: there is no reaper for temp files left behind by
+    a killed worker, so a full disk otherwise surfaces as an untyped OSError
+    in the middle of the save loop, after the flight row already exists.
+    """
+    os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
+    expected = declared_bytes if declared_bytes and declared_bytes > 0 else settings.MAX_UPLOAD_BYTES
+    expected = min(expected, settings.MAX_UPLOAD_BYTES)
+    try:
+        free = shutil.disk_usage(TEMP_UPLOAD_DIR).free
+    except OSError:
+        # Cannot measure: never block an upload on a stat failure.
+        return
+    if free < expected * 2:
+        raise HTTPException(
+            status_code=507,
+            detail=_cap_detail(
+                "insufficient_storage",
+                "The upload volume is nearly full. Clear temp files and retry.",
+                free_bytes=free,
+                required_bytes=expected * 2,
+            ),
+        )
+
+
+def _save_upload_to_temp(file: UploadFile, max_bytes: int) -> tuple[str, str, int]:
     """Persist an uploaded stream to disk so PIL/EXIF and YOLO can read it.
 
     The SHA-256 of the raw bytes is computed while the stream is written
     (single pass over the multipart body) so callers can dedup re-uploads
-    before Stage B ever touches the frame. Returns (temp_path, sha256_hex).
+    before Stage B ever touches the frame. Returns
+    (temp_path, sha256_hex, size_bytes); refuses a file over `max_bytes` and
+    deletes the partial write, because a rejected frame must not leak disk.
     """
     os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
     path = os.path.join(TEMP_UPLOAD_DIR, f"{uuid.uuid4()}_{file.filename}")
     hasher = hashlib.sha256()
-    with open(path, "wb") as buffer:
-        while chunk := file.file.read(8192):
-            hasher.update(chunk)
-            buffer.write(chunk)
-    return path, hasher.hexdigest()
+    size = 0
+    try:
+        with open(path, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > max_bytes:
+                    raise UploadRejected(
+                        413,
+                        _cap_detail(
+                            "file_too_large",
+                            f"Each frame must be at most {max_bytes // (1024 * 1024)} MB.",
+                            filename=file.filename,
+                            limit_bytes=max_bytes,
+                        ),
+                    )
+                hasher.update(chunk)
+                buffer.write(chunk)
+    except BaseException:
+        if os.path.exists(path):
+            os.remove(path)
+        raise
+    return path, hasher.hexdigest(), size
+
+
+def _extract_frames_sync(files: list[UploadFile]) -> tuple[list[dict], int]:
+    """Save + EXIF pass for a whole batch. Blocking: call it in a threadpool.
+
+    Every frame is written before any DB work starts, because the EXIF-majority
+    vote decides the flight date. On any rejection, every temp file written so
+    far is removed: no worker is enqueued for a request that never completes.
+    """
+    extracted: list[dict] = []
+    total_bytes = 0
+    try:
+        for file in files:
+            temp_path, content_hash, size = _save_upload_to_temp(
+                file, settings.MAX_FILE_BYTES
+            )
+            total_bytes += size
+            if total_bytes > settings.MAX_UPLOAD_BYTES:
+                # This frame is not in `extracted` yet, so clean it here.
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise UploadRejected(
+                    413,
+                    _cap_detail(
+                        "upload_too_large",
+                        f"A single upload may carry at most "
+                        f"{settings.MAX_UPLOAD_BYTES // (1024 * 1024)} MB. "
+                        "Split the mission into separate uploads.",
+                        limit_bytes=settings.MAX_UPLOAD_BYTES,
+                        received_bytes=total_bytes,
+                    ),
+                )
+            lat, lng = extract_gps(temp_path)
+            width, height = extract_dimensions(temp_path)
+            # exif_date feeds the flight-date majority vote (and the mismatch
+            # warning); capture_ts is the full shutter datetime that becomes the
+            # frame's stored captured_at and its detections' real timestamps
+            # (midnight fallback when the frame carries no usable EXIF).
+            exif_date = extract_capture_date(temp_path)
+            capture_ts = extract_capture_datetime(temp_path)
+            extracted.append({
+                "id": str(uuid.uuid4()),
+                "file": file,
+                "temp_path": temp_path,
+                "content_hash": content_hash,
+                "lat": lat,
+                "lng": lng,
+                "width": width,
+                "height": height,
+                "exif_date": exif_date,
+                "capture_ts": capture_ts,
+            })
+    except BaseException:
+        for frame in extracted:
+            path = frame.get("temp_path")
+            if path and os.path.exists(path):
+                os.remove(path)
+        raise
+    return extracted, total_bytes
+
+
+async def _extract_frames_with_gate(
+    files: list[UploadFile], declared_bytes: int | None
+) -> tuple[list[dict], int]:
+    """Single-flight wrapper for the blocking save/EXIF pass.
+
+    The gate is held only while files are written — the window the caps were
+    sized for. Counting and inference are not serialised by it.
+    """
+    async with _upload_gate():
+        _ensure_temp_capacity(declared_bytes)
+        return await run_in_threadpool(_extract_frames_sync, files)
 
 
 def _cluster_frames(frames: list[dict]) -> list[dict]:
@@ -311,9 +529,88 @@ async def upload_flight_batch(
     non-representative duplicate frames, and enqueues the Stage B background
     pipeline ONLY for representative frames.
     """
+    started = time.perf_counter()
+    # Per-request id: stamped on every Image row this POST writes, so "which
+    # request produced these 400 rows" is answerable without append support.
+    # It is not a mission id — two chunks of one mission get different ids.
+    batch_id = uuid.uuid4()
+
+    # 0. Caps BEFORE anything is written. A rejected request must not create a
+    # flight row (it is committed below, before dedup) and must not leave temp
+    # files behind: the worker that normally deletes them is never enqueued.
+    # The count is free; byte totals are enforced while streaming, so an
+    # over-cap body still costs the transfer — the check saves disk, not
+    # bandwidth (only a client picking fewer frames can prevent that wait).
+    if len(files) > settings.MAX_FILES_PER_REQUEST:
+        raise _cap_error(
+            "too_many_files",
+            f"At most {settings.MAX_FILES_PER_REQUEST} frames per upload. "
+            "Split the mission into separate uploads.",
+            limit=settings.MAX_FILES_PER_REQUEST,
+            received=len(files),
+        )
+
+    declared = request.headers.get("content-length")
+    declared_bytes = int(declared) if declared and declared.isdigit() else None
+
+    # 1. Save streams to disk (hashing on the fly) and read EXIF metadata
+    # from the file path. This must run BEFORE the flight row is created:
+    # the EXIF-majority vote below decides the flight_date when the camera
+    # disagrees with the typed form date.
+    #
+    # The pass is blocking (file IO + PIL + EXIF), so it runs in a threadpool:
+    # on the event loop it froze the portal and the mobile API for the whole
+    # upload, since this is the only worker. The gate keeps one batch writing
+    # at a time so two concurrent uploads cannot double the disk exposure the
+    # caps were sized for.
+    try:
+        extracted_frames, total_bytes = await _extract_frames_with_gate(
+            files, declared_bytes
+        )
+    except UploadRejected as rejected:
+        logger.warning(
+            "Upload rejected (%s) batch=%s files=%d",
+            rejected.detail.get("error"),
+            batch_id,
+            len(files),
+        )
+        raise HTTPException(status_code=rejected.status_code, detail=rejected.detail)
+
+    saved_at = time.perf_counter()
+
+    # EXIF-majority flight date. The camera's own dates are now the source
+    # of truth for the flight record; the typed form date is demoted to a
+    # plausibility anchor. Rules:
+    #   - a date wins by frame count (audit-only / dedup-skipped frames
+    #     included — their dates are just as honest as representative ones);
+    #   - on an exact count tie the TYPED date still wins (an even split
+    #     means the batch is ambiguous, so prefer the operator's intent);
+    #   - with no plausible EXIF date anywhere the typed date stands
+    #     unchanged (EXIF-less batches keep the old behavior exactly).
+    # Plausibility is gated inside extract_capture_date (MIN_PLAUSIBLE_YEAR),
+    # so a reset clock stuck in 1988 can never out-vote a real date.
+    exif_date_counts: dict[str, int] = {}
+    for frame in extracted_frames:
+        exif_date = frame.get("exif_date")
+        if exif_date:
+            exif_date_counts[exif_date] = exif_date_counts.get(exif_date, 0) + 1
+
+    typed_date_str = flight_date.isoformat()
+    if exif_date_counts:
+        effective_date_str = max(
+            exif_date_counts.items(),
+            # count desc, typed-date wins ties, then later date as a stable
+            # deterministic fallback for a no-typed-date tie.
+            key=lambda item: (item[1], item[0] == typed_date_str, item[0]),
+        )[0]
+        effective_flight_date = date.fromisoformat(effective_date_str)
+    else:
+        effective_date_str = typed_date_str
+        effective_flight_date = flight_date
+
     # One flight log per batch; every image in the batch references it.
     flight = DroneFlightLog(
-        flight_date=flight_date,
+        flight_date=effective_flight_date,
         pilot_name=pilot_name,
         notes=notes,
         area_id=uuid.UUID(area_id) if area_id else None
@@ -322,32 +619,13 @@ async def upload_flight_batch(
     db.commit()
     db.refresh(flight)
     flight_id = str(flight.flight_id)
-
-    # 1. Save streams to disk (hashing on the fly) and read EXIF GPS from
-    # the file path.
-    extracted_frames = []
-    for file in files:
-        temp_path, content_hash = _save_upload_to_temp(file)
-        lat, lng = extract_gps(temp_path)
-        width, height = extract_dimensions(temp_path)
-        # exif_date feeds the upload-aid's mismatch warning; capture_ts is the
-        # full shutter datetime that becomes the frame's stored captured_at
-        # and its detections' real timestamps (midnight fallback when the
-        # frame carries no usable EXIF).
-        exif_date = extract_capture_date(temp_path)
-        capture_ts = extract_capture_datetime(temp_path)
-        extracted_frames.append({
-            "id": str(uuid.uuid4()),
-            "file": file,
-            "temp_path": temp_path,
-            "content_hash": content_hash,
-            "lat": lat,
-            "lng": lng,
-            "width": width,
-            "height": height,
-            "exif_date": exif_date,
-            "capture_ts": capture_ts,
-        })
+    if effective_date_str != typed_date_str:
+        logger.info(
+            "Flight %s date overridden by EXIF majority: typed %s -> EXIF %s",
+            flight_id,
+            typed_date_str,
+            effective_date_str,
+        )
 
     # 1a. Auto-detect assignment area (Upload page "Auto-detect from GPS").
     # The frontend omits area_id for "auto", which used to commit the flight
@@ -357,29 +635,36 @@ async def upload_flight_batch(
     # boundary covers any GPS point, stay UNASSIGNED (honest, surfaces
     # boundary gaps) rather than guessing the nearest area.
     if area_id is None:
+        # ONE spatial query for the batch instead of one per frame: the old
+        # loop ran a PostGIS scan per point — 400 sequential round-trips on
+        # the only worker to answer what a single JOIN answers.
+        resolved = resolve_areas_for_points(
+            db, [(frame["lat"], frame["lng"]) for frame in extracted_frames]
+        )
         tally: dict = {}
-        for frame in extracted_frames:
-            resolved_area = resolve_area_for_point(db, frame["lat"], frame["lng"])
-            if resolved_area is not None:
-                tally[resolved_area] = tally.get(resolved_area, 0) + 1
+        for resolved_area_id in resolved.values():
+            tally[resolved_area_id] = tally.get(resolved_area_id, 0) + 1
         if tally:
-            detected_area = max(
-                tally.items(),
-                key=lambda item: (item[1], str(item[0].area_id)),  # count, then deterministic tie-break
+            # Majority by count, ties broken by area_id — the same
+            # deterministic rule the per-point resolver documents.
+            detected_area_id = max(
+                tally.items(), key=lambda item: (item[1], str(item[0]))
             )[0]
-            area_id = str(detected_area.area_id)
+            area_id = str(detected_area_id)
+            detected_area = db.get(Area, detected_area_id)
             # The flight row was already committed with NULL above; update it
             # in place so TrashLogs/hexbin routes see the real assignment.
-            flight.area_id = detected_area.area_id
+            flight.area_id = detected_area_id
             db.add(flight)
             db.commit()
             logger.info(
                 "Auto-detected area %s for flight %s (from %d/%d GPS frames)",
-                detected_area.area_name,
+                detected_area.area_name if detected_area else detected_area_id,
                 flight_id,
-                tally[detected_area],
+                tally[detected_area_id],
                 len(files),
             )
+    resolved_at = time.perf_counter()
 
     # 1b. Content-hash dedup (Stage 0). A frame whose bytes already exist in
     # a past flight — or earlier in this same batch — is pulled out BEFORE
@@ -443,7 +728,8 @@ async def upload_flight_batch(
                 or datetime.combine(flight.flight_date, datetime.min.time()),
                 is_representative=is_rep,
                 cluster_id=cluster_str_id,
-                processing_status=status
+                processing_status=status,
+                upload_batch=batch_id,
             )
             db.add(db_image)
             processed_images.append(db_image)
@@ -486,32 +772,61 @@ async def upload_flight_batch(
             or datetime.combine(flight.flight_date, datetime.min.time()),
             is_representative=False,
             cluster_id=None,
-            processing_status=ProcessingStatus.DUPLICATE_SKIPPED
+            processing_status=ProcessingStatus.DUPLICATE_SKIPPED,
+            upload_batch=batch_id,
         ))
         if os.path.exists(frame["temp_path"]):
             os.remove(frame["temp_path"])
     db.commit()
 
-    # EXIF-date aid summary (additive response fields; aid only, see
-    # extract_capture_date). Distinct EXIF capture dates -> frame count, so
-    # the admin can see when a typed flight date disagrees with what the
-    # camera actually wrote.
-    exif_date_counts: dict[str, int] = {}
-    for frame in extracted_frames:
-        exif_date = frame.get("exif_date")
-        if exif_date:
-            exif_date_counts[exif_date] = exif_date_counts.get(exif_date, 0) + 1
+    # EXIF-date aid summary (additive response fields; the counts were
+    # tallied earlier for the majority vote). mismatch is reported against
+    # the date the admin TYPED — effective_flight_date is what actually
+    # won the vote and was stored — so the uploader sees how far the form
+    # drifted from the camera.
     flight_date_str = str(flight.flight_date)
     exif_date_mismatch_count = sum(
         count for exif_date, count in exif_date_counts.items()
-        if exif_date != flight_date_str
+        if exif_date != typed_date_str
+    )
+
+    # Suspicious-clock nudge: the majority EXIF year matching neither the
+    # typed year nor the current year points at a drone clock reset to a
+    # stale-but-plausible date — something the count-based plausibility
+    # gate can't catch, and a human should check the drone clock before
+    # trusting this flight's timeline.
+    exif_year_suspicious: Optional[bool] = None
+    if exif_date_counts:
+        majority_year = int(effective_date_str[:4])
+        exif_year_suspicious = (
+            majority_year != flight_date.year
+            and majority_year != datetime.now().year
+        )
+
+    # One structured line per upload: the gate in the plan reads file counts and
+    # durations from here, so this must not drift into prose.
+    logger.info(
+        "upload batch=%s flight=%s files=%d bytes=%d save_ms=%d area_ms=%d "
+        "reps=%d stage_a_dups=%d already_uploaded=%d",
+        batch_id,
+        flight_id,
+        len(files),
+        total_bytes,
+        int((saved_at - started) * 1000),
+        int((resolved_at - saved_at) * 1000),
+        len([img for img in processed_images if img.is_representative]),
+        len([img for img in processed_images if not img.is_representative]),
+        len(already_uploaded_frames),
     )
 
     return {
         "status": "success",
+        "batch_id": str(batch_id),
         "flight_id": flight_id,
         "pilot_name": pilot_name,
         "flight_date": flight_date_str,
+        "effective_flight_date": effective_date_str,
+        "exif_year_suspicious": exif_year_suspicious,
         "total_uploaded": len(files),
         "representatives_queued": len([img for img in processed_images if img.is_representative]),
         "duplicates_skipped": len([img for img in processed_images if not img.is_representative]),

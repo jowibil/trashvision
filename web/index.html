@@ -5,6 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="\src\assets\LOGO.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TrashVision</title>
+    <!-- Geist lives here (not injected from AppLayout) so public pages outside
+         the portal — e.g. /info in DocShell — get the same typeface without a
+         JS round-trip. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      id="font-geist-stylesheet"
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

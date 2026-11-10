@@ -18,8 +18,11 @@ class Insight(Base):
                    area — including unchanged ones. area_id/severity are NULL
                    on digest rows so nothing can mistake them for per-area
                    alerts.
-    Severity strings come from services/insights_service.severity_from_count —
-    the same thresholds routes/logs.py renders for hotspot zones.
+    Severity strings come from services/insights_service.severity_from_cci —
+    the area's CCI, the same ruler routes/logs.py renders for hotspot zones and
+    the map colours hexes with. It is not recoverable from
+    detection_count alone (that needs the area's size), so a stored row
+    keeps the severity it was raised with.
     """
     __tablename__ = "insights"
 

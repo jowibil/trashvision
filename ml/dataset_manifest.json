@@ -1,7 +1,7 @@
 {
   "source": "roboflow",
   "export_format": "yolov8",
-  "version": "10",
+  "version": "11",
   "classes": [
     "composite_packaging",
     "glass",
@@ -10,9 +10,9 @@
     "styrofoam"
   ],
   "splits": {
-    "train": 2444,
-    "valid": 303,
-    "test": 304
+    "train": 1635,
+    "valid": 350,
+    "test": 351
   },
-  "total_images": 3051
+  "total_images": 2336
 }

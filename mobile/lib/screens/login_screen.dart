@@ -3,7 +3,7 @@ import '../config/theme.dart';
 import '../services/api_client.dart' show userMessage;
 import '../services/auth_service.dart'; // also exports ApiException
 import 'register_screen.dart';
-import 'home_screen.dart';
+import 'home_shell.dart';
 import 'password_reset_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -60,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context)=> const HomeScreen()), (route) => false,
+          MaterialPageRoute(builder: (context)=> const HomeShell()), (route) => false,
         );
       } else {
         setState(() {

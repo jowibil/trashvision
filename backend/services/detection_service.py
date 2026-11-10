@@ -10,21 +10,30 @@ from ml.detect import trash_detector
 from models.detection import Detection
 from models.drone_flight_log import DroneFlightLog
 from models.image import Image, ProcessingStatus
-from services.dbscan_service import cluster_points, DBSCAN_MIN_SAMPLES
+from services.dbscan_service import cluster_boxes, STAGE_B_IOU_EPS
 from services.cloudinary_service import upload_drone_image
 from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Stage B neighborhood factor: boxes within 2.5× the ground sample distance
-# are the same physical object (documented on the Info page via
-# routes/info.py from this same constant).
+# LEGACY REFERENCE ONLY (the pre-2026-11-11 Stage B rule) — nothing in this
+# module computes with these any more. Stage B used to merge boxes whose pixel
+# positions sat within 2.5 × GSD of each other, but every box in a frame
+# shares that frame's single GPS fix, so the radius separated nothing and the
+# pipeline collapsed each frame to ONE detection. Stage B is now an IoU test
+# (dbscan_service.STAGE_B_IOU_EPS). The values are kept, and still served by
+# routes/info.py, as the documented history of the old rule.
 STAGE_B_GSD_FACTOR = 2.5
-
-# Default ground sample distance (meters per image pixel) when the caller
-# doesn't pass one — the same value the pipeline runs with, and the number
-# the Info page documents via routes/info.py.
 GSD_DEFAULT_METERS = 0.05
+
+
+def _error_text(exc: BaseException) -> str:
+    """One-line failure reason stored in images.processing_error.
+
+    The exception class leads so a support query can group by failure kind
+    (`LIKE 'TimeoutError:%'`) even though the column is free text.
+    """
+    return f"{type(exc).__name__}: {exc}"[:1000]
 
 
 def run_yolo_inference(
@@ -36,7 +45,6 @@ def run_yolo_inference(
     lat: float | None,
     lng: float | None,
     image_id: str | None = None,
-    gsd_meters: float = GSD_DEFAULT_METERS,
     # Per-frame EXIF shutter time (from the upload pipeline). When present
     # it becomes detections.timestamp directly; when absent we fall back to
     # the flight-date midnight below, which the UI exports blank instead of
@@ -48,9 +56,16 @@ def run_yolo_inference(
     Runs the YOLOv8 model on one frame, applies DBSCAN clustering on the raw
     detections, and persists one deduped Detection per cluster.
 
+    Stage B asks one question: "are these two boxes the same object in this
+    picture?", i.e. overlap (IoU), class-agnostic. It is NOT a distance test —
+    every raw box from a frame carries the same lat/lng, so no metric radius
+    can tell a duplicate box from a neighbouring object. cluster_boxes() does
+    the grouping in pixel space; the frame's GPS point is then stamped on
+    every retained row.
+
     `image_id` links the persisted detections back to their source Image row.
-    Frames without EXIF GPS (lat/lng None) skip spatial clustering since all
-    their raw boxes share no location context.
+    A frame with no EXIF GPS keeps its rows with lat/lng NULL (the map filters
+    those out) — dedup still applies, because overlap needs no coordinates.
     """
     raw_detections = trash_detector.run_inference(file_path)
     if not raw_detections:
@@ -69,32 +84,10 @@ def run_yolo_inference(
             # column type (TIMESTAMP without tz).
             detection_ts = datetime.combine(flight.flight_date, datetime.min.time())
 
-    if lat is None or lng is None:
-        # No geotag: keep every raw detection as its own unclustered row.
-        clustered_detections = [
-            {
-                "cluster_id": idx,
-                "representative_point": {"lat": None, "lng": None, "member_id": idx},
-                "members": [{"raw_det": det}],
-                "member_count": 1,
-            }
-            for idx, det in enumerate(raw_detections)
-        ]
-    else:
-        detection_points = [
-            {"id": idx, "lat": lat, "lng": lng, "raw_det": det}
-            for idx, det in enumerate(raw_detections)
-        ]
-
-        # All raw boxes from one frame share the frame's GPS point, so the eps
-        # is derived from the ground sample distance: boxes nearer than this
-        # are treated as the same physical object.
-        # STAGE_B_GSD_FACTOR: shared constant (routes/info.py documents it on
-        # the Info page from this same value).
-        eps_detection = STAGE_B_GSD_FACTOR * gsd_meters
-        clustered_detections = cluster_points(
-            detection_points, eps_meters=eps_detection, min_samples=DBSCAN_MIN_SAMPLES
-        )
+    # Stage B: group overlapping same-frame boxes (IoU >= 1 - eps) and keep
+    # the highest-confidence box of each group below. Coordinates play no part
+    # here — they belong to the frame, and every member shares them.
+    clustered_detections = cluster_boxes(raw_detections, min_iou=STAGE_B_IOU_EPS)
 
     db_detections = []
     for cluster in clustered_detections:
@@ -115,8 +108,11 @@ def run_yolo_inference(
             bbox_y1=best_det["bounding_box"][1],
             bbox_x2=best_det["bounding_box"][2],
             bbox_y2=best_det["bounding_box"][3],
-            latitude=cluster["representative_point"]["lat"],
-            longitude=cluster["representative_point"]["lng"],
+            # The frame's own fix: Stage B groups by overlap, so every
+            # retained row sits at the position the picture was taken from
+            # (None when the frame had no EXIF GPS).
+            latitude=lat,
+            longitude=lng,
             duplicate_count=cluster["member_count"],
             cluster_id=str(cluster["cluster_id"]),
         )
@@ -154,11 +150,18 @@ def process_image_upload(
             image = db.get(Image, uuid.UUID(image_id))
             if image is not None:
                 if secure_url:
+                    # Point the row at the uploaded asset now, but leave it
+                    # `pending`: "done" has to mean ANALYSIS finished, not
+                    # that the file reached storage. Marking done here made a
+                    # flight read fully analysed while YOLO had not started,
+                    # so a poller could stop on numbers that were still moving.
                     image.file_url = secure_url
                     image.asset_url = secure_url
-                    image.processing_status = ProcessingStatus.COMPLETED
                 else:
                     image.processing_status = ProcessingStatus.FAILED
+                    image.processing_error = (
+                        "CloudinaryUploadError: upload returned no secure_url"
+                    )
                 db.commit()
 
         if not secure_url:
@@ -199,9 +202,18 @@ def process_image_upload(
                 # Alerting must never fail the upload pipeline.
                 logger.exception("Alert evaluation failed (area %s)", area_id)
 
+        # Only now is the frame actually analysed: storage + inference both
+        # succeeded, so `done` no longer overstates progress.
+        if image_id:
+            image = db.get(Image, uuid.UUID(image_id))
+            if image is not None:
+                image.processing_status = ProcessingStatus.COMPLETED
+                image.processing_error = None
+                db.commit()
+
         logger.info("YOLO inference complete for %s (flight %s)", filename, flight_id)
 
-    except Exception:
+    except Exception as exc:
         db.rollback()
         logger.exception("Background pipeline failure for %s (flight %s)", filename, flight_id)
         if image_id:
@@ -209,6 +221,9 @@ def process_image_upload(
                 image = db.get(Image, uuid.UUID(image_id))
                 if image is not None:
                     image.processing_status = ProcessingStatus.FAILED
+                    # A bare `failed` is unauditable — the operator cannot tell
+                    # a Cloudinary outage from a corrupt frame.
+                    image.processing_error = _error_text(exc)
                     db.commit()
             except Exception:
                 db.rollback()

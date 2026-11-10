@@ -1,5 +1,5 @@
 // Portal Info page: honest ML documentation (dataset counts + algorithm
-// notes + the two severity rulers). Operate-mode product UI — restraint
+// notes + the one CCI ruler at two zoom levels). Operate-mode product UI — restraint
 // per .agents/design-skills-routing.md (no decorative motion, Tailwind
 // utilities only, inline styles solely for data-driven colors).
 //
@@ -10,18 +10,21 @@
 // services/hooks/useHexbins.ts, shared with MapView; the phone app runs the
 // same CCI in mobile theme.dart). No threshold is re-typed. UI label
 // wording quoted from the apps is copy, not thresholds.
-import type { ReactNode } from "react";
-import {
-  AlertTriangle,
-  Image as ImageIcon,
-  Map as MapIcon,
-} from "lucide-react";
+import { AlertTriangle, Image as ImageIcon, Map as MapIcon } from "lucide-react";
 import {
   CCI_LEGEND_ITEMS,
   DRONE_K_FACTOR,
   getCciColor,
 } from "../services/hooks/useHexbins";
 import { useMlInfoState } from "../services/mlInfo";
+import DedupDemos from "./info/DedupDemos";
+import HexDemo from "./info/HexDemo";
+import ImageCompare from "./info/ImageCompare";
+import ModelCompare from "./info/ModelCompare";
+import SectionNav from "./info/SectionNav";
+import TeamSection from "./info/TeamSection";
+import TrainingStepper from "./info/TrainingStepper";
+import { SectionHeading } from "./info/parts";
 
 // ─── Small shared pieces ─────────────────────────────────────────────────────
 
@@ -30,20 +33,6 @@ const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleStr
 
 // Area of a full (unclipped) regular hexagon with an edge of `edgeM` meters.
 const hexAreaM2 = (edgeM: number) => (3 * Math.sqrt(3) / 2) * edgeM * edgeM;
-
-function SectionHeading({ id, children }: { id: string; children: ReactNode }) {
-  return (
-    // opacity/animation resets guard against global heading styles (fade-in
-    // or low-contrast rules) that left these headings nearly invisible.
-    <h4
-      id={id}
-      className="flex items-center gap-3 text-xl font-bold text-slate-900 tracking-tight text-left opacity-100! animate-none!"
-    >
-      <span aria-hidden="true" className="h-6 w-1 shrink-0 rounded-full bg-[#005D90]" />
-      <span>{children}</span>
-    </h4>
-  );
-}
 
 /** Skeleton line for the loading state — static, no pulse (operate-mode). */
 function Placeholder({ className = "" }: { className?: string }) {
@@ -59,9 +48,32 @@ const SEVERITY_CHIP: Record<string, string> = {
   Low: "bg-green-100 text-green-700",
 };
 
+// Section ids and chip labels for the pinned nav, in page order.
+const SECTIONS: [string, string][] = [
+  ["#overview", "Overview"],
+  ["#model", "Model"],
+  ["#training", "Training"],
+  ["#compare", "Comparison"],
+  ["#sample", "Sample"],
+  ["#dedup", "De-duplication"],
+  ["#cci", "Clean Coast Index"],
+  ["#rulers", "Alert vs map"],
+  ["#sources", "Sources"],
+  ["#limits", "Limits"],
+  ["#team", "Team"],
+];
+
+interface InfoProps {
+  /** CSS top offset for the pinned section nav — the height of whatever sticky
+   *  chrome the shell puts above the content. 0 inside the portal (its scroll
+   *  container already starts below the chrome), 4rem under DocShell's h-16
+   *  header. */
+  stickyTop?: string;
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function Info() {
+export default function Info({ stickyTop = "0px" }: InfoProps) {
   const { status, info, retry } = useMlInfoState();
   const dataset = info?.dataset ?? null;
 
@@ -73,8 +85,9 @@ export default function Info() {
   // CCI > 5 needs count > 5 × area / K.
   const moderateNeeds = Math.ceil((5 * fullCellArea) / DRONE_K_FACTOR);
 
-  // Alert band display ranges, derived from the served thresholds:
-  // Critical "> 50", High "21 – 50", Medium "6 – 20", Low "≤ 5".
+  // Alert band display ranges, derived from the served thresholds — the map's
+  // CCI edges: Critical "> 20", High "11 – 20", Medium "6 – 10", Low "≤ 5"
+  // (the ladder collapses the two clean bands into Low, hence "≤ 5").
   const bands = info?.severity_bands ?? [];
   const bandRange = (i: number): string => {
     const band = bands[i];
@@ -86,12 +99,28 @@ export default function Info() {
 
   const stageA = info?.dedup?.stage_a;
   const stageB = info?.dedup?.stage_b;
-  const stageBRadiusM =
-    stageB != null ? stageB.gsd_factor * stageB.gsd_meters : null;
+  // Retired Stage B rule (gsd_factor × gsd_meters). Served as legacy history so
+  // the page can document what changed — never used as a live threshold.
+  const legacyStageBRadiusM =
+    stageB?.gsd_factor != null && stageB.gsd_meters != null
+      ? stageB.gsd_factor * stageB.gsd_meters
+      : null;
 
+  // `relative` on the root is load-bearing, not decorative: it makes this page
+  // the containing block for absolutely positioned descendants (e.g. the
+  // visually-hidden labels Tailwind's `sr-only` renders at their static
+  // position). Without it they resolve against <body>, and the portal's clipped
+  // <main> cannot hide them — the labels near the bottom of the page stretched
+  // the DOCUMENT to their own y-offset, which let the window scroll past the app
+  // chrome into an empty white band.
   return (
-    <div className="p-4 md:p-8 space-y-14 max-w-5xl mx-auto text-left text-slate-800">
-      <header className="max-w-[64ch] border-b border-slate-200 pb-8">
+    <div
+      id="top"
+      className="relative p-4 md:p-8 space-y-14 max-w-5xl mx-auto text-left text-slate-800"
+    >
+      {/* No border-b: the pinned nav below draws the divider, and a line plus a
+          gap plus the bar reads as two separators. */}
+      <header className="max-w-[64ch] pb-2">
         <p className="text-xs font-bold uppercase tracking-widest text-[#005D90]">Documentation</p>
         <h4 className="mt-2 text-3xl md:text-4xl font-black text-slate-900 tracking-tight opacity-100! animate-none!">
           Info
@@ -104,29 +133,15 @@ export default function Info() {
           web map. Only display wording (chip tints, label names) is
           presentation.
         </p>
-        <nav aria-label="On this page" className="mt-5 flex flex-wrap gap-2">
-          {[
-            ["#overview", "Overview"],
-            ["#model", "Model"],
-            ["#dedup", "De-duplication"],
-            ["#cci", "Clean Coast Index"],
-            ["#rulers", "Rulers"],
-            ["#sources", "Sources"],
-            ["#limits", "Limits"],
-          ].map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-[#005D90] hover:text-[#005D90] transition-colors"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
       </header>
 
+      {/* Pinned section nav — highlights the section you are reading and keeps
+          its chip centred. stickyTop comes from the shell (4rem under
+          DocShell's header, 0 in the portal's scroll container). */}
+      <SectionNav sections={SECTIONS} stickyTop={stickyTop} />
+
       {/* ── Overview: from photo to alert, in four steps ─────────────────── */}
-      <section id="overview" aria-labelledby="overview-heading" className="scroll-mt-4">
+      <section id="overview" aria-labelledby="overview-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
         <SectionHeading id="overview-heading">From photo to alert, in four steps</SectionHeading>
         <ol className="mt-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 list-none p-0 text-left">
           {[
@@ -147,7 +162,7 @@ export default function Info() {
             },
             {
               title: "Report",
-              body: "Area totals drive alerts, dashboard badges and the assistant. Cell density drives the map colors.",
+              body: "The area's density drives alerts, badges and the assistant; per-cell density drives the map colors.",
               href: "#rulers",
             },
           ].map((step, i) => (
@@ -174,7 +189,7 @@ export default function Info() {
       <section
         id="model"
         aria-labelledby="model-heading"
-        className="scroll-mt-4"
+        className="scroll-mt-[var(--info-anchor,7rem)]"
         aria-busy={status === "loading"}
       >
         <SectionHeading id="model-heading">
@@ -298,8 +313,13 @@ export default function Info() {
         </div>
       </section>
 
+      {/* ── Training pipeline + model comparison ─────────────────────────── */}
+      <TrainingStepper />
+      <ModelCompare />
+      <ImageCompare />
+
       {/* ── The two de-duplication stages ────────────────────────────────── */}
-      <section id="dedup" aria-labelledby="dedup-heading" className="scroll-mt-4">
+      <section id="dedup" aria-labelledby="dedup-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
         <SectionHeading id="dedup-heading">
           Before anything is counted: the two de-duplication stages
         </SectionHeading>
@@ -368,24 +388,28 @@ export default function Info() {
           <div className="pb-8">
             <p className="text-sm font-bold text-slate-800 pt-1">Stage B — within a frame</p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600 max-w-[66ch]">
-              Every raw detection box in one frame shares that frame&apos;s GPS point,
-              so boxes nearer than a fixed multiple of the ground sample distance
-              (GSD — meters per image pixel at flight altitude) are the same
-              physical object. The cluster keeps its highest-confidence detection;
-              duplicates are counted but never double-reported. Unclustered boxes
-              stay as singletons — nothing is discarded.
+              Every raw box in one frame is stamped with that frame&apos;s single GPS
+              fix, so a distance test can&apos;t tell &ldquo;two boxes on one
+              bottle&rdquo; from &ldquo;two bottles a frame apart&rdquo;. Overlap can:
+              boxes whose intersection-over-union (IoU) reaches the threshold are
+              one object. The match is class-agnostic on purpose — two boxes on the
+              same cup routinely disagree (&ldquo;styrofoam&rdquo; vs
+              &ldquo;plastic&rdquo;), and keeping one per label is exactly the double
+              count this stage exists to remove. The highest-confidence box survives
+              and donates its own label; a box that overlaps nothing stays a
+              singleton, so clustering never discards a detection.
             </p>
             <dl className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs max-w-[66ch]">
               <div className="rounded-lg border border-slate-200 p-2.5">
-                <dt className="text-slate-500">Radius</dt>
+                <dt className="text-slate-500">Overlap threshold</dt>
                 <dd className="mt-1 font-bold text-slate-700 tabular-nums">
-                  {stageB ? `${fmt(stageB.gsd_factor)} × GSD (${fmt(stageBRadiusM)} m)` : "—"}
+                  {stageB ? `IoU ≥ ${fmt(stageB.iou_threshold)}` : "—"}
                 </dd>
               </div>
               <div className="rounded-lg border border-slate-200 p-2.5">
-                <dt className="text-slate-500">Default GSD</dt>
+                <dt className="text-slate-500">min_samples</dt>
                 <dd className="mt-1 font-bold text-slate-700 tabular-nums">
-                  {stageB ? `${fmt(stageB.gsd_meters)} m/px` : "—"}
+                  {stageB ? stageB.min_samples : "—"}
                 </dd>
               </div>
               <div className="rounded-lg border border-slate-200 p-2.5">
@@ -393,17 +417,33 @@ export default function Info() {
                 <dd className="mt-1 font-bold text-slate-700">highest-confidence box</dd>
               </div>
               <div className="rounded-lg border border-slate-200 p-2.5">
-                <dt className="text-slate-500">Exception</dt>
-                <dd className="mt-1 font-bold text-slate-700">no-GPS frames skip this stage</dd>
+                <dt className="text-slate-500">Labels</dt>
+                <dd className="mt-1 font-bold text-slate-700">merged across classes</dd>
               </div>
             </dl>
+            {legacyStageBRadiusM != null && (
+              <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-500 max-w-[66ch]">
+                <strong className="text-slate-700">What changed (2026-11-11).</strong>{" "}
+                This stage used to merge boxes nearer than {fmt(stageB?.gsd_factor)} ×
+                a fixed GSD of {fmt(stageB?.gsd_meters)} m — {fmt(legacyStageBRadiusM)} m.
+                Since every box carries the frame&apos;s one GPS fix, that radius could
+                not separate two objects in the same photo: it collapsed each frame
+                into a single detection. The API still serves both numbers, flagged{" "}
+                <code className="font-mono">legacy</code>, as the history this page
+                records.
+              </p>
+            )}
           </div>
           </div>
         </div>
+        <DedupDemos
+          epsMeters={stageA?.eps_meters}
+          iouThreshold={stageB?.iou_threshold}
+        />
       </section>
 
       {/* ── CCI ──────────────────────────────────────────────────────────── */}
-      <section id="cci" aria-labelledby="cci-heading" className="scroll-mt-4">
+      <section id="cci" aria-labelledby="cci-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
         <SectionHeading id="cci-heading">
           What the map colors mean: the Clean Coast Index
         </SectionHeading>
@@ -440,10 +480,9 @@ export default function Info() {
             </p>
             <p>
               Said plainly: at drone-survey cell sizes the CCI scale is almost
-              never reached above &ldquo;Very low&rdquo;. That&apos;s the
-              size-invariance trade-off working as designed (K stays {DRONE_K_FACTOR});
-              the count itself still matters for cleanup planning, which is what
-              the other rulers below are for.
+              never reached above &ldquo;Very low&rdquo;. That&apos;s              the size-invariance trade-off working as designed (K stays {DRONE_K_FACTOR});
+              the raw count still matters for cleanup planning and is always shown
+              beside the density.
             </p>
           </div>
           {/* The one labeled CCI legend on the page: same table the web map's
@@ -466,16 +505,27 @@ export default function Info() {
             ))}
           </ul>
         </div>
+
+        {/* Key remounts once /info arrives, so the sliders open at the served
+            clamps instead of the offline fallbacks. */}
+        <HexDemo
+          key={`hex-${info?.hex_grid?.edge_min_m ?? "fallback"}`}
+          edgeMinM={info?.hex_grid?.edge_min_m}
+          edgeMaxM={info?.hex_grid?.edge_max_m}
+          defaultEdgeM={info?.hex_grid?.default_edge_m}
+        />
       </section>
 
-      {/* ── Three rulers ─────────────────────────────────────────────────── */}
-      <section id="rulers" aria-labelledby="rulers-heading" className="scroll-mt-4">
+      {/* ── One ruler, two zoom levels ───────────────────────────────────── */}
+      <section id="rulers" aria-labelledby="rulers-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
         <SectionHeading id="rulers-heading">
-          Different rulers for different questions: area totals vs per-cell density
+          One ruler, two zoom levels: the whole area vs one hex cell
         </SectionHeading>
         <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
-          Two measures, three surfaces. The table says where you&apos;ll meet
-          each one; the cards below give each ruler&apos;s bands.
+          Alerts, badges and the assistant rate the <em>whole drawn area</em>; the
+          map colors rate <em>one cell at a time</em>. Both use the same Clean
+          Coast Index — same K, same band edges — so they cannot tell
+          contradictory stories about the same place.
         </p>
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm p-6 overflow-x-auto">
@@ -493,9 +543,13 @@ export default function Info() {
                   Alert banner, Dashboard badges, chatbot
                 </th>
                 <td className="py-2 pr-4 text-slate-600">
-                  Total detections in the whole drawn area (all-time, de-duplicated)
+                  Density of the whole drawn area: all-time de-duplicated
+                  detections ÷ the area&apos;s geodesic area, × {DRONE_K_FACTOR}
                 </td>
-                <td className="py-2 text-slate-600">Critical / High / Medium / Low</td>
+                <td className="py-2 text-slate-600">
+                  Critical / High / Medium / Low — the five CCI bands collapsed,
+                  with the two clean bands both reading Low
+                </td>
               </tr>
               <tr>
                 <th scope="row" className="py-2 pr-4 font-medium text-slate-700">
@@ -519,7 +573,10 @@ export default function Info() {
             </header>
             <div className="px-5 pb-5">
               <p className="text-xs leading-relaxed text-slate-500">
-                Based on the <strong className="text-slate-700">all-time de-duplicated count of the whole drawn area</strong>:
+                Based on the <strong className="text-slate-700">Clean Coast Index of the whole drawn area</strong>{" "}
+                — all-time de-duplicated detections ÷ its geodesic area, ×{" "}
+                {DRONE_K_FACTOR}. Same edges as the map&apos;s cells, with the two
+                clean bands collapsed into Low:
               </p>
               {status === "loading" ? (
                 <div className="mt-3 space-y-2" aria-hidden="true">
@@ -556,9 +613,10 @@ export default function Info() {
                 </p>
               )}
               <p className="text-xs leading-relaxed text-slate-500 pt-2">
-                One shared threshold source drives the alert banner, the Trash
-                Logs hotspot badges and the assistant, so those can never
-                disagree with each other.
+                One shared function rates the alert banner, the Trash Logs hotspot
+                badges and the assistant, so those can never disagree with each
+                other. An area with no drawn boundary has no denominator — no
+                density — so it can never rate above Low.
               </p>
             </div>
           </div>
@@ -610,58 +668,51 @@ export default function Info() {
           </div>
         </div>
 
-        {/* Reconciliation — every number here is runnable arithmetic on the
-            real formula and served thresholds. */}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm p-6 md:p-8 text-justify">
+        {/* Same ruler at two zoom levels — every figure here is runnable
+            arithmetic on the served K and band edges. */}
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white shadow-sm p-6 md:p-8">
           <h3 className="text-sm font-bold text-slate-800">
-            Why a Critical alert can sit on a calm-looking map
+            Why the alert and the map always describe the same place
           </h3>
           <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
             <p>
-              <strong className="text-slate-700">Alerts answer &ldquo;which area needs a cleanup sweep?&rdquo;</strong> —
-              an administrative judgment over the whole boundary.{" "}
+              <strong className="text-slate-700">Alerts answer &ldquo;which area needs a cleanup sweep?&rdquo;</strong>{" "}
+              — density over the whole boundary.{" "}
               <strong className="text-slate-700">The map answers &ldquo;inside that area, where exactly is the waste?&rdquo;</strong>{" "}
-              — a density view that adapts to cell geometry so colors stay fair.
+              — the same density, computed one cell at a time. Same K, same band
+              edges: a cell cannot land in a different band than the area it sits
+              in at the same density.
             </p>
             <p>
-              <strong className="text-slate-700">Alerts → calm map:</strong> an area whose all-time
-              count crosses 50 is Critical, but 50+ detections are a whole-area
-              total. Spread over ten full cells of ~{fmt(fullCellArea)}&nbsp;m², that&apos;s
-              about 5 per cell: CCI ≈{" "}
-              {fmt(Math.round((DRONE_K_FACTOR * 5 * 100) / fullCellArea) / 100)} per
-              cell — every hexagon &ldquo;Very low&rdquo; while the alert reads
-              Critical.
+              <strong className="text-slate-700">Raising an alert takes real density.</strong>{" "}
+              Critical is CCI &gt; {fmt(bands[0]?.above)} and CCI = {DRONE_K_FACTOR} ×
+              detections ÷ area, so crossing it takes more than one de-duplicated
+              detection per square metre of the drawn area. Redrawing a larger
+              boundary raises the denominator and lowers the CCI with no cleanup at
+              all, while the count printed beside it never changes.
             </p>
             <p>
-              <strong className="text-slate-700">High cell → modest alert:</strong> only
-              boundary-clipped slivers can reach the upper bands at human-scale
-              counts — more than {fmt(Math.ceil((20 * 30) / DRONE_K_FACTOR))} detections
-              in a ~30&nbsp;m² sliver score CCI past {DRONE_K_FACTOR} (&ldquo;Very
-              high&rdquo;), while the area&apos;s overall alert level may still be High
-              or below.
-            </p>
-            <p>
-              That&apos;s why alert logic deliberately never keys off cell colors:
-              cell sizes are a presentational choice. If alerts fired off the map,
-              redrawn or resized hexes could create — or silently silence —
-              Critical alerts. Divergence between the rulers is information, not a
-              bug: a Critical area with only &ldquo;Very low&rdquo; cells is spread-thin;
-              a &ldquo;Very high&rdquo; sliver inside a High area points a cleanup crew at
-              one spot.
+              <strong className="text-slate-700">Why cell colors never fire alerts.</strong>{" "}
+              Cell size is a presentational choice — it adapts to the boundary and
+              cells at the edge are clipped to it. If alerts keyed off cells,
+              redrawing or resizing the grid could create, or silently silence, a
+              Critical alert. So the alert ladder reads one number: the area&apos;s
+              own CCI — the same figure on the map header chip.
             </p>
           </div>
         </div>
       </section>
 
       {/* ── Where the numbers come from ──────────────────────────────────── */}
-      <section id="sources" aria-labelledby="sources-heading" className="scroll-mt-4 text-justify">
+      <section id="sources" aria-labelledby="sources-heading" className="scroll-mt-[var(--info-anchor,7rem)] text-justify">
         <SectionHeading id="sources-heading">Where the numbers come from</SectionHeading>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
           <p>
-            <strong className="text-slate-700">Alerts.</strong> Counts and severities
-            are computed in SQL over the de-duplicated detections (the same
-            helpers the chatbot reuses), and alert wording comes from a fixed
-            template — a message can&apos;t invent a figure.
+            <strong className="text-slate-700">Alerts.</strong> Counts and areas are
+            computed in SQL over the de-duplicated detections, one shared function
+            turns the area&apos;s CCI into a severity (the hotspot badges and the
+            chatbot call it too), and alert wording comes from a fixed template —
+            a message can&apos;t invent a figure.
           </p>
           <p>
             <strong className="text-slate-700">The assistant.</strong> It is given a
@@ -682,23 +733,24 @@ export default function Info() {
             unacknowledged alert sitting in the table IS the reminder.
           </p>
           <p>
-            <strong className="text-slate-700">Counts don&apos;t decay.</strong> Alert
-            severity uses all-time counts per drawn area, and those counts never
-            decrease on their own — they only shrink if the underlying detection
-            rows are removed from the database. There is no post-cleanup reset
-            workflow.
+            <strong className="text-slate-700">Counts don&apos;t decay.</strong> The
+            numerator is the area&apos;s all-time de-duplicated count, and it never
+            decreases on its own — only if the underlying detection rows are
+            removed from the database. There is no post-cleanup reset workflow, so a
+            swept beach keeps its CCI, and its alert level, until those rows go.
           </p>
         </div>
       </section>
 
       {/* ── Known limits ─────────────────────────────────────────────────── */}
-      <section id="limits" aria-labelledby="limits-heading" className="scroll-mt-4">
+      <section id="limits" aria-labelledby="limits-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
         <SectionHeading id="limits-heading">Known limits</SectionHeading>
         <ul className="mt-3 space-y-2 list-none max-w-[68ch]">
           {[
             "The training set is fixed. The model does not learn from new reports, and there is no retraining pipeline, by design.",
             "Frames without GPS can't be matched against other frames, so the same object may be counted more than once.",
-            "Alert severity uses all-time counts per drawn area, which never reset or decrease on their own.",
+            "Alert severity is the whole area's CCI over its all-time count: it never resets on its own, and redrawing a larger boundary lowers it without any cleanup.",
+            "The CCI scale factor (K = 20) is not yet calibrated against real survey data, so alerts and cell colors are conservative — they under-report rather than over-report.",
             "The model recognizes five classes only.",
             "CCI values are small for drone-scale surveys — the color scale is rarely reached above \u201cVery low\u201d (see the Clean Coast Index section).",
           ].map((item) => (
@@ -709,6 +761,9 @@ export default function Info() {
           ))}
         </ul>
       </section>
+
+      {/* ── Built by ─────────────────────────────────────────────────────── */}
+      <TeamSection />
     </div>
   );
 }

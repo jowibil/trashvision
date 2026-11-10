@@ -7,7 +7,7 @@ from models.trash_log import TrashLog
 from models.detection import Detection
 from models.report import Report
 from models.area import Area
-from services.insights_service import severity_from_count
+from services.insights_service import area_cci, severity_from_cci
 
 from typing import Optional
 from datetime import timezone, datetime, timedelta
@@ -60,7 +60,7 @@ def get_dashboard_summary(
     zones_query = db.query(
         Area.area_id,
         Area.area_name,
-        func.count(Detection.detection_id).label("density"),
+        func.count(Detection.detection_id).label("detection_count"),
         func.max(Detection.timestamp).label("latest_activity")
     ).outerjoin(Detection, Detection.area_id == Area.area_id)\
      .group_by(Area.area_id, Area.area_name)\
@@ -69,10 +69,12 @@ def get_dashboard_summary(
      .all()
 
     for zone in zones_query:
-        # Severity thresholds are defined ONCE in insights_service and shared
-        # with the automated alerts pipeline, so the Dashboard's hotspot
-        # badges and the alert messages can never disagree.
-        severity = severity_from_count(int(zone.density))
+        # Severity is the area's CCI (insights_service) — the same ruler the
+        # map chip and the alert pipeline use, so a hotspot badge can never
+        # disagree with the map. An area with no drawn boundary has no density
+        # to rate, and severity_from_cci returns Low for it.
+        detection_count = int(zone.detection_count or 0)
+        severity = severity_from_cci(area_cci(db, zone.area_id, detection_count))
 
         formatted_date = zone.latest_activity.strftime("%B %d, %Y") if zone.latest_activity else "No Active Flight Data"
 

@@ -5,7 +5,7 @@ import MapPlaceholder from "../components/landing/Map";
 import heroBg from "@/assets/herobg.png";
 import { features, steps } from "../components/landing/LandingIcons";
 import FeatureCard from "../components/landing/FeatureCard";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMlInfoState } from "../services/mlInfo";
 
 // Layout map for the feature grid: feature index -> column span and size.
@@ -152,7 +152,13 @@ export default function Landing() {
           <p className="text-center text-sm text-gray-500 pt-4">
             Detections are deduplicated in two DBSCAN passes before they are ever
             counted, and map colors come from a density-based Clean Coast Index —
-            never from raw guesswork.
+            never from raw guesswork.{" "}
+            <Link
+              to="/info"
+              className="font-semibold text-[#005D90] underline-offset-2 hover:underline"
+            >
+              Read the full methodology
+            </Link>
           </p>
         </div>
       </section>
@@ -163,18 +169,23 @@ export default function Landing() {
         className="py-24 text-center text-white bg-linear-135 from-[#1a56db] to-[#0d9488]"
       >
         <div className="max-w-2xl mx-auto px-4">
-          <h3 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">Ready to Clean Up Your Coastlines?</h3>
+          {/* Second CTA used to be a copy of the hero's "Open Forecast" button —
+              same label, same destination, no new information 3,000px later.
+              It now closes the trust loop instead: "do I believe these
+              numbers?" → the methodology page. Portal entry lives in the
+              navbar and the hero, so the funnel survives the scroll. */}
+          <h3 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">See exactly how a frame becomes an alert</h3>
           <p className="text-white/80 mb-8 text-base">
-            Join forward-thinking LGUs from Panabo City across the globe in restoring environmental integrity with
-            intelligence.
+            Every threshold on the methodology page is served from the code that
+            computes with it: the two de-duplication stages and their radii, the
+            Clean Coast Index, and the limits we haven't solved yet.
           </p>
-          <button
-            type="button"
-            className="bg-white text-blue-700 font-bold text-sm px-8 py-3.5 mt-8 rounded-xl shadow-lg transition-[background-color,transform] duration-200 ease-out hover:bg-blue-50 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700"
-            onClick={() => navigate("/portal")}
+          <Link
+            to="/info"
+            className="inline-block bg-white text-blue-700 font-bold text-sm px-8 py-3.5 mt-8 rounded-xl shadow-lg transition-[background-color,transform] duration-200 ease-out hover:bg-blue-50 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700"
           >
-            Open Forecast
-          </button>
+            Read the methodology
+          </Link>
         </div>
       </section>
       <Footer />

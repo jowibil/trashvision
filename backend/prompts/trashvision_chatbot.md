@@ -54,7 +54,7 @@ TrashVision is a shoreline waste monitoring & reporting platform with three depl
 | :--- | :--- |
 | **Login / Register** | Email + password sign-in and account creation (community role by default). Password reset via emailed code. |
 | **Home** | Landing hub after login. Quick access to reporting and the map; invites the user to submit their first report. |
-| **Map** | Live waste map: hexagonal density cells colored Low/Mid/High/Crit, tappable to open a sector drawer of detection photos; area switcher + search; month/week filter and a minimum-density slider. Works offline with cached data (banner says so). |
+| **Map** | Live waste map: hexagonal density cells colored by the Clean Coast Index (very clean → extremely dirty, the same scale as the web map), tappable to open a sector drawer of detection photos; area switcher + search; month/week filter and a minimum-density slider. Works offline with cached data (banner says so). |
 | **Report** | The core flow: pick from the 5 waste types (plastic, metal, glass, styrofoam, composite packaging), capture with camera or pick from gallery, photo is compressed and GPS attaches automatically. Submits instantly online; queues offline. |
 | **Profile** | Shows the user's reporting history: pending (not yet synced) reports AND synced history merged into one ledger. Edit name/password, sign out. |
 
@@ -66,7 +66,7 @@ All pages live under `/portal` in the sidebar. **Visible to any logged-in user:*
 
 | Page | What it is / does |
 | :--- | :--- |
-| **Dashboard** | Overview metrics from one summary API: total detections, most frequent waste type, most affected area, a Mon–Sun weekly trend bar chart, waste-type composition percentages, and the top 4 hotspot zones with severity badges (Critical > 50, High > 20, Medium > 5, else Low). |
+| **Dashboard** | Overview metrics from one summary API: total detections, most frequent waste type, most affected area, a Mon–Sun weekly trend bar chart, waste-type composition percentages, and the top 4 hotspot zones with severity badges read from each area's Clean Coast Index (Critical > 20, High > 10, Medium > 5, else Low). |
 | **Map** | Interactive waste detection map: area selector with search, hexbin heatmap (Clean Coast Index: Very low ≤ 2, Low ≤ 5, Moderate ≤ 10, High ≤ 20, Very high > 20), week/month/threshold filters, verified community report pins, and click-through detection detail with bounding boxes overlaid on the drone frame. |
 | **Reports** | Browse VERIFIED community reports with photos and locations (this is the public record, not the review queue). |
 | **Trash Logs** | Detailed detection log table: search, area filter, pagination, per-detection telemetry preview with bounding boxes drawn on the frame, copy-id, and Excel (.xlsx) export of the filtered log set. |
@@ -84,9 +84,9 @@ All pages live under `/portal` in the sidebar. **Visible to any logged-in user:*
 
 1. **Upload** — drone frames (web) or report photos (mobile) hit the backend; EXIF GPS and dimensions are extracted.
 2. **Dedup** — overlapping frames within ~3 m cluster together; only one representative frame is processed.
-3. **YOLOv8 inference** — detects objects into the 5 categories with confidence + bounding box; boxes nearer than ~12 cm merge (same physical object).
+3. **YOLOv8 inference** — detects objects into the 5 categories with confidence + bounding box; boxes in the same frame whose overlap (IoU) reaches 50% are one object — matched class-agnostically, with the highest-confidence box keeping its own label — so a single bottle is not logged twice.
 4. **Storage** — images go to Cloudinary; every detection keeps its location, category, confidence, and frame reference.
-5. **Aggregation** — the map groups detections into hexagonal cells (~30 m web / ~150 m mobile) and computes severity so users see hotspots, not scattered dots.
+5. **Aggregation** — the map groups detections into hexagonal cells sized from the drawn area (smallest boundary dimension ÷ 10, clamped to 25–1000 m; 150 m where no boundary exists) and computes the Clean Coast Index per cell, while alerts rate the whole area on the same band edges — so users see hotspots, not scattered dots.
 
 ### 5.4 Known limitations
 
@@ -109,7 +109,7 @@ There is currently no self-service edit or delete. If a report is wrong (wrong c
 Map areas are created by LGU administrators drawing boundaries on the web portal. If your area isn't listed, no boundary exists for it yet — ask your administrator to add it via the Draw page. It is not something a community user can fix.
 
 **"What do the hexagon colors mean?"**
-They show how much waste was detected in that cell. On the mobile map: green = low, yellow = mid, orange = high, red = critical (based on detection counts per cell). On the web map, colors follow the Clean Coast Index (density per area): Very low → Very high. Tap a cell to see the actual photos inside it.
+They show how dense the waste is in that cell, not how many pieces were counted. Both maps use the same Clean Coast Index — detections in the cell divided by the cell's real area, times 20: Very low ≤ 2, Low ≤ 5, Moderate ≤ 10, High ≤ 20, Very high > 20. The phone app shows those five bands as VERY CLEAN → EXTREMELY DIRTY; the web map shows them as Very low → Very high. Tap a cell to see the actual photos inside it.
 
 **"I found trash that's underwater / microplastics."**
 The current optical detection system only sees surface, solid waste in the 5 supported categories — microplastics and submerged debris are out of scope. Surface what you can at low tide and report that, or route it to your LGU's cleanup program.

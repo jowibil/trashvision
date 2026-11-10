@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../widgets/bottom_nav.dart';
 import '../widgets/image_detail_dialog.dart';
 import '../widgets/sector_panel.dart';
 import '../config/theme.dart';
@@ -349,12 +348,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: surfaceLight,
-      // FIX: this screen used to hand-roll its own BottomNavigationBar with
-      // pushNamed (keeps the stack), while every other screen uses the shared
-      // BottomNavBar with pushNamedAndRemoveUntil (clears the stack). That
-      // divergence let the back stack grow unpredictably depending on which
-      // tab you came from. Reuse the shared widget everywhere.
-      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
+      // The tab bar lives on HomeShell, the single route that hosts all four
+      // tabs; rendering it here too would stack two bars.
       body: Column(
         children: [
           SafeArea(

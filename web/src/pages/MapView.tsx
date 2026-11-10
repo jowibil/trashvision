@@ -389,7 +389,7 @@ export default function Maps() {
 
     // The chip leads with WHAT the survey saw (detection count + polygon size)
     // and puts the CCI verdict second: at drone scales the raw CCI number is
-    // always tiny (size-normalized, spec algorithm_equations.md §2.2), so a
+    // always tiny (size-normalized, spec docs/algorithm_equations.md §2.2), so a
     // CCI-only chip reads "all green" no matter how many items were found.
     const areaKm2 = areaMetrics.totalAreaM2 / 1_000_000;
     const areaLabel =
@@ -567,7 +567,7 @@ export default function Maps() {
       {/* TOP BAR — Location header + area search (left), live stats (right).
           Content moved up from the footer Location card, which became just
           the CCI legend. Same state/ref/handlers; dropdown opens downward. */}
-      <div className="w-full px-4 pt-3 sm:pt-4 pb-1 flex flex-wrap md:flex-nowrap md:items-end md:justify-between gap-x-4 gap-y-2 tv-rise-in">
+      <div className="relative z-1001 w-full px-4 pt-3 sm:pt-4 pb-1 flex flex-wrap md:flex-nowrap md:items-end md:justify-between gap-x-4 gap-y-2 tv-rise-in">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-2 mb-1.5">
             <h2 className="text-xs font-black text-slate-700 uppercase tracking-widest">

@@ -106,4 +106,23 @@ class ApiService {
       return null;
     }
   }
+
+  /// Backs the Info page: GET /info (public, read-only) serves the ML dataset
+  /// manifest plus the real thresholds the backend computes with — alert
+  /// severity bands, the two DBSCAN stage params and the hex sizing clamps.
+  /// The page shows those verbatim, so it can never drift from the code the
+  /// way a hand-written docs page would.
+  ///
+  /// Returns null on any failure (network, timeout, 5xx) so the screen can
+  /// fall back to its cached copy or an honest error state instead of
+  /// rendering zeros.
+  Future<Map<String, dynamic>?> getMlInfo() async {
+    try {
+      final res = await ApiClient.get(Uri.parse('${AppConfig.infoBaseUrl}/'));
+      return ApiClient.decodeJson(res) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint("ML info fetch exception: $e");
+      return null;
+    }
+  }
 }

@@ -278,7 +278,7 @@ export const SectorDrawer = memo(function SectorDrawer({
 
   return (
     <aside
-      className={`bg-[#fcfcfc] border-l border-zinc-900/10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)] z-[1002] flex flex-col transition-transform duration-300 transform w-full sm:w-96 ${
+      className={`bg-[#fcfcfc] border-l border-zinc-900/10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)] z-[2500] flex flex-col transition-transform duration-300 transform w-full sm:w-96 ${
         // Mobile: always an off-canvas full-width overlay (a static 384px
         // flex child would overflow a 320px viewport). sm+: docks beside
         // the map, shrinking it via MapView's mr-0 handling.

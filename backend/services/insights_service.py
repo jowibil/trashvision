@@ -1,10 +1,18 @@
 """
 Automated critical-area alerts — pure SQL + string template, NO LLM.
 
-Severity thresholds live ONCE here and both the alerts pipeline and
-routes/logs.py (hotspot zones) call severity_from_count — the brief's single
-source of truth (log thresholds: >50 Critical, >20 High, >5 Medium, else
-Low). Map coloring stays on the CCI scale and is untouched.
+Severity lives ONCE here, on the MAP's ruler: an area's CCI (K · detections ÷
+geodesic area, K = 20 — the very number MapView's header chip prints). The
+alerts pipeline, routes/logs.py (hotspot zones) and the chatbot's live-data
+block all call severity_from_cci, so a hotspot badge, an alert message and a
+coloured hex cell can no longer disagree.
+
+Counts are still reported ("63 detections") — they are just not the ruler any
+more. A raw row count says nothing on its own: 51 items is nothing across
+20,000 m² and severe on a 300 m² plot. (History: the old count thresholds
+>50/>20/>5 were written for citizen-report volume and rated a 2,000 m² area
+Critical at the density the map calls "Very low" — a 40× disagreement between
+two surfaces that must agree.)
 
 Cadence (product decision 2026-10-27):
   - Per flight: the affected flight's area is evaluated when Stage B
@@ -21,7 +29,7 @@ the unacknowledged alert sitting in the table IS the weekly reminder.
 import logging
 from datetime import date, datetime, timezone
 
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, text
 from sqlalchemy.orm import Session
 
 from models.area import Area
@@ -31,33 +39,99 @@ from models.insight import Insight
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Severity thresholds — the single source of truth. Do NOT change these
-# without changing routes/logs.py's rendering contract together.
+# Severity — ONE scale, the map's CCI. Do NOT change these numbers without
+# changing web/src/services/hooks/useHexbins.ts (DRONE_K_FACTOR, classifyCci)
+# and mobile/lib/config/theme.dart (getCciColor) in the same commit: they are
+# the same ruler, and the whole point is that no surface can disagree.
 # ---------------------------------------------------------------------------
 
-# Admin severity thresholds — the ONE definition (this module + routes/logs.py
-# + routes/info.py read from here; brief Task 3 decision).
-CRITICAL_COUNT_THRESHOLD = 50
-HIGH_COUNT_THRESHOLD = 20
-MEDIUM_COUNT_THRESHOLD = 5
+# CCI scaling coefficient. Mirrors DRONE_K_FACTOR on the web (and the phone's
+# copy) — do NOT introduce a second K.
+CCI_K_FACTOR = 20.0
 
-def severity_from_count(count: int) -> str:
-    """logs.py thresholds (>50 Critical, >20 High, >5 Medium, else Low).
+# The map's five CCI bands, collapsed onto the four alert levels. The two
+# clean bands both read Low: an alert whose message ends in "no cleanup
+# sweep needed" would be noise.
+#   CCI ≤ 2   "Very low"  → Low
+#   CCI ≤ 5   "Low"       → Low
+#   CCI ≤ 10  "Moderate"  → Medium
+#   CCI ≤ 20  "High"      → High
+#   CCI > 20  "Very high" → Critical
+CCI_LOW_MAX = 5.0
+CCI_MODERATE_MAX = 10.0
+CCI_HIGH_MAX = 20.0
 
-    The numbers are named constants so routes/info.py can serve them to the
-    Info page from the same source this function uses (never re-typed).
+
+def severity_from_cci(cci: float | None) -> str:
+    """Alert level for an area-level CCI — the map chip's number.
+
+    Same band edges as classifyCci, so a hotspot badge reading "High" sits on
+    the map in a cell coloured "High". None (an area with no drawn boundary
+    has no denominator, hence no density) can never be rated dangerous: Low.
     """
-    if count > CRITICAL_COUNT_THRESHOLD:
+    if cci is None:
+        return "Low"
+    if cci > CCI_HIGH_MAX:
         return "Critical"
-    if count > HIGH_COUNT_THRESHOLD:
+    if cci > CCI_MODERATE_MAX:
         return "High"
-    if count > MEDIUM_COUNT_THRESHOLD:
+    if cci > CCI_LOW_MAX:
         return "Medium"
     return "Low"
 
 
-# Severity ranking used for the "worsened" comparison (index, not the count:
-# more detections in Low still stays Low — dedup holds until the LEVEL moves).
+def _area_size_expr(column: str) -> str:
+    """ST_Area(...::geography) for a boundary column, in m².
+
+    Boundaries predating the srid=4326 column constraint exist with SRID 0,
+    and ::geography raises on those ("Only lon/lat coordinate systems are
+    supported"). SRID 0 is re-tagged as WGS84 (what the Leaflet drawer emits)
+    and any other SRID is transformed — the same normalization
+    mobile_service._BOUNDARY_SELECT applies for the hex grid.
+    """
+    return (
+        "ST_Area(CASE WHEN ST_SRID({c}) = 0 THEN ST_SetSRID({c}, 4326) "
+        "ELSE ST_Transform({c}, 4326) END::geography)"
+    ).format(c=column)
+
+
+_AREA_SIZE_SQL = (
+    "SELECT {expr} AS area_m2 FROM areas "
+    "WHERE area_id = :area_id AND boundary_coordinates IS NOT NULL"
+)
+
+
+def area_size_m2(db: Session, area_id) -> float | None:
+    """Geodesic area of one drawn area, in m². None = no usable boundary.
+
+    None is a real state (not an error): without a polygon there is no
+    denominator, so no CCI exists and the area rates Low.
+    """
+    row = db.execute(
+        text(_AREA_SIZE_SQL.format(expr=_area_size_expr("boundary_coordinates"))),
+        {"area_id": area_id},
+    ).first()
+    if row is None or row.area_m2 is None:
+        return None
+    area_m2 = float(row.area_m2)
+    return area_m2 if area_m2 > 0 else None
+
+
+def area_cci(db: Session, area_id, detection_count: int | None = None) -> float | None:
+    """Area-level CCI = K · detections ÷ geodesic area.
+
+    Identical to the arithmetic behind MapView's header chip, which is what
+    makes an alert and the map the same statement about the same place.
+    """
+    area_m2 = area_size_m2(db, area_id)
+    if area_m2 is None:
+        return None
+    count = count_detections(db, area_id) if detection_count is None else detection_count
+    return CCI_K_FACTOR * count / area_m2
+
+
+# Severity ranking used for the "worsened" comparison: the dedup rule holds
+# until the LEVEL moves, so density wiggles inside one band create no new row.
 _SEVERITY_ORDER = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}
 
 SEVERITIES = tuple(_SEVERITY_ORDER)
@@ -75,9 +149,9 @@ def count_detections(
 ) -> int:
     """Detection rows for one area, optionally constrained to one month.
 
-    Without the year/month filter this is the all-time count — the same
-    number routes/logs.py feeds into severity_from_count for hotspot zones,
-    which is exactly why alert severities and the Dashboard always agree.
+    Without the year/month filter this is the all-time count: the numerator
+    of the area's CCI. It is reported to users as context ("63 detections"),
+    never used as the severity ruler on its own.
     """
     query = db.query(func.count(Detection.detection_id)).filter(
         Detection.area_id == area_id
@@ -113,6 +187,7 @@ def build_alert_message(
     area_name: str,
     severity: str,
     detection_count: int,
+    cci: float | None,
     top_type: str | None,
     top_type_pct: float | None,
     change_pct: float | None,
@@ -121,12 +196,19 @@ def build_alert_message(
 
     - zero detections: the facts say zero, no invented trend;
     - no previous month (change_pct None): comparison omitted entirely;
-    - top type None/0%: the type clause is dropped, never rendered empty.
+    - top type None/0%: the type clause is dropped, never rendered empty;
+    - no area boundary (cci None): severity is Low by construction and the
+      CCI clause is omitted rather than printed as 0.
     """
     if detection_count <= 0:
         return f"{area_name} is now {severity}: 0 detections. No cleanup sweep needed yet."
 
+    # The CCI is what produced the severity, so it is printed with it: without
+    # it, "Critical: 51 detections" reads like a count threshold and invites
+    # the operator to compare it against an area ten times the size.
     parts = [f"{area_name} is now {severity}: {detection_count} detections"]
+    if cci is not None:
+        parts.append(f"CCI {cci:.2f}")
     if top_type and (top_type_pct or 0) > 0:
         parts.append(f"mostly {top_type} ({top_type_pct}%)")
     if change_pct is not None:
@@ -141,7 +223,10 @@ def evaluate_area(db: Session, area: Area) -> Insight | None:
     """Evaluate one area and create an alert when the rule (module docstring)
     fires. Returns the created Insight or None (no alert this run)."""
     detection_count = count_detections(db, area.area_id)
-    severity = severity_from_count(detection_count)
+    # Severity is the area's CCI — density, the same ruler the map colours
+    # hexes and its header chip with. The count is a numerator, not a verdict.
+    cci = area_cci(db, area.area_id, detection_count)
+    severity = severity_from_cci(cci)
     top_type, top_type_pct = top_waste_type(db, area.area_id)
 
     # Change vs the previous calendar month of the most recent detection
@@ -190,13 +275,23 @@ def evaluate_area(db: Session, area: Area) -> Insight | None:
         top_type_pct=top_type_pct,
         change_pct=change_pct,
         message=build_alert_message(
-            area.area_name, severity, detection_count, top_type, top_type_pct, change_pct
+            area.area_name,
+            severity,
+            detection_count,
+            cci,
+            top_type,
+            top_type_pct,
+            change_pct,
         ),
     )
     db.add(insight)
     db.commit()
     logger.info(
-        "Alert created for area %s (severity %s, count %s)", area.area_id, severity, detection_count
+        "Alert created for area %s (severity %s, CCI %s, count %s)",
+        area.area_id,
+        severity,
+        f"{cci:.2f}" if cci is not None else "n/a",
+        detection_count,
     )
     return insight
 
@@ -237,19 +332,30 @@ def build_monthly_digest(db: Session) -> Insight:
 
     total = int(db.query(func.count(Detection.detection_id)).scalar() or 0)
 
-    per_area = (
-        db.query(Area.area_name, func.count(Detection.detection_id).label("cnt"))
-        .outerjoin(Detection, Detection.area_id == Area.area_id)
-        .group_by(Area.area_id, Area.area_name)
-        .all()
-    )
+    # Raw SQL because every row needs its area's geodesic size — the CCI
+    # denominator — and PostGIS' ::geography cast has no ORM equivalent.
+    per_area = db.execute(
+        text(
+            f"""
+            SELECT a.area_name,
+                   count(d.detection_id) AS cnt,
+                   {_area_size_expr('a.boundary_coordinates')} AS area_m2
+            FROM areas a
+            LEFT JOIN detections d ON d.area_id = a.area_id
+            GROUP BY a.area_id, a.area_name, a.boundary_coordinates
+            """
+        )
+    ).all()
     lines = []
     sweep_needed = 0
     for row in sorted(per_area, key=lambda r: (-r.cnt, r.area_name)):
-        severity = severity_from_count(int(row.cnt))
+        count = int(row.cnt or 0)
+        cci = CCI_K_FACTOR * count / float(row.area_m2) if row.area_m2 else None
+        severity = severity_from_cci(cci)
         if severity in ("High", "Critical"):
             sweep_needed += 1
-        lines.append(f"{row.area_name} {severity} ({row.cnt})")
+        density = f", CCI {cci:.2f}" if cci is not None else ""
+        lines.append(f"{row.area_name} {severity} ({count}{density})")
 
     message = (
         f"Monthly digest ({now.strftime('%B %Y')}): {total} detections total. "

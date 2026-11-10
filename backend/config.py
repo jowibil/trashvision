@@ -65,6 +65,21 @@ class Settings(BaseSettings):
     TEMP_CLEANER_ENABLED: bool = True
     TEMP_FILE_MAX_AGE_HOURS: int = 24
 
+    # --- Upload caps (per request; enforced before the flight row exists) ---
+    # Sized against the TEMP_UPLOAD_DIR volume, not the network: the API is
+    # reached directly (no CDN in path), each request lands on disk at roughly
+    # twice its body (multipart spool + the handler's copy), and the volume is
+    # 5 GB. 200 real frames at 5-8 MB is 1-1.6 GB, so 1.75 GB clears a full
+    # mission while keeping two concurrent batches off a nearly-full disk.
+    MAX_FILES_PER_REQUEST: int = 250
+    MAX_FILE_BYTES: int = 25 * 1024 * 1024
+    MAX_UPLOAD_BYTES: int = 1_750_000_000
+
+    # Save-loop concurrency. 1 = one upload POST writes files at a time; a
+    # second batch waits a few seconds instead of doubling disk exposure.
+    # There is no reaper for leaked temp files, so this is the cheap guard.
+    MAX_CONCURRENT_UPLOADS: int = 1
+
     # JWT lifetime in minutes — defaults to 43200 = 30 days. This is a
     # deliberate, long-lived citizen-app session policy; override per
     # environment if a shorter token life is wanted.

@@ -29,7 +29,7 @@ export const stats = [
 export const features: Feature[] = [
   {
     icon: ScanSearch,
-    title: "Real-Time Detection",
+    title: "Trash Detection",
     description:
       "State-of-the-art computer vision models trained to identify over 50 types of marine debris instantly.",
   },

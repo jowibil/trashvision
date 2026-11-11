@@ -116,11 +116,11 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
   return (
     <div
       id="top"
-      className="relative p-4 md:p-8 space-y-14 max-w-5xl mx-auto text-left text-slate-800"
+      className="relative p-4 md:p-8 space-y-14 max-w-5xl mx-auto text-justify text-slate-800"
     >
       {/* No border-b: the pinned nav below draws the divider, and a line plus a
           gap plus the bar reads as two separators. */}
-      <header className="max-w-[64ch] pb-2">
+      <header className="pb-2">
         <p className="text-xs font-bold uppercase tracking-widest text-[#005D90]">Documentation</p>
         <h4 className="mt-2 text-3xl md:text-4xl font-black text-slate-900 tracking-tight opacity-100! animate-none!">
           Info
@@ -323,7 +323,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
         <SectionHeading id="dedup-heading">
           Before anything is counted: the two de-duplication stages
         </SectionHeading>
-        <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
+        <p className="mt-3 text-sm text-slate-500 leading-relaxed">
           A hovering drone photographs the same piece of trash many times, and one
           photo can contain the same object twice. Both stages run <em>before</em>{" "}
           counting, so every number downstream — map, alerts, chatbot — is
@@ -345,7 +345,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
             </div>
           <div className="pb-8">
             <p className="text-sm font-bold text-slate-800 pt-1">Stage A — between frames</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600 max-w-[66ch]">
+            <p className="mt-2 text-sm leading-relaxed text-slate-600 text-justify">
               Frames are clustered by their camera GPS positions (haversine
               distance). Only the first frame of each cluster (upload order) runs
               inference — its centroid coordinates travel with it; the rest are
@@ -387,7 +387,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
             </div>
           <div className="pb-8">
             <p className="text-sm font-bold text-slate-800 pt-1">Stage B — within a frame</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600 max-w-[66ch]">
+            <p className="mt-2 text-sm leading-relaxed text-slate-600 text-justify">
               Every raw box in one frame is stamped with that frame&apos;s single GPS
               fix, so a distance test can&apos;t tell &ldquo;two boxes on one
               bottle&rdquo; from &ldquo;two bottles a frame apart&rdquo;. Overlap can:
@@ -422,7 +422,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
               </div>
             </dl>
             {legacyStageBRadiusM != null && (
-              <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-500 max-w-[66ch]">
+              <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-500 text-justify">
                 <strong className="text-slate-700">What changed (2026-11-11).</strong>{" "}
                 This stage used to merge boxes nearer than {fmt(stageB?.gsd_factor)} ×
                 a fixed GSD of {fmt(stageB?.gsd_meters)} m — {fmt(legacyStageBRadiusM)} m.
@@ -448,7 +448,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
           What the map colors mean: the Clean Coast Index
         </SectionHeading>
         <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-white shadow-sm p-6 md:p-8 text-left">
-          <div className="space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
+          <div className="space-y-3 text-sm leading-relaxed text-slate-600 text-justify">
             <p>
               Each surveyed area is covered by an adaptive hex grid — cell size
               derived from the drawn boundary
@@ -521,7 +521,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
         <SectionHeading id="rulers-heading">
           One ruler, two zoom levels: the whole area vs one hex cell
         </SectionHeading>
-        <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
+        <p className="mt-3 text-sm text-slate-500 leading-relaxed">
           Alerts, badges and the assistant rate the <em>whole drawn area</em>; the
           map colors rate <em>one cell at a time</em>. Both use the same Clean
           Coast Index — same K, same band edges — so they cannot tell
@@ -674,7 +674,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
           <h3 className="text-sm font-bold text-slate-800">
             Why the alert and the map always describe the same place
           </h3>
-          <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
+          <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">
             <p>
               <strong className="text-slate-700">Alerts answer &ldquo;which area needs a cleanup sweep?&rdquo;</strong>{" "}
               — density over the whole boundary.{" "}
@@ -706,7 +706,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
       {/* ── Where the numbers come from ──────────────────────────────────── */}
       <section id="sources" aria-labelledby="sources-heading" className="scroll-mt-[var(--info-anchor,7rem)] text-justify">
         <SectionHeading id="sources-heading">Where the numbers come from</SectionHeading>
-        <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600 max-w-[68ch]">
+        <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">
           <p>
             <strong className="text-slate-700">Alerts.</strong> Counts and areas are
             computed in SQL over the de-duplicated detections, one shared function
@@ -745,7 +745,7 @@ export default function Info({ stickyTop = "0px" }: InfoProps) {
       {/* ── Known limits ─────────────────────────────────────────────────── */}
       <section id="limits" aria-labelledby="limits-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
         <SectionHeading id="limits-heading">Known limits</SectionHeading>
-        <ul className="mt-3 space-y-2 list-none max-w-[68ch]">
+        <ul className="mt-3 space-y-2 list-none">
           {[
             "The training set is fixed. The model does not learn from new reports, and there is no retraining pipeline, by design.",
             "Frames without GPS can't be matched against other frames, so the same object may be counted more than once.",

@@ -553,6 +553,16 @@ async def upload_flight_batch(
     declared = request.headers.get("content-length")
     declared_bytes = int(declared) if declared and declared.isdigit() else None
 
+    # Hand the pooled connection back BEFORE the blocking pass below. The auth
+    # dependency already opened a transaction on it, and the save/EXIF loop can
+    # run for minutes on a large batch, so the connection would sit
+    # idle-in-transaction the whole time — the one state a pooler (Neon)
+    # reliably kills. Nothing from this session is needed during the pass, and
+    # the session re-checks-out a fresh connection for the flight row below.
+    # (A dead connection at checkout is what pool_pre_ping handles; this covers
+    # a connection that dies while the request holds it.)
+    db.close()
+
     # 1. Save streams to disk (hashing on the fly) and read EXIF metadata
     # from the file path. This must run BEFORE the flight row is created:
     # the EXIF-majority vote below decides the flight_date when the camera

@@ -26,6 +26,7 @@ alert and is High-or-worse (first-run decision 2026-10-27), or (b) worsens
 relative to its latest alert's severity. Same severity twice → no new row;
 the unacknowledged alert sitting in the table IS the weekly reminder.
 """
+import calendar
 import logging
 from datetime import date, datetime, timezone
 
@@ -294,6 +295,92 @@ def evaluate_area(db: Session, area: Area) -> Insight | None:
         detection_count,
     )
     return insight
+
+
+def area_cci_snapshot(db: Session) -> dict:
+    """Every area's CCI for the latest surveyed month — the dashboard panel.
+
+    The window is the newest month any detection is DATED, not the current
+    calendar month: detections carry EXIF shutter time, so a re-processed or
+    late-uploaded mission lands in its survey month, and the current month is
+    empty until a new survey happens. A "this month" panel read 0 for every
+    area between missions (November 2026 had none) and looked identical to a
+    clean coast.
+
+    CCI = K · detections ÷ geodesic area: the SAME arithmetic as area_cci()
+    and the map's hex cells, so a bar here can never disagree with a map chip,
+    a hotspot badge or an alert. One query for all areas (the per-area helper
+    would be N queries on every dashboard load).
+
+    Two honest Nones, both rendered as words rather than a zero bar:
+      - area_m2/cci None: no drawn boundary, so no denominator, so no rating;
+      - detection_count 0: this area was not surveyed in the window — that is
+        not the same statement as "surveyed and clean".
+    """
+    latest = db.query(func.max(Detection.timestamp)).scalar()
+    if latest is None:
+        return {"window": None, "areas": []}
+
+    year, month = latest.year, latest.month
+    rows = db.execute(
+        text(
+            f"""
+            SELECT a.area_id, a.area_name,
+                   {_area_size_expr('a.boundary_coordinates')} AS area_m2,
+                   count(d.detection_id) AS detection_count
+            FROM areas a
+            LEFT JOIN detections d
+                   ON d.area_id = a.area_id
+                  AND EXTRACT(YEAR FROM d.timestamp) = :year
+                  AND EXTRACT(MONTH FROM d.timestamp) = :month
+            GROUP BY a.area_id, a.area_name, a.boundary_coordinates
+            """
+        ),
+        {"year": year, "month": month},
+    ).all()
+
+    areas = []
+    for row in rows:
+        area_m2 = float(row.area_m2) if row.area_m2 else None
+        count = int(row.detection_count or 0)
+        areas.append(
+            {
+                "area_id": str(row.area_id),
+                "area_name": row.area_name,
+                "area_m2": area_m2,
+                "detection_count": count,
+                "cci": (CCI_K_FACTOR * count / area_m2) if area_m2 else None,
+            }
+        )
+
+    # Densest first — the point of the panel. Unrated areas (no boundary) last,
+    # then by count so equal densities keep a stable, non-flapping order.
+    areas.sort(key=lambda a: (a["cci"] is None, -(a["cci"] or 0.0), -a["detection_count"], a["area_name"]))
+
+    # Detections that fell outside every drawn area cannot be rated at all;
+    # they are reported as a footnote instead of a bar that would drag the
+    # comparison toward "everything is clean".
+    unassigned = int(
+        db.query(func.count(Detection.detection_id))
+        .filter(
+            Detection.area_id.is_(None),
+            extract("year", Detection.timestamp) == year,
+            extract("month", Detection.timestamp) == month,
+        )
+        .scalar()
+        or 0
+    )
+
+    return {
+        "window": {
+            "year": year,
+            "month": month,
+            "label": f"{calendar.month_name[month]} {year}",
+            "latest_survey_date": latest.date().isoformat(),
+            "unassigned_detections": unassigned,
+        },
+        "areas": areas,
+    }
 
 
 def evaluate_all_areas(db: Session) -> list[Insight]:

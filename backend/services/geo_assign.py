@@ -8,6 +8,7 @@ guessing a nearest area (see the 2026-10-14 discussion; surfaced in the UI as
 "Unassigned sector" / no report pin).
 """
 
+import json
 import uuid
 
 from sqlalchemy.orm import Session
@@ -101,3 +102,53 @@ def resolve_areas_for_points(
     ).all()
 
     return {row.idx: uuid.UUID(row.area_id) for row in rows}
+
+
+# Existing boundaries predating the srid=4326 column constraint exist with
+# SRID 0, so a spatial predicate against them needs the same normalization
+# insights_service._area_size_expr applies before the ::geography cast.
+_AREA_GEOM_SQL = (
+    "CASE WHEN ST_SRID(boundary_coordinates) = 0 "
+    "THEN ST_SetSRID(boundary_coordinates, 4326) "
+    "ELSE ST_Transform(boundary_coordinates, 4326) END"
+)
+
+
+def find_overlapping_areas(db: Session, geojson: dict) -> list[str]:
+    """Names of existing areas sharing INTERIOR ground with this boundary.
+
+    The draw endpoint's guard rail. Two boundaries over the same ground make
+    point assignment arbitrary (resolve_area_for_point keeps the lowest
+    area_id), so the losing area's hex map shows a hole in the shared region
+    and its CCI/alert undercounts — silently, with nothing on screen to say
+    two areas claim the same ground. Creation is the only moment an admin can
+    still be told, so the save is refused instead.
+
+    Shared EDGES are not a conflict: neighbouring jurisdictions legitimately
+    touch, and a shared border is harmless (each interior point still resolves
+    to exactly one area). Overlap, containment in either direction and an
+    exact copy of an existing outline all count.
+
+    Empty list = clear to save.
+    """
+    rows = db.execute(
+        text(
+            f"""
+            WITH drawn AS (
+                SELECT ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326) AS geom
+            )
+            SELECT a.area_name
+            FROM areas a
+            CROSS JOIN drawn g
+            WHERE a.boundary_coordinates IS NOT NULL
+              AND (
+                    ST_Overlaps({_AREA_GEOM_SQL}, g.geom)
+                 OR ST_Contains({_AREA_GEOM_SQL}, g.geom)
+                 OR ST_Contains(g.geom, {_AREA_GEOM_SQL})
+              )
+            ORDER BY a.area_name
+            """
+        ),
+        {"geojson": json.dumps(geojson)},
+    ).all()
+    return [row.area_name for row in rows]

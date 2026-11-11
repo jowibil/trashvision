@@ -9,6 +9,7 @@ import uuid
 from routes.helper.utils import AreaCreate
 from geoalchemy2.shape import to_shape, from_shape
 from shapely.geometry import shape, mapping
+from services.geo_assign import find_overlapping_areas
 
 router = APIRouter()
 
@@ -24,6 +25,28 @@ def create_area(
     _admin=Depends(require_role("admin")),
 ):
     poly_shape = shape(data.boundary_coordinates)
+
+    # Guard rail: a boundary drawn over an existing area is refused, because
+    # point assignment keeps the lowest area_id (services/geo_assign.py), so
+    # the OTHER area would silently lose the overlap — a hole in its hex map
+    # and an undercounted CCI. 409 carries the names so the portal can say
+    # which area already covers this ground instead of a generic failure.
+    conflict_names = find_overlapping_areas(db, mapping(poly_shape))
+    if conflict_names:
+        noun = "area" if len(conflict_names) == 1 else "areas"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "area_overlap",
+                "message": (
+                    f"Boundary overlaps the existing {noun} "
+                    f"{', '.join(conflict_names)}. Redraw it so the same "
+                    "ground is not covered twice."
+                ),
+                "overlapping_area_names": conflict_names,
+            },
+        )
+
     centroid = poly_shape.centroid
     
     area = Area(

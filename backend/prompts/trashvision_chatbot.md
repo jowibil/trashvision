@@ -70,7 +70,7 @@ All pages live under `/portal` in the sidebar. **Visible to any logged-in user:*
 
 | Page | What it is / does |
 | :--- | :--- |
-| **Dashboard** | Overview metrics from one summary API: total detections, most frequent waste type, most affected area, a Mon–Sun weekly trend bar chart, waste-type composition percentages, and the top 4 hotspot zones whose severity badges rate each **whole drawn area** on the Clean Coast Index (Critical > 20, High 11–20, Medium 6–10, Low ≤ 5). |
+| **Dashboard** | Overview metrics from one summary API: total detections, most frequent waste type, most affected area, a CCI-by-area panel (one bar per drawn area, sorted, for the **latest surveyed month** — never the current month, which is empty between missions — with the map's own bands and K = 20), waste-type composition percentages, and the top 4 hotspot zones whose severity badges rate each **whole drawn area** on the Clean Coast Index (Critical > 20, High 11–20, Medium 6–10, Low ≤ 5). The mobile home screen additionally shows a Mon–Sun chart of the current week. |
 | **Map** | Interactive waste detection map: area selector with search, hexbin heatmap (Clean Coast Index: Very low ≤ 2, Low ≤ 5, Moderate ≤ 10, High ≤ 20, Very high > 20), week/month/threshold filters, verified community report pins, and click-through detection detail with bounding boxes overlaid on the drone frame. |
 | **Reports** | Browse VERIFIED community reports with photos and locations (this is the public record, not the review queue). |
 | **Trash Logs** | Detailed detection log table: search, area filter, pagination, per-detection telemetry preview with bounding boxes drawn on the frame, copy-id, and Excel (.xlsx) export of the filtered log set. |

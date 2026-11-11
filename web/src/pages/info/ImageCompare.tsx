@@ -64,7 +64,7 @@ export default function ImageCompare() {
       <SectionHeading id="sample-heading">
         One frame, before and after the model
       </SectionHeading>
-      <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
+      <p className="mt-3 text-sm text-slate-500 leading-relaxed">
         A real survey frame at the operating point the backend uses, with the
         boxes the detector actually returned. Drag the divider to compare, then
         raise the confidence cut-off and watch detections drop out: what survives
@@ -235,7 +235,7 @@ export default function ImageCompare() {
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-slate-500 max-w-[68ch] leading-relaxed">
+      <p className="mt-3 text-[11px] text-slate-500 font-extrabold leading-relaxed">
         Frame <code className="font-mono break-all">{sample.frame}</code>, generated{" "}
         {sample.generated} by running this repository&apos;s detector at{" "}
         {sample.inference.imgsz}&nbsp;px and {Math.round(sample.inference.conf * 100)}%

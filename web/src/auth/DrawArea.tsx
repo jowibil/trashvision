@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { MapContainer, TileLayer, GeoJSON, useMap } from "react-leaflet";
 import { Save } from "lucide-react";
 import { Target } from "lucide-react";
@@ -14,9 +14,11 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import "leaflet/dist/leaflet.css";
 import toast, { Toaster } from "react-hot-toast";
+import axios from "axios";
 import api from "../api/axios";
 import { useAreas, type Area } from "../services/hooks/useAreas";
 import { useMapControl } from "../services/hooks/useMapControl";
+import { findOverlappingAreas } from "../services/areaOverlap";
 
 function MapController({ targetPos }: { targetPos: [number, number] | null }) {
   const { flyToLocation } = useMapControl();
@@ -106,6 +108,15 @@ export default function AreaDrawer() {
   const { areas, loading: areasLoading, refresh } = useAreas();
   const [areasFailed, setAreasFailed] = useState(false);
 
+  // Pre-save guard rail: the server refuses a boundary that covers ground an
+  // existing area already owns (409), so checking the already-loaded area list
+  // here turns that rejection into an instant, named warning. Derived from
+  // state (not stored) so redrawing or renaming can never leave it stale.
+  const overlappingAreas = useMemo(
+    () => (geoJson ? findOverlappingAreas(geoJson.geometry, areas) : []),
+    [geoJson, areas],
+  );
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -162,8 +173,16 @@ export default function AreaDrawer() {
         setGeoJson(null);
         await refresh();
       }
-    } catch {
-      toast.error("Error saving area. Try again.");
+    } catch (err) {
+      // 409 = the server's overlap guard fired (stale cached area list, or an
+      // area drawn by someone else meanwhile). Its message names the area, so
+      // surface it instead of the generic retry line.
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+      if (detail && typeof detail === "object" && typeof detail.message === "string") {
+        toast.error(detail.message);
+      } else {
+        toast.error("Error saving area. Try again.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -384,9 +403,22 @@ export default function AreaDrawer() {
                 <p className="text-[10px] text-slate-400 text-right">Add a name to enable saving.</p>
               ) : null}
 
+              {overlappingAreas.length > 0 ? (
+                <div role="alert" className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                  <p className="text-[11px] font-bold text-amber-700 leading-snug">
+                    This boundary covers ground already inside{" "}
+                    {overlappingAreas.map((a) => a.area_name).join(", ")}.
+                  </p>
+                  <p className="text-[10px] text-amber-700/80 font-medium leading-snug mt-1">
+                    Counts in the overlap would go to only one area. Redraw the outline so they
+                    do not share the same ground.
+                  </p>
+                </div>
+              ) : null}
+
               <button
                 type="button"
-                disabled={!geoJson || !areaName || isSaving}
+                disabled={!geoJson || !areaName || isSaving || overlappingAreas.length > 0}
                 onClick={saveAreaToDatabase}
                 className="w-full py-3 bg-[#005D90] hover:bg-[#004a7c] text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#005D90] transition-[background-color,transform] duration-150 ease-out active:scale-[0.98] disabled:active:scale-100 cursor-pointer focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 motion-reduce:transition-none"
               >

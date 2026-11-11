@@ -127,11 +127,36 @@ export interface PaginatedDetectionsResponse {
   limit: number;
 }
 
+/** One row of the dashboard's CCI-by-area panel (GET /logs/summary →
+ *  area_cci.areas). cci is null when the area has no drawn boundary: no
+ *  denominator, so no rating — never a zero claiming "clean". */
+export interface AreaCciRow {
+  areaId: string;
+  areaName: string;
+  areaM2: number | null;
+  detectionCount: number;
+  cci: number | null;
+}
+
+/** The window the CCI bars cover: the latest SURVEYED month (not the current
+ *  calendar month, which is empty between missions), plus the last survey day
+ *  and any detections that fell outside every drawn area. */
+export interface AreaCciSnapshot {
+  window: {
+    year: number;
+    month: number;
+    label: string;
+    latestSurveyDate: string | null;
+    unassignedDetections: number;
+  } | null;
+  areas: AreaCciRow[];
+}
+
 export interface DashboardStats {
   totalDetections: number;
   mostFrequentType: string;
   mostAffectedArea: string;
-  trends: number[];
+  areaCci: AreaCciSnapshot;
   composition: { type: string; percentage: number }[];
   activeZones: {
     id: string;

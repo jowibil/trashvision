@@ -43,7 +43,7 @@ export default function TrainingStepper() {
         ))}
       </ol>
 
-      <p className="mt-3 text-xs text-slate-500 max-w-[68ch] leading-relaxed">
+      <p className="mt-3 text-xs text-slate-500 leading-relaxed">
         Training arguments and wall-clock time come from the run&apos;s{" "}
         <code className="font-mono">args.yaml</code> and{" "}
         <code className="font-mono">results.csv</code>; the image counts come from

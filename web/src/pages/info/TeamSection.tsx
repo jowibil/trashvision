@@ -68,7 +68,7 @@ export default function TeamSection() {
   return (
     <section id="team" aria-labelledby="team-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
       <SectionHeading id="team-heading">Built by</SectionHeading>
-      <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
+      <p className="mt-3 text-sm text-slate-500 leading-relaxed">
         TrashVision is built and maintained by three people. Everything on this
         page exists so their work can be checked rather than taken on trust.
       </p>

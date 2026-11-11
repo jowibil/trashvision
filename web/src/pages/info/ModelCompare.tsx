@@ -41,7 +41,7 @@ export default function ModelCompare() {
   return (
     <section id="compare" aria-labelledby="compare-heading" className="scroll-mt-[var(--info-anchor,7rem)]">
       <SectionHeading id="compare-heading">Which detector, and how well it scores</SectionHeading>
-      <p className="mt-3 text-sm text-slate-500 max-w-[68ch] leading-relaxed">
+      <p className="mt-3 text-sm text-slate-500 leading-relaxed">
         Three detectors were trained and scored on the same five classes. YOLOv8
         led on every aggregate metric, so that is the family we kept — and then
         fine-tuned. Bold figures mark the best value in each column.
@@ -112,7 +112,7 @@ export default function ModelCompare() {
             Deployed
           </span>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-600 max-w-[68ch]">
+        <p className="mt-2 text-xs leading-relaxed text-slate-600">
           The checkpoint the backend loads, scored on the validation split of the
           v11 export at the 1280 px training size. One 22.6 MB file detects all
           five classes — no separate model per class.
@@ -175,7 +175,7 @@ export default function ModelCompare() {
             })}
           </tbody>
         </table>
-        <p className="mt-3 text-xs text-slate-500 leading-relaxed max-w-[68ch]">
+        <p className="mt-3 text-xs text-slate-500 leading-relaxed">
           The aggregate win is not a clean sweep: on base training SSD edges the
           others on metal and Faster R-CNN leads on styrofoam. The fine-tuned
           column is the point — every class finishes at 59% or better, where the

@@ -5,12 +5,11 @@ import InsightsBanner from "../components/shared/InsightsBanner";
 import ZoneMapPreview from "../components/shared/ZoneMapPreview";
 import { useAreas } from "../services/hooks/useAreas";
 import type { Area } from "../services/hooks/useAreas";
-import type { DashboardStats } from "../types/types";
+import { classifyCci, getCciColor } from "../services/hooks/useHexbins";
+import type { AreaCciSnapshot, DashboardStats } from "../types/types";
 
 // Data that never depends on component state lives at module scope so it
 // isn't rebuilt on every render.
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
 type SeverityConfig = { bg: string; text: string };
 
 // Tinted chips instead of white-on-color: white text on yellow-500 failed
@@ -68,6 +67,135 @@ function ZoneCard({ zone, area }: { zone: HotspotZone; area?: Area }) {
   );
 }
 
+/**
+ * CCI by area — one bar per drawn area, for the latest surveyed month.
+ *
+ * Replaces the Mon–Sun week chart, which could only ever be zeros: detections
+ * are dated by EXIF shutter time, so they land in their survey month, and the
+ * old chart also plotted the days after today. Area CCI is the same K = 20
+ * ruler as the map cells, the hotspot badges and the alerts, so a bar here
+ * cannot disagree with any of them.
+ */
+function AreaCciPanel({ snapshot }: { snapshot: AreaCciSnapshot }) {
+  const rows = snapshot.areas;
+  const window = snapshot.window;
+
+  const maxCci = useMemo(() => {
+    const max = rows.reduce((acc, row) => Math.max(acc, row.cci ?? 0), 0);
+    return max > 0 ? max : 1;
+  }, [rows]);
+
+  // "2026-10-29" → "29 Oct". Split instead of `new Date(iso)`: a date-only
+  // string parses as UTC midnight and would print the previous day west of
+  // Greenwich.
+  const latestSurvey = useMemo(() => {
+    const iso = window?.latestSurveyDate;
+    if (!iso) return null;
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+    });
+  }, [window?.latestSurveyDate]);
+
+  return (
+    <div className="lg:col-span-2 bg-[#fcfcfc] border border-zinc-900/10 rounded-2xl p-6 shadow-sm">
+      <div className="mb-6 flex justify-between items-start gap-4">
+        <div className="text-left">
+          <h3 className="text-lg font-bold text-slate-800 tracking-tight">CCI by Area</h3>
+          <p className="text-xs text-slate-400">
+            {window ? `Density per drawn area · ${window.label}` : "Density per drawn area"}
+          </p>
+        </div>
+        {latestSurvey ? (
+          <span className="shrink-0 text-[10px] font-semibold text-[#005D90] bg-blue-50 px-2.5 py-1 rounded-full">
+            Latest survey {latestSurvey}
+          </span>
+        ) : null}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="h-52 flex items-center justify-center">
+          <p className="text-xs text-slate-400 italic font-medium">
+            {window ? "No drawn areas to rate yet." : "No area data yet."}
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-4">
+          {rows.map((area) => {
+            const cci = area.cci;
+            const category = cci === null ? null : classifyCci(cci);
+            const widthPct = cci === null ? 0 : Math.max(1.5, (cci / maxCci) * 100);
+            const surveyLabel =
+              area.areaM2 === null
+                ? "No boundary — cannot rate"
+                : area.detectionCount > 0
+                  ? `${area.detectionCount.toLocaleString()} detections · ${(area.areaM2 / 10_000).toFixed(1)} ha`
+                  : `Not surveyed in ${window?.label ?? "this window"}`;
+
+            return (
+              <li key={area.areaId} className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-xs font-bold text-slate-700 truncate">{area.areaName}</p>
+                  <p className="text-xs font-black text-slate-800 tabular-nums shrink-0">
+                    {cci === null ? "—" : cci.toFixed(2)}
+                  </p>
+                </div>
+                {/* Track stays visible at zero: an unsurveyed area is an empty
+                    track plus the words below, not a bar claiming "clean". */}
+                <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                  {category ? (
+                    <div
+                      className="h-full rounded-full transition-[width] duration-300 ease-out motion-reduce:transition-none"
+                      style={{
+                        width: `${widthPct}%`,
+                        backgroundColor: getCciColor(category),
+                      }}
+                    />
+                  ) : null}
+                </div>
+                <p className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
+                  {category ? (
+                    <>
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: getCciColor(category) }}
+                        aria-hidden="true"
+                      />
+                      <span className="font-semibold text-slate-500">{category}</span>
+                      <span aria-hidden="true">·</span>
+                    </>
+                  ) : null}
+                  <span className="truncate">{surveyLabel}</span>
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {window && window.unassignedDetections > 0 ? (
+        <p className="mt-5 text-[10px] font-medium text-slate-400">
+          {window.unassignedDetections.toLocaleString()} detections in {window.label} fell outside
+          every drawn area, so they are not rated.
+        </p>
+      ) : null}
+
+      <p className="sr-only">
+        CCI by area{window ? `, ${window.label}` : ""}:{" "}
+        {rows
+          .map((area) =>
+            area.cci === null
+              ? `${area.areaName}: not rated (no boundary)`
+              : `${area.areaName}: ${area.cci.toFixed(2)} (${classifyCci(area.cci)})`,
+          )
+          .join(", ")}
+        .
+      </p>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const userName = localStorage.getItem("user_name") || "Guest";
@@ -103,7 +231,24 @@ export default function Dashboard() {
         totalDetections: response.data?.total_detections ?? 0,
         mostFrequentType: response.data?.most_frequent_type ?? "None Registered",
         mostAffectedArea: response.data?.most_affected_area ?? "Clear Grid",
-        trends: response.data?.weekly_trends ?? [0, 0, 0, 0, 0, 0, 0],
+        areaCci: {
+          window: response.data?.area_cci?.window
+            ? {
+                year: response.data.area_cci.window.year,
+                month: response.data.area_cci.window.month,
+                label: response.data.area_cci.window.label,
+                latestSurveyDate: response.data.area_cci.window.latest_survey_date ?? null,
+                unassignedDetections: response.data.area_cci.window.unassigned_detections ?? 0,
+              }
+            : null,
+          areas: (response.data?.area_cci?.areas ?? []).map((row: Record<string, unknown>) => ({
+            areaId: String(row.area_id),
+            areaName: String(row.area_name ?? "Untitled area"),
+            areaM2: typeof row.area_m2 === "number" ? row.area_m2 : null,
+            detectionCount: Number(row.detection_count ?? 0),
+            cci: typeof row.cci === "number" ? row.cci : null,
+          })),
+        },
         composition: response.data?.waste_composition ?? [],
         activeZones: response.data?.hotspot_zones ?? [],
       });
@@ -121,12 +266,6 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardPayload();
   }, [fetchDashboardPayload]);
-
-  const maxTrendValue = useMemo(() => {
-    if (!stats || stats.trends.length === 0) return 1;
-    const max = Math.max(...stats.trends);
-    return max === 0 ? 1 : max;
-  }, [stats]);
 
   const primaryMaterialMetric = useMemo(() => {
     if (!stats || !stats.composition.length) return { type: "N/A", percentage: 0 };
@@ -246,56 +385,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* CHARTS GRAPH SECTION LAYER (already asymmetric: 2/3 chart + 1/3 donut) */}
+      {/* CHARTS GRAPH SECTION LAYER (already asymmetric: 2/3 panel + 1/3 donut) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-[#fcfcfc] border border-zinc-900/10 rounded-2xl p-6 shadow-sm">
-          <div className="mb-6 flex justify-between items-start">
-            <div className="text-left">
-              <h3 className="text-lg font-bold text-slate-800 tracking-tight">Detection Activity Trends</h3>
-              <p className="text-xs text-slate-400">Detections across the last 7 days</p>
-            </div>
-          </div>
-
-          {/* Values are visible above every bar (previously a hover-only
-              chip keyboard users could never see); the sr-only paragraph
-              gives screen readers the same per-day data as text. */}
-          <div className="h-64 flex items-stretch gap-3 px-2">
-            {stats.trends.map((value, index) => {
-              const percentageHeight = (value / maxTrendValue) * 100;
-              return (
-                <div key={index} className="flex-1 flex flex-col items-center group relative">
-                  {/* Show every count, including zeros — an empty axis label
-                      would make a zero day indistinguishable from missing
-                      data. */}
-                  <span
-                    className={`text-[9px] font-semibold tabular-nums ${
-                      index === (new Date().getDay() + 6) % 7
-                        ? "text-[#005D90]"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    {value}
-                  </span>
-                  <div className="w-full flex-1 flex items-end mt-1">
-                    <div
-                      className={`w-full rounded-t-lg transition-colors duration-200 ease-out ${
-                        // getDay() is 0 on Sunday; map it to the last label slot.
-                        index === (new Date().getDay() + 6) % 7
-                          ? "bg-[#005D90]"
-                          : "bg-slate-200 group-hover:bg-slate-300"
-                      }`}
-                      style={{ height: `${Math.max(4, percentageHeight)}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{DAY_LABELS[index]}</span>
-                </div>
-              );
-            })}
-          </div>
-          <p className="sr-only">
-            Detections per day: {stats.trends.map((v, i) => `${DAY_LABELS[i]} ${v}`).join(", ")}.
-          </p>
-        </div>
+        <AreaCciPanel snapshot={stats.areaCci} />
 
         <div className="bg-[#fcfcfc] border border-zinc-900/10 rounded-2xl p-6 shadow-sm flex flex-col items-center">
           <div className="w-full mb-6 text-left">

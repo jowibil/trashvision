@@ -7,7 +7,7 @@ from models.trash_log import TrashLog
 from models.detection import Detection
 from models.report import Report
 from models.area import Area
-from services.insights_service import area_cci, severity_from_cci
+from services.insights_service import area_cci, area_cci_snapshot, severity_from_cci
 
 from typing import Optional
 from datetime import timezone, datetime, timedelta
@@ -115,6 +115,10 @@ def get_dashboard_summary(
         "most_frequent_type": most_frequent_type,
         "most_affected_area": most_affected_area,
         "weekly_trends": weekly_trends,
+        # Per-area CCI for the latest surveyed month — the dashboard's density
+        # panel. weekly_trends is kept for the mobile home screen (it renders
+        # the Mon–Sun chart); the web dashboard no longer uses it.
+        "area_cci": area_cci_snapshot(db),
         "waste_composition": composition,
         "hotspot_zones": hotspot_zones
     }

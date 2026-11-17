@@ -21,6 +21,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool isLoading = false;
   bool obscurePassword = true;
 
+  /// The only records of acceptance: the user cannot finish registration
+  /// without ticking this, and both documents are one tap away from the
+  /// checkbox. No copy is stored server-side — the backend has no field for it.
+  bool acceptedTerms = false;
+
   String? errorMessage;
 
   void handleRegister() async {
@@ -58,6 +63,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    if (!acceptedTerms) {
+      setState(() {
+        isLoading = false;
+        errorMessage =
+            "Please accept the Terms of Service and Privacy Policy to continue.";
+      });
+      return;
+    }
+
     try {
       final success = await auth.register(name, email, password);
 
@@ -86,6 +100,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  /// Inline link inside the acceptance row. Opens the document above this
+  /// screen; back returns to the half-filled form.
+  Widget _legalLink(String label, String route) {
+    return TextButton(
+      onPressed: () => Navigator.pushNamed(context, route),
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.zero,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: primaryBlue,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          decoration: TextDecoration.underline,
+          color: primaryBlue,
+        ),
+      ),
+    );
   }
 
   @override
@@ -209,7 +246,65 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
+
+                      // Terms acceptance — required, with both documents one
+                      // tap away so nobody has to agree to something they
+                      // cannot read.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: acceptedTerms,
+                              onChanged: (value) => setState(
+                                () => acceptedTerms = value ?? false,
+                              ),
+                              activeColor: primaryColor,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  const Text(
+                                    "I agree to the ",
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  _legalLink("Terms of Service", "/legal/terms"),
+                                  const Text(
+                                    " and ",
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  _legalLink("Privacy Policy", "/legal/privacy"),
+                                  const Text(
+                                    ".",
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 14),
 
                       // Register button
                       SizedBox(

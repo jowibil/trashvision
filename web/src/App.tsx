@@ -22,6 +22,10 @@ const AuthReport = lazy(() => import("./auth/AuthReport"));
 const Upload = lazy(() => import("./auth/Upload"));
 const Settings = lazy(() => import("./auth/Settings"));
 const AreaDrawer = lazy(() => import("./auth/DrawArea"));
+// Legal documents are public and reachable from the landing footer. Each is its
+// own lazy chunk so the wording never weighs on first paint.
+const Terms = lazy(() => import("./pages/legal/Terms"));
+const Privacy = lazy(() => import("./pages/legal/Privacy"));
 
 // The chat widget is a heavy, always-mounted, non-critical module (markdown
 // rendering, its own network calls) that isn't needed for first paint of any
@@ -62,6 +66,25 @@ function App() {
                 {/* 4rem = DocShell's h-16 sticky header, which the page's
                     pinned section nav tucks under. */}
                 <Info stickyTop="4rem" />
+              </DocShell>
+            }
+          />
+
+          {/* Public legal pages: footer links, no account required. Same
+              wording as the mobile app's Help & Services documents. */}
+          <Route
+            path="/terms"
+            element={
+              <DocShell title="Terms of Service · TrashVision" subtitle="Legal">
+                <Terms />
+              </DocShell>
+            }
+          />
+          <Route
+            path="/privacy"
+            element={
+              <DocShell title="Privacy Policy · TrashVision" subtitle="Legal">
+                <Privacy />
               </DocShell>
             }
           />

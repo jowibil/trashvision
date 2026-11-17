@@ -20,9 +20,11 @@ interface DocShellProps {
   children: ReactNode;
   /** Shown as the browser tab title; the previous title is restored on unmount. */
   title?: string;
+  /** Section label after the TrashVision wordmark in the header. */
+  subtitle?: string;
 }
 
-export default function DocShell({ children, title }: DocShellProps) {
+export default function DocShell({ children, title, subtitle = "Methodology" }: DocShellProps) {
   useEffect(() => {
     if (!title) return;
     const previous = document.title;
@@ -45,7 +47,7 @@ export default function DocShell({ children, title }: DocShellProps) {
             <span aria-hidden="true" className="hidden text-slate-300 sm:inline">
               /
             </span>
-            <span className="hidden text-sm font-medium text-slate-500 sm:inline">Methodology</span>
+            <span className="hidden text-sm font-medium text-slate-500 sm:inline">{subtitle}</span>
           </Link>
 
           <Link

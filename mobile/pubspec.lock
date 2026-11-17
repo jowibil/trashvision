@@ -760,6 +760,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.6"
+  native_exif:
+    dependency: "direct main"
+    description:
+      name: native_exif
+      sha256: "044276caf22c14695f97833b3e9cec941a7bf2403f422749436797381fceb857"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.0"
   nm:
     dependency: transitive
     description:

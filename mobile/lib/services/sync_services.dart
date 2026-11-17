@@ -1,6 +1,7 @@
 import 'package:TrashVision/models/report_model.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../helper/database_helper.dart';
 import 'api_client.dart';
@@ -27,6 +28,21 @@ class SyncService {
     final token = await ApiClient.authToken();
     if (token == null || JwtDecoder.isExpired(token)) return;
 
+    // Guest mode: reports filed while signed out are queued with the
+    // 'guest' placeholder, because the backend takes report ownership from
+    // the JWT rather than the form. A session exists now, so claim them for
+    // this account BEFORE uploading — otherwise they would sync but never
+    // show up in this account's Profile ledger.
+    final ownerId = await const FlutterSecureStorage().read(key: 'user_id');
+    if (ownerId == null || ownerId.isEmpty) {
+      // A valid token but no stored account id: there is no way to tell which
+      // queued rows are this person's, and guessing would upload someone
+      // else's report as theirs. Wait for a sign-in that stamps the id.
+      debugPrint("Sync Engine: no stored user_id; skipping outbox.");
+      return;
+    }
+    await DatabaseHelper.instance.adoptGuestReports(ownerId);
+
     _isSyncing = true;
     debugPrint("Sync Engine: Checking for pending reports...");
 
@@ -35,7 +51,13 @@ class SyncService {
     bool authAborted = false;
 
     try {
-      final List<Report> pendingReports = await DatabaseHelper.instance.getReports();
+      // Shared devices: upload ONLY the signed-in account's reports. Every
+      // row used to be sent under whatever token happened to be live, so
+      // signing in as B could publish A's still-queued report as B's (the
+      // server assigns ownership from the JWT). Rows owned by another account
+      // stay queued, untouched, for that account's own next sign-in.
+      final List<Report> pendingReports =
+          await DatabaseHelper.instance.getReportsByUserId(ownerId);
 
       for (var report in pendingReports) {
         // uploadReport returns the HTTP status (0 = network error).
@@ -52,7 +74,7 @@ class SyncService {
         }
       }
     } on ApiException catch (e) {
-      // getReports()/moveReportToLedger() don't throw ApiException, so this
+      // getReportsByUserId()/moveReportToLedger() don't throw ApiException, so this
       // branch is for future callers; uploadReport surfaces 401 via the
       // status code below.
       debugPrint("Sync Engine API error: $e");

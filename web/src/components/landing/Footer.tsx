@@ -3,8 +3,10 @@ import LOGO from "@/assets/LOGO_WORDS.png";
 
 // Static footer links — defined once, outside the render. An `href` starting
 // with "/" is an app route (router navigation); the rest are still
-// placeholders. Only Documentation has a real destination today: the public
-// methodology page.
+// placeholders. Real destinations today: Documentation (/info, the public
+// methodology page), Privacy Policy (/privacy) and Terms of Service (/terms).
+// The two legal pages render the same documents the mobile app shows under
+// Help & Services.
 const FOOTER_SECTIONS: { section: string; links: { label: string; href: string }[] }[] = [
   {
     section: "Platform",
@@ -25,8 +27,8 @@ const FOOTER_SECTIONS: { section: string; links: { label: string; href: string }
   {
     section: "Legal",
     links: [
-      { label: "Privacy Policy", href: "#" },
-      { label: "Terms of Service", href: "#" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms of Service", href: "/terms" },
       { label: "Governance", href: "#" },
     ],
   },

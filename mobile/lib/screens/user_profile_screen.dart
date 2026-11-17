@@ -164,11 +164,80 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           : Column(
               children: [
                 _buildHeroProfileHeader(),
+                _buildHelpEntry(),
                 Expanded(
                   child: _buildHistoryPane(),
                 ),
               ],
             ),
+    );
+  }
+
+  /// Entry point for Help & Services (FAQ, contact, terms, privacy). Sits
+  /// between the account header and the ledger because that is where people
+  /// look for account-level and legal things — and it keeps the Home quick
+  /// actions unchanged.
+  Widget _buildHelpEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => Navigator.pushNamed(context, '/help'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: surfaceBody),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: primaryBlue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    LucideIcons.helpCircle,
+                    size: 18,
+                    color: primaryBlue,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Help & Services",
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w900,
+                          color: ink,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        "FAQs, terms of service and privacy policy",
+                        style: TextStyle(fontSize: 11.5, color: inkMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  LucideIcons.chevronRight,
+                  size: 16,
+                  color: inkFaint,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../services/api_client.dart' show userMessage;
 import '../services/auth_service.dart'; // also exports ApiException
+import '../services/sync_services.dart';
 import 'register_screen.dart';
 import 'home_shell.dart';
 import 'password_reset_screen.dart';
@@ -54,6 +55,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (token != null) {
+        // A session is finally available: anything queued in guest mode can
+        // now be claimed and uploaded (SyncService adopts the 'guest' rows).
+        // Fire-and-forget — login must not wait on the outbox.
+        SyncService().syncOutbox();
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Login successful")),
         );
@@ -269,6 +275,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text("Register"),
                     ),
                   ],
+                ),
+
+                // Guest mode: the one thing the app can do with no session at
+                // all — file a report into the offline outbox. Same destination
+                // as the expired-session gate, so a first-time user gets the
+                // same explanation instead of being stuck on this form.
+                TextButton(
+                  onPressed: () => Navigator.pushNamed(context, '/guest'),
+                  child: const Text(
+                    "Just want to report? Continue as guest",
+                    style: TextStyle(fontSize: 13),
+                  ),
                 ),
               ],
             ),

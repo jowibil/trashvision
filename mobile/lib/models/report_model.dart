@@ -1,4 +1,11 @@
 class Report {
+  /// Owner placeholder for a report queued while signed out (guest mode).
+  /// The server never sees it — POST /reports/ authenticates with the JWT and
+  /// takes ownership from it, which is why a guest report can only be SENT
+  /// after sign-in. SyncService re-owns the queued row to the real account at
+  /// the next sign-in (DatabaseHelper.adoptGuestReports).
+  static const String guestUserId = 'guest';
+
   final int? id;
   final String? reportId; 
   final String wasteType;

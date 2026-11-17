@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:uuid/uuid.dart';
 import '../models/report_model.dart';
+import '../services/image_geotag.dart';
 import '../services/map_offline_tile_cache.dart';
 import '../config/theme.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,6 +21,13 @@ import 'package:latlong2/latlong.dart';
 class ReportScreen extends StatefulWidget {
   final String? initialImagePath;
 
+  /// Guest mode: no session, so a submission is queued locally instead of
+  /// uploaded. POST /reports/ authenticates with the JWT and takes ownership
+  /// from it, so there is nothing to send until the user signs in — trying
+  /// would only 401 and bounce the user off a filled-in form. The queued row
+  /// carries [Report.guestUserId] until SyncService adopts it at sign-in.
+  final bool guest;
+
   /// Switches HomeShell back to its Home tab once a report has been sent or
   /// queued. The tab's state survives switching now, so this screen also
   /// clears its own form (see _finishSubmission).
@@ -29,6 +37,7 @@ class ReportScreen extends StatefulWidget {
     super.key,
     this.initialImagePath,
     this.onSubmitted,
+    this.guest = false,
   });
 
   @override
@@ -85,6 +94,12 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _loadUserData() async {
+    if (widget.guest) {
+      // There is no session by definition; the placeholder is swapped for the
+      // real account id the moment one signs in.
+      if (mounted) setState(() => userId = Report.guestUserId);
+      return;
+    }
     final currentUser = await storage.read(key: "user_id");
     if (mounted) {
       setState(() {
@@ -280,10 +295,24 @@ Future<void> _pickImage() async {
     );
 
     try {
+      if (widget.guest) {
+        // No session = no upload attempt (it can only 401). Queue it and say
+        // plainly where it went, so "submitted" is never implied.
+        await _queueReport(newReport);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Saved on this phone — it uploads when you sign in."),
+          ),
+        );
+        _finishSubmission();
+        return;
+      }
+
       var connectivityResult = await Connectivity().checkConnectivity();
 
       if (connectivityResult.contains(ConnectivityResult.none)) {
-        await DatabaseHelper.instance.insertReport(newReport);
+        await _queueReport(newReport);
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -315,7 +344,7 @@ Future<void> _pickImage() async {
           // redirected to /login with a snackbar. Queue the report so sync
           // picks it up after re-login — and do NOT navigate here, the
           // redirect already replaced the stack.
-          await DatabaseHelper.instance.insertReport(newReport);
+          await _queueReport(newReport);
           return;
         } else {
           // FIX: any other non-2xx (server 500, validation 4xx, 0 = dropped
@@ -324,8 +353,8 @@ Future<void> _pickImage() async {
           // uploaded AND never queued. Route it to the outbox instead so
           // SyncService retries it when connectivity allows, matching the
           // offline contract ("Server unreachable. Saved to outbox.").
-          await DatabaseHelper.instance.insertReport(newReport);
-          if (!mounted) return; // re-guard: insertReport is an async gap
+          await _queueReport(newReport);
+          if (!mounted) return; // re-guard: _queueReport is an async gap
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Server unreachable. Saved to outbox.")),
           );
@@ -337,7 +366,7 @@ Future<void> _pickImage() async {
     } catch (e) {
       debugPrint("Submit Error: $e");
 
-      await DatabaseHelper.instance.insertReport(newReport);
+      await _queueReport(newReport);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -379,7 +408,28 @@ Future<void> _pickImage() async {
       return;
     }
     if (!mounted) return;
+    if (widget.guest) {
+      // Pushed from the guest gate: return there so its "waiting to upload"
+      // line reflects the report just queued.
+      Navigator.pop(context, true);
+      return;
+    }
     Navigator.pushReplacementNamed(context, '/home');
+  }
+
+  /// Persists a report to the outbox, stamping the photo's EXIF GPS first.
+  ///
+  /// Every path that keeps a report on the device funnels through here (guest,
+  /// offline, rejected or unreachable upload), so the file itself always
+  /// carries where it was taken — the form fields only reach the server once
+  /// the upload succeeds, and a queued report may not upload for days.
+  Future<void> _queueReport(Report report) async {
+    await ImageGeotag.stamp(
+      report.localPhotoPath,
+      latitude: report.latitude,
+      longitude: report.longitude,
+    );
+    await DatabaseHelper.instance.insertReport(report);
   }
 
   @override
@@ -405,6 +455,10 @@ Future<void> _pickImage() async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.guest) ...[
+              _buildGuestNotice(),
+              const SizedBox(height: 20),
+            ],
             _buildPhotoCard(),
             const SizedBox(height: 25),
             _buildLocationCard(),
@@ -435,6 +489,33 @@ Future<void> _pickImage() async {
             _buildSubmitButton(),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Guest mode's one-line contract, stated before the form so nobody thinks
+  /// the report went to the server.
+  Widget _buildGuestNotice() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: warningAmber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: warningAmber.withValues(alpha: 0.25)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: warningAmber),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Guest report: it is saved on this phone, with the location stamped "
+              "on the photo, and uploads when you sign in.",
+              style: TextStyle(fontSize: 12, height: 1.4, color: inkMuted),
+            ),
+          ),
+        ],
       ),
     );
   }

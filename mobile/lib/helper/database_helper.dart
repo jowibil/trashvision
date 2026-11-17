@@ -173,13 +173,14 @@ class DatabaseHelper {
     );
   }
 
-  Future<List<Report>> getReports() async {
-    final db = await instance.database;
-    final result = await db.query('report_outbox', orderBy: 'created_at DESC');
-    return result.map((json) => Report.fromSql(json)).toList();
-  }
-
-  /// MISSING METHOD: Query filtered offline caches to feed user_profile.dart UI
+  /// Pending reports for ONE owner, newest first.
+  ///
+  /// Deliberately the only "read the whole outbox" query: SyncService uploads
+  /// through this so a shared device can never push another account's queued
+  /// report under the token that happens to be live. (A global `getReports()`
+  /// existed and was exactly that bug.)
+  ///
+  /// Also feeds user_profile_screen.dart the pending half of the ledger.
   Future<List<Report>> getReportsByUserId(String userId) async {
     final db = await instance.database;
     final result = await db.query(
@@ -194,6 +195,35 @@ class DatabaseHelper {
   Future<void> deleteReport(int id) async {
     final db = await instance.database;
     await db.delete('report_outbox', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Guest mode: reports filed with no session carry [Report.guestUserId] in
+  /// the outbox. This stamps them with the account that just signed in, so
+  /// the local ledger/Profile history attributes them correctly before
+  /// SyncService uploads them. Returns the number of rows re-owned.
+  Future<int> adoptGuestReports(String userId) async {
+    final db = await instance.database;
+    return await db.update(
+      'report_outbox',
+      {'user_id': userId},
+      // Empty string is the legacy "no owner" state, kept for rows queued by
+      // builds that predate the 'guest' placeholder.
+      where: 'user_id = ? OR user_id = ?',
+      whereArgs: [Report.guestUserId, ''],
+    );
+  }
+
+  /// How many guest reports are sitting on this device waiting for a sign-in.
+  /// Feeds the guest gate's "N waiting to upload" line.
+  Future<int> countGuestReports() async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'report_outbox',
+      columns: ['id'],
+      where: 'user_id = ?',
+      whereArgs: [Report.guestUserId],
+    );
+    return rows.length;
   }
 
   /// FIX (audit #9): archives a successfully-synced report into

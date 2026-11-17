@@ -11,9 +11,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
 import 'screens/login_screen.dart';
+import 'screens/guest_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/chat_screen.dart';
 import 'screens/info_screen.dart';
+import 'screens/help_screen.dart';
+import 'screens/legal_screen.dart';
+import 'config/legal_content.dart';
 
 void main() async {
 
@@ -88,9 +92,15 @@ void initState() {
     }
     final navigator = _navigatorKey.currentState;
     if (navigator == null || !navigator.mounted) return;
-    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
+    // Guest gate, not the login form: the user can still file a report while
+    // signed out (it queues locally and uploads after sign-in). Landing on
+    // /login would throw away that option. Same destination for the startup
+    // expiry below, so both paths behave identically.
+    navigator.pushNamedAndRemoveUntil('/guest', (route) => false);
     _scaffoldMessengerKey.currentState?.showSnackBar(
-      const SnackBar(content: Text("Your session expired. Please sign in again.")),
+      const SnackBar(
+        content: Text("Your session expired. You can still report trash, or sign in again."),
+      ),
     );
   };
 
@@ -105,7 +115,9 @@ void initState() {
   if (widget.sessionExpired) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text("Your session expired. Please sign in again.")),
+        const SnackBar(
+          content: Text("Your session expired. You can still report trash, or sign in again."),
+        ),
       );
     });
   }
@@ -122,9 +134,16 @@ void initState() {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
-      initialRoute: widget.isLoggedIn ? '/home' : '/login',
+      initialRoute: widget.isLoggedIn
+          ? '/home'
+          : (widget.sessionExpired ? '/guest' : '/login'),
       routes: {
         '/login': (context) => const LoginScreen(),
+        // Signed-out landing surface: report now (queued to the offline
+        // outbox) or sign in. Reached from startup expiry, from any mid-session
+        // 401 above, and from "Continue as guest" on the login screen — which
+        // is what makes guest mode available to someone who never signed in.
+        '/guest': (context) => const GuestScreen(),
         // All four signed-in tabs are bodies of this single route, so Home
         // stays beneath them and system back returns to Home instead of
         // closing the app. The old per-tab '/map', '/report' and '/profile'
@@ -133,6 +152,20 @@ void initState() {
         '/chat': (context) => const ChatScreen(),
         // Pushed above the shell, so back returns to whichever tab opened it.
         '/info': (context) => const InfoScreen(),
+        // Help & Services: FAQ hub, contact, and the two legal documents. Both
+        // documents ship in the bundle (config/legal_content.dart), so they
+        // open offline and cannot show a stale fetched copy.
+        '/help': (context) => const HelpScreen(),
+        '/legal/terms': (context) => const LegalScreen(
+          document: termsOfService,
+          other: privacyPolicy,
+          otherRoute: '/legal/privacy',
+        ),
+        '/legal/privacy': (context) => const LegalScreen(
+          document: privacyPolicy,
+          other: termsOfService,
+          otherRoute: '/legal/terms',
+        ),
       },
     );
   }
